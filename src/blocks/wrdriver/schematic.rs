@@ -1,23 +1,21 @@
-use substrate::schematic::circuit::Direction;
-
 use crate::blocks::delay_line::tristate::TristateInv;
 use crate::blocks::gate::PrimitiveGateParams;
 
 use super::WriteDriver;
 
 impl WriteDriver {
-    pub(crate) fn schematic(
+    pub(crate) fn build_schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let en = ctx.port("en", Direction::Input);
-        let en_b = ctx.port("en_b", Direction::Input);
-        let data = ctx.port("data", Direction::Input);
-        let data_b = ctx.port("data_b", Direction::Input);
-        let bl = ctx.port("bl", Direction::InOut);
-        let br = ctx.port("br", Direction::InOut);
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
+        ctx: &mut crate::schematic::CircuitBuilder,
+    ) -> anyhow::Result<()> {
+        let en = ctx.port("en", crate::schematic::Direction::Input);
+        let en_b = ctx.port("en_b", crate::schematic::Direction::Input);
+        let data = ctx.port("data", crate::schematic::Direction::Input);
+        let data_b = ctx.port("data_b", crate::schematic::Direction::Input);
+        let bl = ctx.port("bl", crate::schematic::Direction::InOut);
+        let br = ctx.port("br", crate::schematic::Direction::InOut);
+        let vdd = ctx.port("vdd", crate::schematic::Direction::InOut);
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
 
         ctx.instantiate::<TristateInv>(&PrimitiveGateParams {
             pwidth: self.params.pwidth_driver,

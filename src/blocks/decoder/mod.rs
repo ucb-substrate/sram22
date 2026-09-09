@@ -1,13 +1,13 @@
 use crate::blocks::decoder::sizing::{path_map_tree, Tree, ValueTree};
+use crate::logic::delay::{GateModel, LogicPath, OptimizerOpts};
+use crate::script::{DesignContext, Script};
 use serde::{Deserialize, Serialize};
 use std::cmp::max;
 use std::collections::HashSet;
 use subgeom::{snap_to_grid, Dir};
-use substrate::component::Component;
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerKey;
-use substrate::logic::delay::{GateModel, LogicPath, OptimizerOpts};
-use substrate::script::Script;
+use substrate1::component::Component;
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::LayerKey;
 
 use super::gate::{AndParams, GateParams, GateType, PrimitiveGateParams, PrimitiveGateType};
 
@@ -17,15 +17,17 @@ pub mod sim;
 
 pub mod sizing;
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct Decoder {
     params: DecoderParams,
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct DecoderStage {
     params: DecoderStageParams,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct DecoderParams {
     pub pd: DecoderPhysicalDesignParams,
     pub max_width: Option<i64>,
@@ -492,8 +494,8 @@ impl Component for Decoder {
     type Params = DecoderParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -503,27 +505,56 @@ impl Component for Decoder {
         arcstr::literal!("decoder")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
+
+impl crate::schematic::FromParams for Decoder {
+    type Params = DecoderParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for Decoder {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("decoder")
+    }
+    fn io(&self) -> Self::Io {
+        self.schematic_io()
+    }
+}
+impl substrate::schematic::Schematic for Decoder {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+crate::impl_sky130_build!(Decoder);
 
 impl Component for DecoderStage {
     type Params = DecoderStageParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -533,20 +564,49 @@ impl Component for DecoderStage {
         arcstr::literal!("decoder_stage")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
+
+impl crate::schematic::FromParams for DecoderStage {
+    type Params = DecoderStageParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for DecoderStage {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("decoder_stage")
+    }
+    fn io(&self) -> Self::Io {
+        self.schematic_io()
+    }
+}
+impl substrate::schematic::Schematic for DecoderStage {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+crate::impl_sky130_build!(DecoderStage);
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum RoutingStyle {
@@ -603,9 +663,9 @@ impl Script for DecoderPhysicalDesignScript {
 
     fn run(
         params: &Self::Params,
-        ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self::Output> {
-        let layers = ctx.layers();
+        _ctx: &substrate::context::Context,
+    ) -> anyhow::Result<Self::Output> {
+        let layers = crate::layout_ctx().layers();
         let li = layers.get(Selector::Metal(0))?;
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
@@ -651,8 +711,8 @@ impl Script for DecoderStagePhysicalDesignScript {
 
     fn run(
         params: &Self::Params,
-        ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self::Output> {
+        ctx: &substrate::context::Context,
+    ) -> anyhow::Result<Self::Output> {
         let mut dsn = (*ctx.run_script::<DecoderPhysicalDesignScript>(&params.pd)?).clone();
         if dsn.width < 1_900 && matches!(params.gate, GateParams::And3(_) | GateParams::Nand3(_)) {
             assert_eq!(
@@ -758,6 +818,9 @@ pub(crate) fn base_indices(mut i: usize, sizes: &[usize]) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
+    use crate::script::DesignContext;
+    #[cfg(feature = "commercial")]
+    use crate::verification::calibre::CalibreContext;
 
     use subgeom::Dir;
 
@@ -785,7 +848,7 @@ mod tests {
             use_multi_finger_invs: true,
         };
 
-        ctx.write_schematic_to_file::<Decoder>(&params, out_spice(work_dir, "netlist"))
+        crate::netlist::write_schematic::<Decoder>(&ctx, &params, out_spice(work_dir, "netlist"))
             .expect("failed to write schematic");
     }
 
@@ -824,9 +887,14 @@ mod tests {
             child_sizes: vec![2, 2],
         };
 
-        ctx.write_schematic_to_file::<DecoderStage>(&params, out_spice(&work_dir, "netlist"))
-            .expect("failed to write netlist");
-        ctx.write_layout::<DecoderStage>(&params, out_gds(&work_dir, "layout"))
+        crate::netlist::write_schematic::<DecoderStage>(
+            &ctx,
+            &params,
+            out_spice(&work_dir, "netlist"),
+        )
+        .expect("failed to write netlist");
+        crate::layout_ctx()
+            .write_layout::<DecoderStage>(&params, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
 
         #[cfg(feature = "commercial")]
@@ -837,7 +905,7 @@ mod tests {
                 .expect("failed to run DRC");
             assert!(matches!(
                 output.summary,
-                substrate::verification::drc::DrcSummary::Pass
+                crate::verification::calibre::DrcSummary::Pass
             ));
 
             let lvs_work_dir = work_dir.join("lvs");
@@ -846,7 +914,7 @@ mod tests {
                 .expect("failed to run LVS");
             assert!(matches!(
                 output.summary,
-                substrate::verification::lvs::LvsSummary::Pass
+                crate::verification::calibre::LvsSummary::Pass
             ));
         }
     }
@@ -880,7 +948,8 @@ mod tests {
             dsn: (*dsn).clone(),
         };
 
-        ctx.write_layout::<DecoderGate>(&params, out_gds(work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<DecoderGate>(&params, out_gds(work_dir, "layout"))
             .expect("failed to write layout");
     }
 }

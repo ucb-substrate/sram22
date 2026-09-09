@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
-use substrate::component::Component;
-use substrate::layout::cell::{CellPort, PortConflictStrategy};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::placement::align::AlignMode;
-use substrate::layout::placement::array::ArrayTiler;
+use substrate1::component::Component;
+use substrate1::layout::cell::{CellPort, PortConflictStrategy};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::placement::align::AlignMode;
+use substrate1::layout::placement::array::ArrayTiler;
 
 use super::decoder::layout::{DecoderGate, DecoderGateParams, DecoderTap};
 use super::decoder::DecoderPhysicalDesign;
@@ -14,6 +14,7 @@ pub mod layout;
 pub mod schematic;
 pub mod sizing;
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Gate {
     And2(And2),
     And3(And3),
@@ -25,38 +26,47 @@ pub enum Gate {
     Nor2(Nor2),
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TappedGate {
     params: GateParams,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct And2 {
     params: AndParams,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct And3 {
     params: AndParams,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Inv {
     params: PrimitiveGateParams,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FoldedInv {
     params: PrimitiveGateParams,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct MultiFingerInv {
     params: PrimitiveGateParams,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Nand2 {
     params: PrimitiveGateParams,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Nand3 {
     params: PrimitiveGateParams,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Nor2 {
     params: PrimitiveGateParams,
 }
@@ -297,8 +307,8 @@ impl Component for Gate {
     type Params = GateParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(match *params {
             GateParams::And2(params) => Self::And2(And2 { params }),
             GateParams::And3(params) => Self::And3(And3 { params }),
@@ -315,17 +325,10 @@ impl Component for Gate {
         call_gate_fn!(self, name,)
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        call_gate_fn!(self, schematic, ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         call_gate_fn!(self, layout, ctx)
     }
 }
@@ -334,8 +337,8 @@ impl Component for TappedGate {
     type Params = GateParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(TappedGate { params: *params })
     }
 
@@ -343,20 +346,10 @@ impl Component for TappedGate {
         arcstr::literal!("tapped_gate")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let mut gate = ctx.instantiate::<Gate>(&self.params)?;
-        ctx.bubble_all_ports(&mut gate);
-        ctx.add_instance(gate);
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let li = layers.get(Selector::Metal(0))?;
         let stripe_metal = layers.get(Selector::Metal(1))?;
@@ -401,25 +394,18 @@ impl Component for And2 {
     type Params = AndParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("and2")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
@@ -428,25 +414,18 @@ impl Component for And3 {
     type Params = AndParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("and3")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
@@ -455,25 +434,18 @@ impl Component for Inv {
     type Params = PrimitiveGateParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("inv")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
@@ -492,25 +464,18 @@ impl Component for FoldedInv {
     type Params = PrimitiveGateParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("folded_inv")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
@@ -519,25 +484,18 @@ impl Component for MultiFingerInv {
     type Params = PrimitiveGateParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("multi_finger_inv")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
@@ -566,25 +524,18 @@ impl Component for Nand2 {
     type Params = PrimitiveGateParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("nand2")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
@@ -603,25 +554,18 @@ impl Component for Nand3 {
     type Params = PrimitiveGateParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("nand3")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
@@ -630,31 +574,26 @@ impl Component for Nor2 {
     type Params = PrimitiveGateParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("nor2")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "commercial")]
+    use crate::verification::calibre::CalibreContext;
 
     #[cfg(feature = "commercial")]
     use crate::measure::impedance::{
@@ -666,8 +605,6 @@ mod tests {
     use crate::tests::test_work_dir;
     #[cfg(feature = "commercial")]
     use std::collections::HashMap;
-    #[cfg(feature = "commercial")]
-    use substrate::schematic::netlist::NetlistPurpose;
 
     use super::*;
 
@@ -681,9 +618,10 @@ mod tests {
             nwidth: 1_000,
             length: 150,
         };
-        ctx.write_layout::<Inv>(&params, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<Inv>(&params, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<Inv>(&params, out_spice(&work_dir, "netlist"))
+        crate::netlist::write_schematic::<Inv>(&ctx, &params, out_spice(&work_dir, "netlist"))
             .expect("failed to write schematic");
 
         #[cfg(feature = "commercial")]
@@ -695,7 +633,7 @@ mod tests {
                 .expect("failed to run DRC");
             assert!(matches!(
                 output.summary,
-                substrate::verification::drc::DrcSummary::Pass
+                crate::verification::calibre::DrcSummary::Pass
             ));
             let lvs_work_dir = work_dir.join("lvs");
             let output = ctx
@@ -703,7 +641,7 @@ mod tests {
                 .expect("failed to run LVS");
             assert!(matches!(
                 output.summary,
-                substrate::verification::lvs::LvsSummary::Pass
+                crate::verification::calibre::LvsSummary::Pass
             ));
         }
     }
@@ -724,24 +662,20 @@ mod tests {
         let pex_dir = work_dir.join("pex");
         let pex_level = calibre::pex::PexLevel::Rc;
         let pex_netlist_path = crate::paths::out_pex(&work_dir, "pex_netlist", pex_level);
-        ctx.write_schematic_to_file_for_purpose::<TappedGate>(
-            &params,
-            &pex_path,
-            NetlistPurpose::Pex,
-        )
-        .expect("failed to write pex source netlist");
+        crate::netlist::write_schematic::<TappedGate>(&ctx, &params, &pex_path)
+            .expect("failed to write pex source netlist");
         let mut opts = std::collections::HashMap::with_capacity(1);
         opts.insert("level".into(), pex_level.as_str().into());
 
         let gds_path = out_gds(&work_dir, "layout");
-        ctx.write_layout::<TappedGate>(&params, &gds_path)
+        crate::layout_ctx()
+            .write_layout::<TappedGate>(&params, &gds_path)
             .expect("failed to write layout");
 
-        ctx.run_pex(substrate::verification::pex::PexInput {
+        ctx.run_pex(crate::verification::calibre::PexInput {
             work_dir: pex_dir,
             layout_path: gds_path.clone(),
             layout_cell_name: arcstr::literal!("tapped_gate"),
-            layout_format: substrate::layout::LayoutFormat::Gds,
             source_paths: vec![pex_path],
             source_cell_name: arcstr::literal!("tapped_gate"),
             pex_netlist_path: pex_netlist_path.clone(),
@@ -751,47 +685,47 @@ mod tests {
         .expect("failed to run pex");
 
         let pu_zin_work_dir = work_dir.join("pu_zin_sim");
-        let pu_zin = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Vss,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vmeas]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
-                    ]),
-                },
-                &pu_zin_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pu_zin = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Vss,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (arcstr::literal!("inputs"), vec![AcImpedanceTbNode::Vmeas]),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
+                ]),
+            },
+            &pu_zin_work_dir,
+        )
+        .expect("failed to write simulation");
         let pu_zout_work_dir = work_dir.join("pu_zout_sim");
-        let pu_zout = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Floating,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
-                    ]),
-                },
-                &pu_zout_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pu_zout = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Floating,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (arcstr::literal!("inputs"), vec![AcImpedanceTbNode::Vss]),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
+                ]),
+            },
+            &pu_zout_work_dir,
+        )
+        .expect("failed to write simulation");
         println!(
             "Pull-up: Cin = {}, Cout = {}, Rout = {}",
             pu_zin.max_freq_cap(),
@@ -800,47 +734,47 @@ mod tests {
         );
 
         let pd_zin_work_dir = work_dir.join("pd_zin_sim");
-        let pd_zin = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Vdd,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vmeas]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
-                    ]),
-                },
-                &pd_zin_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pd_zin = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Vdd,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (arcstr::literal!("inputs"), vec![AcImpedanceTbNode::Vmeas]),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
+                ]),
+            },
+            &pd_zin_work_dir,
+        )
+        .expect("failed to write simulation");
         let pd_zout_work_dir = work_dir.join("pd_zout_sim");
-        let pd_zout = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Floating,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
-                    ]),
-                },
-                &pd_zout_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pd_zout = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Floating,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (arcstr::literal!("inputs"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
+                ]),
+            },
+            &pd_zout_work_dir,
+        )
+        .expect("failed to write simulation");
         println!(
             "Pull-down: Cin = {}, Cout = {}, Rout = {}",
             pd_zin.max_freq_cap(),
@@ -867,24 +801,20 @@ mod tests {
             let pex_dir = work_dir.join("pex");
             let pex_level = calibre::pex::PexLevel::Rc;
             let pex_netlist_path = crate::paths::out_pex(&work_dir, "pex_netlist", pex_level);
-            ctx.write_schematic_to_file_for_purpose::<TappedGate>(
-                &params,
-                &pex_path,
-                NetlistPurpose::Pex,
-            )
-            .expect("failed to write pex source netlist");
+            crate::netlist::write_schematic::<TappedGate>(&ctx, &params, &pex_path)
+                .expect("failed to write pex source netlist");
             let mut opts = std::collections::HashMap::with_capacity(1);
             opts.insert("level".into(), pex_level.as_str().into());
 
             let gds_path = out_gds(&work_dir, "layout");
-            ctx.write_layout::<TappedGate>(&params, &gds_path)
+            crate::layout_ctx()
+                .write_layout::<TappedGate>(&params, &gds_path)
                 .expect("failed to write layout");
 
-            ctx.run_pex(substrate::verification::pex::PexInput {
+            ctx.run_pex(crate::verification::calibre::PexInput {
                 work_dir: pex_dir,
                 layout_path: gds_path.clone(),
                 layout_cell_name: arcstr::literal!("tapped_gate"),
-                layout_format: substrate::layout::LayoutFormat::Gds,
                 source_paths: vec![pex_path],
                 source_cell_name: arcstr::literal!("tapped_gate"),
                 pex_netlist_path: pex_netlist_path.clone(),
@@ -894,28 +824,28 @@ mod tests {
             .expect("failed to run pex");
 
             let sim_work_dir = work_dir.join("sim");
-            let transitions = ctx
-                .write_simulation::<TransitionTestbench<TappedGate>>(
-                    &TransitionTbParams {
-                        vdd: 1.8,
-                        dut: params,
-                        delay: 0.1e-9,
-                        width: 1e-9,
-                        fall: 20e-12,
-                        rise: 20e-12,
-                        lower_threshold: 0.2,
-                        upper_threshold: 0.8,
-                        pex_netlist: Some(pex_netlist_path.clone()),
-                        connections: HashMap::from_iter([
-                            (arcstr::literal!("vdd"), vec![TransitionTbNode::Vdd]),
-                            (arcstr::literal!("vss"), vec![TransitionTbNode::Vss]),
-                            (arcstr::literal!("a"), vec![TransitionTbNode::Vstim]),
-                            (arcstr::literal!("y"), vec![TransitionTbNode::Vmeas]),
-                        ]),
-                    },
-                    &sim_work_dir,
-                )
-                .expect("failed to write simulation");
+            let transitions = crate::sim::run::<TransitionTestbench<TappedGate>>(
+                &ctx,
+                &TransitionTbParams {
+                    vdd: 1.8,
+                    dut: params,
+                    delay: 0.1e-9,
+                    width: 1e-9,
+                    fall: 20e-12,
+                    rise: 20e-12,
+                    lower_threshold: 0.2,
+                    upper_threshold: 0.8,
+                    pex_netlist: Some(pex_netlist_path.clone()),
+                    connections: HashMap::from_iter([
+                        (arcstr::literal!("vdd"), vec![TransitionTbNode::Vdd]),
+                        (arcstr::literal!("vss"), vec![TransitionTbNode::Vss]),
+                        (arcstr::literal!("inputs"), vec![TransitionTbNode::Vstim]),
+                        (arcstr::literal!("y"), vec![TransitionTbNode::Vmeas]),
+                    ]),
+                },
+                &sim_work_dir,
+            )
+            .expect("failed to write simulation");
             println!(
                 "params = {:?}, tr = {:.3}ps, tf={:.3}ps",
                 params,
@@ -951,9 +881,10 @@ mod tests {
                 length: 150,
             },
         };
-        ctx.write_layout::<And2>(&params, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<And2>(&params, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<And2>(&params, out_spice(&work_dir, "netlist"))
+        crate::netlist::write_schematic::<And2>(&ctx, &params, out_spice(&work_dir, "netlist"))
             .expect("failed to write schematic");
     }
 
@@ -974,9 +905,10 @@ mod tests {
                 length: 150,
             },
         };
-        ctx.write_layout::<And3>(&params, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<And3>(&params, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<And3>(&params, out_spice(&work_dir, "netlist"))
+        crate::netlist::write_schematic::<And3>(&ctx, &params, out_spice(&work_dir, "netlist"))
             .expect("failed to write schematic");
     }
 
@@ -986,9 +918,10 @@ mod tests {
         let work_dir = test_work_dir("test_inv_dec");
 
         let params = Inv::dec_params();
-        ctx.write_layout::<Inv>(&params, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<Inv>(&params, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<Inv>(&params, out_spice(&work_dir, "netlist"))
+        crate::netlist::write_schematic::<Inv>(&ctx, &params, out_spice(&work_dir, "netlist"))
             .expect("failed to write schematic");
     }
 
@@ -1002,10 +935,15 @@ mod tests {
             pwidth: 40_000,
             length: 150,
         };
-        ctx.write_layout::<MultiFingerInv>(&params, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<MultiFingerInv>(&params, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<MultiFingerInv>(&params, out_spice(&work_dir, "netlist"))
-            .expect("failed to write schematic");
+        crate::netlist::write_schematic::<MultiFingerInv>(
+            &ctx,
+            &params,
+            out_spice(&work_dir, "netlist"),
+        )
+        .expect("failed to write schematic");
     }
 
     #[test]
@@ -1014,9 +952,10 @@ mod tests {
         let work_dir = test_work_dir("test_nand2_dec");
 
         let params = Nand2::dec_params();
-        ctx.write_layout::<Nand2>(&params, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<Nand2>(&params, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<Nand2>(&params, out_spice(&work_dir, "netlist"))
+        crate::netlist::write_schematic::<Nand2>(&ctx, &params, out_spice(&work_dir, "netlist"))
             .expect("failed to write schematic");
     }
 
@@ -1036,24 +975,20 @@ mod tests {
         let pex_dir = work_dir.join("pex");
         let pex_level = calibre::pex::PexLevel::Rc;
         let pex_netlist_path = crate::paths::out_pex(&work_dir, "pex_netlist", pex_level);
-        ctx.write_schematic_to_file_for_purpose::<TappedGate>(
-            &params,
-            &pex_path,
-            NetlistPurpose::Pex,
-        )
-        .expect("failed to write pex source netlist");
+        crate::netlist::write_schematic::<TappedGate>(&ctx, &params, &pex_path)
+            .expect("failed to write pex source netlist");
         let mut opts = std::collections::HashMap::with_capacity(1);
         opts.insert("level".into(), pex_level.as_str().into());
 
         let gds_path = out_gds(&work_dir, "layout");
-        ctx.write_layout::<TappedGate>(&params, &gds_path)
+        crate::layout_ctx()
+            .write_layout::<TappedGate>(&params, &gds_path)
             .expect("failed to write layout");
 
-        ctx.run_pex(substrate::verification::pex::PexInput {
+        ctx.run_pex(crate::verification::calibre::PexInput {
             work_dir: pex_dir,
             layout_path: gds_path.clone(),
             layout_cell_name: arcstr::literal!("tapped_gate"),
-            layout_format: substrate::layout::LayoutFormat::Gds,
             source_paths: vec![pex_path],
             source_cell_name: arcstr::literal!("tapped_gate"),
             pex_netlist_path: pex_netlist_path.clone(),
@@ -1063,49 +998,53 @@ mod tests {
         .expect("failed to run pex");
 
         let pu_zin_work_dir = work_dir.join("pu_zin_sim");
-        let pu_zin = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Vss,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vmeas]),
-                        (arcstr::literal!("b"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
-                    ]),
-                },
-                &pu_zin_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pu_zin = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Vss,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (
+                        arcstr::literal!("inputs"),
+                        vec![AcImpedanceTbNode::Vmeas, AcImpedanceTbNode::Vdd],
+                    ),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
+                ]),
+            },
+            &pu_zin_work_dir,
+        )
+        .expect("failed to write simulation");
         let pu_zout_work_dir = work_dir.join("pu_zout_sim");
-        let pu_zout = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Floating,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("b"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
-                    ]),
-                },
-                &pu_zout_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pu_zout = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Floating,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (
+                        arcstr::literal!("inputs"),
+                        vec![AcImpedanceTbNode::Vss, AcImpedanceTbNode::Vdd],
+                    ),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
+                ]),
+            },
+            &pu_zout_work_dir,
+        )
+        .expect("failed to write simulation");
         println!(
             "Pull-up: Cin = {}, Cout = {}, Rout = {}",
             pu_zin.max_freq_cap(),
@@ -1114,49 +1053,53 @@ mod tests {
         );
 
         let pd_zin_work_dir = work_dir.join("pd_zin_sim");
-        let pd_zin = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Vdd,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vmeas]),
-                        (arcstr::literal!("b"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
-                    ]),
-                },
-                &pd_zin_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pd_zin = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Vdd,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (
+                        arcstr::literal!("inputs"),
+                        vec![AcImpedanceTbNode::Vmeas, AcImpedanceTbNode::Vdd],
+                    ),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
+                ]),
+            },
+            &pd_zin_work_dir,
+        )
+        .expect("failed to write simulation");
         let pd_zout_work_dir = work_dir.join("pd_zout_sim");
-        let pd_zout = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Floating,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("b"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
-                    ]),
-                },
-                &pd_zout_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pd_zout = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Floating,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (
+                        arcstr::literal!("inputs"),
+                        vec![AcImpedanceTbNode::Vdd, AcImpedanceTbNode::Vdd],
+                    ),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
+                ]),
+            },
+            &pd_zout_work_dir,
+        )
+        .expect("failed to write simulation");
         println!(
             "Pull-down: Cin = {}, Cout = {}, Rout = {}",
             pd_zin.max_freq_cap(),
@@ -1175,9 +1118,10 @@ mod tests {
             pwidth: 2_400,
             length: 150,
         };
-        ctx.write_layout::<Nand3>(&params, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<Nand3>(&params, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<Nand3>(&params, out_spice(&work_dir, "netlist"))
+        crate::netlist::write_schematic::<Nand3>(&ctx, &params, out_spice(&work_dir, "netlist"))
             .expect("failed to write schematic");
     }
 
@@ -1197,24 +1141,20 @@ mod tests {
         let pex_dir = work_dir.join("pex");
         let pex_level = calibre::pex::PexLevel::Rc;
         let pex_netlist_path = crate::paths::out_pex(&work_dir, "pex_netlist", pex_level);
-        ctx.write_schematic_to_file_for_purpose::<TappedGate>(
-            &params,
-            &pex_path,
-            NetlistPurpose::Pex,
-        )
-        .expect("failed to write pex source netlist");
+        crate::netlist::write_schematic::<TappedGate>(&ctx, &params, &pex_path)
+            .expect("failed to write pex source netlist");
         let mut opts = std::collections::HashMap::with_capacity(1);
         opts.insert("level".into(), pex_level.as_str().into());
 
         let gds_path = out_gds(&work_dir, "layout");
-        ctx.write_layout::<TappedGate>(&params, &gds_path)
+        crate::layout_ctx()
+            .write_layout::<TappedGate>(&params, &gds_path)
             .expect("failed to write layout");
 
-        ctx.run_pex(substrate::verification::pex::PexInput {
+        ctx.run_pex(crate::verification::calibre::PexInput {
             work_dir: pex_dir,
             layout_path: gds_path.clone(),
             layout_cell_name: arcstr::literal!("tapped_gate"),
-            layout_format: substrate::layout::LayoutFormat::Gds,
             source_paths: vec![pex_path],
             source_cell_name: arcstr::literal!("tapped_gate"),
             pex_netlist_path: pex_netlist_path.clone(),
@@ -1224,51 +1164,61 @@ mod tests {
         .expect("failed to run pex");
 
         let pu_zin_work_dir = work_dir.join("pu_zin_sim");
-        let pu_zin = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Vss,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vmeas]),
-                        (arcstr::literal!("b"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("c"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
-                    ]),
-                },
-                &pu_zin_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pu_zin = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Vss,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (
+                        arcstr::literal!("inputs"),
+                        vec![
+                            AcImpedanceTbNode::Vmeas,
+                            AcImpedanceTbNode::Vdd,
+                            AcImpedanceTbNode::Vdd,
+                        ],
+                    ),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
+                ]),
+            },
+            &pu_zin_work_dir,
+        )
+        .expect("failed to write simulation");
         let pu_zout_work_dir = work_dir.join("pu_zout_sim");
-        let pu_zout = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Floating,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("b"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("c"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
-                    ]),
-                },
-                &pu_zout_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pu_zout = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Floating,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (
+                        arcstr::literal!("inputs"),
+                        vec![
+                            AcImpedanceTbNode::Vss,
+                            AcImpedanceTbNode::Vdd,
+                            AcImpedanceTbNode::Vdd,
+                        ],
+                    ),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
+                ]),
+            },
+            &pu_zout_work_dir,
+        )
+        .expect("failed to write simulation");
         println!(
             "Pull-up: Cin = {}, Cout = {}, Rout = {}",
             pu_zin.max_freq_cap(),
@@ -1277,51 +1227,61 @@ mod tests {
         );
 
         let pd_zin_work_dir = work_dir.join("pd_zin_sim");
-        let pd_zin = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Vdd,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vmeas]),
-                        (arcstr::literal!("b"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("c"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
-                    ]),
-                },
-                &pd_zin_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pd_zin = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Vdd,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (
+                        arcstr::literal!("inputs"),
+                        vec![
+                            AcImpedanceTbNode::Vmeas,
+                            AcImpedanceTbNode::Vdd,
+                            AcImpedanceTbNode::Vdd,
+                        ],
+                    ),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Floating]),
+                ]),
+            },
+            &pd_zin_work_dir,
+        )
+        .expect("failed to write simulation");
         let pd_zout_work_dir = work_dir.join("pd_zout_sim");
-        let pd_zout = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedGate>>(
-                &AcImpedanceTbParams {
-                    vdd: 1.8,
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    dut: params,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Floating,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("a"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("b"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("c"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
-                    ]),
-                },
-                &pd_zout_work_dir,
-            )
-            .expect("failed to write simulation");
+        let pd_zout = crate::sim::run::<AcImpedanceTestbench<TappedGate>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                vdd: 1.8,
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                dut: params,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Floating,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                    (
+                        arcstr::literal!("inputs"),
+                        vec![
+                            AcImpedanceTbNode::Vdd,
+                            AcImpedanceTbNode::Vdd,
+                            AcImpedanceTbNode::Vdd,
+                        ],
+                    ),
+                    (arcstr::literal!("y"), vec![AcImpedanceTbNode::Vmeas]),
+                ]),
+            },
+            &pd_zout_work_dir,
+        )
+        .expect("failed to write simulation");
         println!(
             "Pull-down: Cin = {}, Cout = {}, Rout = {}",
             pd_zin.max_freq_cap(),
@@ -1340,9 +1300,184 @@ mod tests {
             pwidth: 3_000,
             length: 150,
         };
-        ctx.write_layout::<Nor2>(&params, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<Nor2>(&params, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<Nor2>(&params, out_spice(&work_dir, "netlist"))
+        crate::netlist::write_schematic::<Nor2>(&ctx, &params, out_spice(&work_dir, "netlist"))
             .expect("failed to write schematic");
+    }
+}
+
+impl crate::schematic::FromParams for Gate {
+    type Params = GateParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(match *params {
+            GateParams::And2(params) => Self::And2(And2 { params }),
+            GateParams::And3(params) => Self::And3(And3 { params }),
+            GateParams::Inv(params) => Self::Inv(Inv { params }),
+            GateParams::FoldedInv(params) => Self::FoldedInv(FoldedInv { params }),
+            GateParams::MultiFingerInv(params) => Self::MultiFingerInv(MultiFingerInv { params }),
+            GateParams::Nand2(params) => Self::Nand2(Nand2 { params }),
+            GateParams::Nand3(params) => Self::Nand3(Nand3 { params }),
+            GateParams::Nor2(params) => Self::Nor2(Nor2 { params }),
+        })
+    }
+}
+crate::impl_sky130_build!(Gate);
+
+impl crate::schematic::FromParams for TappedGate {
+    type Params = GateParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(TappedGate { params: *params })
+    }
+}
+crate::impl_sky130_build!(TappedGate);
+
+impl crate::schematic::FromParams for And2 {
+    type Params = AndParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+crate::impl_sky130_build!(And2);
+
+impl crate::schematic::FromParams for And3 {
+    type Params = AndParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+crate::impl_sky130_build!(And3);
+
+impl crate::schematic::FromParams for Inv {
+    type Params = PrimitiveGateParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+crate::impl_sky130_build!(Inv);
+
+impl crate::schematic::FromParams for FoldedInv {
+    type Params = PrimitiveGateParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+crate::impl_sky130_build!(FoldedInv);
+
+impl crate::schematic::FromParams for MultiFingerInv {
+    type Params = PrimitiveGateParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+crate::impl_sky130_build!(MultiFingerInv);
+
+impl crate::schematic::FromParams for Nand2 {
+    type Params = PrimitiveGateParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+crate::impl_sky130_build!(Nand2);
+
+impl crate::schematic::FromParams for Nand3 {
+    type Params = PrimitiveGateParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+crate::impl_sky130_build!(Nand3);
+
+impl crate::schematic::FromParams for Nor2 {
+    type Params = PrimitiveGateParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+crate::impl_sky130_build!(Nor2);
+
+impl Gate {
+    pub fn new(params: GateParams) -> Self {
+        <Self as crate::schematic::FromParams>::from_params(&params)
+            .expect("invalid gate parameters")
+    }
+}
+
+impl TappedGate {
+    pub fn new(params: GateParams) -> Self {
+        <Self as crate::schematic::FromParams>::from_params(&params)
+            .expect("invalid gate parameters")
+    }
+}
+
+impl And2 {
+    pub fn new(params: AndParams) -> Self {
+        <Self as crate::schematic::FromParams>::from_params(&params)
+            .expect("invalid gate parameters")
+    }
+}
+
+impl And3 {
+    pub fn new(params: AndParams) -> Self {
+        <Self as crate::schematic::FromParams>::from_params(&params)
+            .expect("invalid gate parameters")
+    }
+}
+
+impl Inv {
+    pub fn new(params: PrimitiveGateParams) -> Self {
+        <Self as crate::schematic::FromParams>::from_params(&params)
+            .expect("invalid gate parameters")
+    }
+}
+
+impl FoldedInv {
+    pub fn new(params: PrimitiveGateParams) -> Self {
+        <Self as crate::schematic::FromParams>::from_params(&params)
+            .expect("invalid gate parameters")
+    }
+}
+
+impl MultiFingerInv {
+    pub fn new(params: PrimitiveGateParams) -> Self {
+        <Self as crate::schematic::FromParams>::from_params(&params)
+            .expect("invalid gate parameters")
+    }
+}
+
+impl Nand2 {
+    pub fn new(params: PrimitiveGateParams) -> Self {
+        <Self as crate::schematic::FromParams>::from_params(&params)
+            .expect("invalid gate parameters")
+    }
+}
+
+impl Nand3 {
+    pub fn new(params: PrimitiveGateParams) -> Self {
+        <Self as crate::schematic::FromParams>::from_params(&params)
+            .expect("invalid gate parameters")
+    }
+}
+
+impl Nor2 {
+    pub fn new(params: PrimitiveGateParams) -> Self {
+        <Self as crate::schematic::FromParams>::from_params(&params)
+            .expect("invalid gate parameters")
+    }
+}
+
+impl Gate {
+    pub fn params(&self) -> GateParams {
+        match self {
+            Self::And2(b) => GateParams::And2(b.params),
+            Self::And3(b) => GateParams::And3(b.params),
+            Self::Inv(b) => GateParams::Inv(b.params),
+            Self::FoldedInv(b) => GateParams::FoldedInv(b.params),
+            Self::MultiFingerInv(b) => GateParams::MultiFingerInv(b.params),
+            Self::Nand2(b) => GateParams::Nand2(b.params),
+            Self::Nand3(b) => GateParams::Nand3(b.params),
+            Self::Nor2(b) => GateParams::Nor2(b.params),
+        }
     }
 }

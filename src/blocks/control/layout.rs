@@ -2,24 +2,24 @@ use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
 use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
-use substrate::component::{Component, NoParams};
-use substrate::data::SubstrateCtx;
-use substrate::index::IndexOwned;
-use substrate::layout::cell::{CellPort, Instance, Port, PortConflictStrategy, PortId};
-use substrate::layout::context::LayoutCtx;
-use substrate::layout::elements::via::{Via, ViaParams};
-use substrate::layout::group::Group;
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerBoundBox;
-use substrate::layout::placement::align::{AlignMode, AlignRect};
-use substrate::layout::placement::array::{ArrayTiler, ArrayTilerBuilder};
-use substrate::layout::placement::tile::LayerBbox;
-use substrate::layout::routing::auto::grid::ExpandToGridStrategy;
-use substrate::layout::routing::auto::{GreedyRouter, GreedyRouterConfig, LayerConfig};
-use substrate::layout::routing::manual::jog::{ElbowJog, SJog};
-use substrate::layout::routing::tracks::TrackLocator;
-use substrate::layout::Draw;
-use substrate::pdk::stdcell::StdCell;
+use substrate1::component::{Component, NoParams};
+use substrate1::data::SubstrateCtx;
+use substrate1::index::IndexOwned;
+use substrate1::layout::cell::{CellPort, Instance, Port, PortConflictStrategy, PortId};
+use substrate1::layout::context::LayoutCtx;
+use substrate1::layout::elements::via::{Via, ViaParams};
+use substrate1::layout::group::Group;
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::LayerBoundBox;
+use substrate1::layout::placement::align::{AlignMode, AlignRect};
+use substrate1::layout::placement::array::{ArrayTiler, ArrayTilerBuilder};
+use substrate1::layout::placement::tile::LayerBbox;
+use substrate1::layout::routing::auto::grid::ExpandToGridStrategy;
+use substrate1::layout::routing::auto::{GreedyRouter, GreedyRouterConfig, LayerConfig};
+use substrate1::layout::routing::manual::jog::{ElbowJog, SJog};
+use substrate1::layout::routing::tracks::TrackLocator;
+use substrate1::layout::Draw;
+use substrate1::pdk::stdcell::StdCell;
 
 use crate::blocks::macros::{SvtInv2, SvtInv4};
 
@@ -30,8 +30,8 @@ use subgeom::{Corner, Dir, Point, Rect, Side, Span};
 impl ControlLogicReplicaV2 {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let outline = layers.get(Selector::Name("outline"))?;
 
@@ -65,7 +65,7 @@ impl ControlLogicReplicaV2 {
         let mut rows = ArrayTiler::builder();
         rows.mode(AlignMode::Left).alt_mode(AlignMode::Beneath);
 
-        let create_row = |insts: &[(&str, &Instance)]| -> substrate::error::Result<Group> {
+        let create_row = |insts: &[(&str, &Instance)]| -> substrate1::error::Result<Group> {
             let mut row = new_row();
             row.push(tap.clone());
             for (_, inst) in insts {
@@ -212,9 +212,9 @@ impl ControlLogicReplicaV2 {
 
     fn route(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
+        ctx: &mut substrate1::layout::context::LayoutCtx,
         group: &Group,
-    ) -> substrate::error::Result<()> {
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let m0 = layers.get(Selector::Metal(0))?;
         let m1 = layers.get(Selector::Metal(1))?;
@@ -617,7 +617,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw_rect(m1, wl_ctl_q_out);
         router.occupy(m1, wl_ctl_q_out, "wlen_q")?;
 
-        let mut snap_pins = |net: &str, pins: &[&str]| -> substrate::error::Result<Vec<Rect>> {
+        let mut snap_pins = |net: &str, pins: &[&str]| -> substrate1::error::Result<Vec<Rect>> {
             let mut out_pins = Vec::with_capacity(pins.len());
             for &pin in pins {
                 let port = group.port_map().port(pin)?.largest_rect(m0)?;
@@ -1034,7 +1034,7 @@ impl ControlLogicReplicaV2 {
         let route_pins = |ctx: &mut LayoutCtx,
                           router: &mut GreedyRouter,
                           pins: &[(&str, &[Rect])]|
-         -> substrate::error::Result<()> {
+         -> substrate1::error::Result<()> {
             for (net, rects) in pins {
                 for dst in &rects[1..] {
                     router.route_with_net(ctx, m1, rects[0], m1, *dst, net)?;
@@ -1137,7 +1137,7 @@ pub struct InvChains {
 
 impl Component for InvChains {
     type Params = InvChainsParams;
-    fn new(params: &Self::Params, _ctx: &SubstrateCtx) -> substrate::error::Result<Self> {
+    fn new(params: &Self::Params, _ctx: &SubstrateCtx) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -1147,8 +1147,8 @@ impl Component for InvChains {
     }
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let stdcells = ctx.inner().std_cell_db();
         let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
         let tap = lib.try_cell_named("sky130_fd_sc_hs__tap_2")?;
@@ -1337,8 +1337,8 @@ impl Component for InvChains {
 impl SrLatch {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let stdcells = ctx.inner().std_cell_db();
         let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
         let nand2 = lib.try_cell_named("sky130_fd_sc_hs__nand2_8")?;
@@ -1484,8 +1484,8 @@ impl SrLatch {
 impl InvChain {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let stdcells = ctx.inner().std_cell_db();
         let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
         let inv = lib.try_cell_named("sky130_fd_sc_hs__inv_2")?;
@@ -1576,8 +1576,8 @@ impl InvChain {
 impl SvtInvChain {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let stdcells = ctx.inner().std_cell_db();
         let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
         let inv = ctx.instantiate::<SvtInv2>(&NoParams)?;
@@ -1666,8 +1666,8 @@ impl SvtInvChain {
 impl EdgeDetector {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let stdcells = ctx.inner().std_cell_db();
         let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
         let and = lib.try_cell_named("sky130_fd_sc_hs__and2_4")?;

@@ -1,27 +1,22 @@
-use substrate::component::NoParams;
-use substrate::index::IndexOwned;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::context::SchematicCtx;
-
 use super::SpCellArray;
 use crate::blocks::macros::{SpCell, SpColend, SpHorizWlstrapP, SpHstrap};
 
 impl SpCellArray {
-    pub(crate) fn schematic(
+    pub(crate) fn build_schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let dummy_bl = ctx.port("dummy_bl", Direction::InOut);
-        let dummy_br = ctx.port("dummy_br", Direction::InOut);
-        let bl = ctx.bus_port("bl", self.params.cols, Direction::InOut);
-        let br = ctx.bus_port("br", self.params.cols, Direction::InOut);
-        let wl = ctx.bus_port("wl", self.params.rows, Direction::Input);
+        ctx: &mut crate::schematic::CircuitBuilder,
+    ) -> anyhow::Result<()> {
+        let vdd = ctx.port("vdd", crate::schematic::Direction::InOut);
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
+        let dummy_bl = ctx.port("dummy_bl", crate::schematic::Direction::InOut);
+        let dummy_br = ctx.port("dummy_br", crate::schematic::Direction::InOut);
+        let bl = ctx.bus_port("bl", self.params.cols, crate::schematic::Direction::InOut);
+        let br = ctx.bus_port("br", self.params.cols, crate::schematic::Direction::InOut);
+        let wl = ctx.bus_port("wl", self.params.rows, crate::schematic::Direction::Input);
 
         let make_cell =
-            |ctx: &mut SchematicCtx, wl, bl, br, name| -> substrate::error::Result<()> {
-                let mut cell = ctx.instantiate::<SpCell>(&NoParams)?;
+            |ctx: &mut crate::schematic::CircuitBuilder, wl, bl, br, name| -> anyhow::Result<()> {
+                let mut cell = ctx.instantiate::<SpCell>(&crate::schematic::NoParams)?;
                 cell.connect_all([
                     ("BL", bl),
                     ("BR", br),
@@ -36,43 +31,46 @@ impl SpCellArray {
                 Ok(())
             };
 
-        let make_colend = |ctx: &mut SchematicCtx, bl, br, name| -> substrate::error::Result<()> {
-            let mut cell = ctx.instantiate::<SpColend>(&NoParams)?;
-            cell.connect_all([
-                ("BL", bl),
-                ("BR", br),
-                ("VDD", vdd),
-                ("VSS", vss),
-                ("VNB", vss),
-                ("VPB", vdd),
-            ]);
-            cell.set_name(name);
-            ctx.add_instance(cell);
-            Ok(())
-        };
+        let make_colend =
+            |ctx: &mut crate::schematic::CircuitBuilder, bl, br, name| -> anyhow::Result<()> {
+                let mut cell = ctx.instantiate::<SpColend>(&crate::schematic::NoParams)?;
+                cell.connect_all([
+                    ("BL", bl),
+                    ("BR", br),
+                    ("VDD", vdd),
+                    ("VSS", vss),
+                    ("VNB", vss),
+                    ("VPB", vdd),
+                ]);
+                cell.set_name(name);
+                ctx.add_instance(cell);
+                Ok(())
+            };
 
-        let make_hstrap = |ctx: &mut SchematicCtx, bl, br, name| -> substrate::error::Result<()> {
-            let mut cell = ctx.instantiate::<SpHstrap>(&NoParams)?;
-            cell.connect_all([
-                ("BL", bl),
-                ("BR", br),
-                ("VDD", vdd),
-                ("VSS", vss),
-                ("VNB", vss),
-                ("VPB", vdd),
-            ]);
-            cell.set_name(name);
-            ctx.add_instance(cell);
-            Ok(())
-        };
+        let make_hstrap =
+            |ctx: &mut crate::schematic::CircuitBuilder, bl, br, name| -> anyhow::Result<()> {
+                let mut cell = ctx.instantiate::<SpHstrap>(&crate::schematic::NoParams)?;
+                cell.connect_all([
+                    ("BL", bl),
+                    ("BR", br),
+                    ("VDD", vdd),
+                    ("VSS", vss),
+                    ("VNB", vss),
+                    ("VPB", vdd),
+                ]);
+                cell.set_name(name);
+                ctx.add_instance(cell);
+                Ok(())
+            };
 
-        let make_horiz_wlstrap = |ctx: &mut SchematicCtx, name| -> substrate::error::Result<()> {
-            let mut cell = ctx.instantiate::<SpHorizWlstrapP>(&NoParams)?;
-            cell.connect_all([("VSS", vss), ("VNB", vss)]);
-            cell.set_name(name);
-            ctx.add_instance(cell);
-            Ok(())
-        };
+        let make_horiz_wlstrap =
+            |ctx: &mut crate::schematic::CircuitBuilder, name| -> anyhow::Result<()> {
+                let mut cell = ctx.instantiate::<SpHorizWlstrapP>(&crate::schematic::NoParams)?;
+                cell.connect_all([("VSS", vss), ("VNB", vss)]);
+                cell.set_name(name);
+                ctx.add_instance(cell);
+                Ok(())
+            };
 
         for i in 0..self.params.rows {
             for j in 0..self.params.cols {

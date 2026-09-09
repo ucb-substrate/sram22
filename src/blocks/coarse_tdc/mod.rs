@@ -1,25 +1,24 @@
 use serde::{Deserialize, Serialize};
 use subgeom::bbox::BoundBox;
 
-use substrate::component::{Component, NoParams};
-use substrate::index::IndexOwned;
-use substrate::layout::cell::{CellPort, PortConflictStrategy};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::placement::align::{AlignMode, AlignRect};
-use substrate::layout::placement::array::ArrayTiler;
-use substrate::layout::placement::tile::LayerBbox;
-use substrate::pdk::stdcell::StdCell;
-use substrate::schematic::circuit::Direction;
+use substrate1::component::{Component, NoParams};
+use substrate1::layout::cell::{CellPort, PortConflictStrategy};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::placement::align::{AlignMode, AlignRect};
+use substrate1::layout::placement::array::ArrayTiler;
+use substrate1::layout::placement::tile::LayerBbox;
+use substrate1::pdk::stdcell::StdCell;
 
 use super::gate::{Inv, PrimitiveGateParams};
 
 pub mod tb;
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct CoarseTdc {
     params: CoarseTdcParams,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 pub struct CoarseTdcParams {
     stages: usize,
     inv: PrimitiveGateParams,
@@ -31,6 +30,7 @@ impl CoarseTdcParams {
     }
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct CoarseTdcCell {
     params: PrimitiveGateParams,
 }
@@ -39,63 +39,15 @@ impl Component for CoarseTdcCell {
     type Params = PrimitiveGateParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
-    }
-
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
-        let [a, b, reset_b] = ctx.ports(["a", "b", "reset_b"], Direction::Input);
-        let [a_out, b_out, d_out] = ctx.ports(["a_out", "b_out", "d_out"], Direction::Output);
-
-        let [a_0, a_1, a_2, b_0] = ctx.signals(["a_0", "a_1", "a_2", "b_0"]);
-
-        let inv = ctx.instantiate::<Inv>(&self.params)?;
-
-        for (din, dout) in [
-            (a, a_0),
-            (a_0, a_1),
-            (a_1, a_2),
-            (a_2, a_out),
-            (b, b_0),
-            (b_0, b_out),
-        ] {
-            inv.clone()
-                .with_connections([("vdd", vdd), ("vss", vss), ("a", din), ("y", dout)])
-                .named("inv")
-                .add_to(ctx);
-        }
-
-        let stdcells = ctx.inner().std_cell_db();
-        let lib = stdcells
-            .default_lib()
-            .expect("no default standard cell library");
-        let ff = lib.try_cell_named("sky130_fd_sc_hd__dfrtp_2")?;
-        ctx.instantiate::<StdCell>(&ff.id())?
-            .with_connections([
-                ("VGND", vss),
-                ("VNB", vss),
-                ("VPB", vdd),
-                ("VPWR", vdd),
-                ("CLK", b),
-                ("RESET_B", reset_b),
-                ("D", a),
-                ("Q", d_out),
-            ])
-            .named(arcstr::format!("ff"))
-            .add_to(ctx);
-
-        Ok(())
     }
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let vspace = 400;
         let hspace = 400;
         let inv = ctx.instantiate::<Inv>(&self.params)?;
@@ -131,6 +83,93 @@ impl Component for CoarseTdcCell {
     }
 }
 
+impl crate::schematic::FromParams for CoarseTdcCell {
+    type Params = PrimitiveGateParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+impl substrate::block::Block for CoarseTdcCell {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("coarsetdccell")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("a", 1, crate::schematic::Direction::Input),
+            ("b", 1, crate::schematic::Direction::Input),
+            ("reset_b", 1, crate::schematic::Direction::Input),
+            ("a_out", 1, crate::schematic::Direction::Output),
+            ("b_out", 1, crate::schematic::Direction::Output),
+            ("d_out", 1, crate::schematic::Direction::Output),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for CoarseTdcCell {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl CoarseTdcCell {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
+        let [a, b, reset_b] = ctx.ports(["a", "b", "reset_b"], crate::schematic::Direction::Input);
+        let [a_out, b_out, d_out] = ctx.ports(
+            ["a_out", "b_out", "d_out"],
+            crate::schematic::Direction::Output,
+        );
+
+        let [a_0, a_1, a_2, b_0] = ctx.signals(["a_0", "a_1", "a_2", "b_0"]);
+
+        let inv = ctx.instantiate::<Inv>(&self.params)?;
+
+        for (din, dout) in [
+            (a, a_0),
+            (a_0, a_1),
+            (a_1, a_2),
+            (a_2, a_out),
+            (b, b_0),
+            (b_0, b_out),
+        ] {
+            inv.clone()
+                .with_connections([("vdd", vdd), ("vss", vss), ("a", din), ("y", dout)])
+                .named("inv")
+                .add_to(ctx);
+        }
+
+        ctx.instantiate::<crate::blocks::stdcells::HdDfrtp>(&crate::schematic::NoParams)?
+            .with_connections([
+                ("vgnd", vss),
+                ("vnb", vss),
+                ("vpb", vdd),
+                ("vpwr", vdd),
+                ("CLK", b),
+                ("RESET_B", reset_b),
+                ("D", a),
+                ("Q", d_out),
+            ])
+            .named(arcstr::format!("ff"))
+            .add_to(ctx);
+
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(CoarseTdcCell);
+
 pub struct TappedRegister;
 
 impl Component for TappedRegister {
@@ -138,8 +177,8 @@ impl Component for TappedRegister {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -149,8 +188,8 @@ impl Component for TappedRegister {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let outline = layers.get(Selector::Name("outline"))?;
 
@@ -188,29 +227,56 @@ impl Component for TappedRegister {
     }
 }
 
-impl Component for CoarseTdc {
+impl crate::schematic::FromParams for CoarseTdc {
     type Params = CoarseTdcParams;
-
-    fn new(
-        params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
         assert!(params.stages >= 3);
         Ok(Self { params: *params })
     }
-
+}
+impl substrate::block::Block for CoarseTdc {
+    type Io = crate::schematic::NamedIo;
     fn name(&self) -> arcstr::ArcStr {
         arcstr::format!("coarse_tdc_{}", self.params.stages)
     }
-
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("a", 1, crate::schematic::Direction::Input),
+            ("b", 1, crate::schematic::Direction::Input),
+            ("reset_b", 1, crate::schematic::Direction::Input),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+            (
+                "dout",
+                self.params.bits_out(),
+                crate::schematic::Direction::Output,
+            ),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for CoarseTdc {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
     fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
     ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl CoarseTdc {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
         let n = self.params.bits_out();
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
-        let [a, b, reset_b] = ctx.ports(["a", "b", "reset_b"], Direction::Input);
-        let dout = ctx.bus_port("dout", n, Direction::Output);
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
+        let [a, b, reset_b] = ctx.ports(["a", "b", "reset_b"], crate::schematic::Direction::Input);
+        let dout = ctx.bus_port("dout", n, crate::schematic::Direction::Output);
 
         let a_out = ctx.bus("a_out", n);
         let b_out = ctx.bus("b_out", n);
@@ -239,6 +305,7 @@ impl Component for CoarseTdc {
         Ok(())
     }
 }
+crate::impl_sky130_build!(CoarseTdc);
 
 #[cfg(test)]
 mod tests {
@@ -273,14 +340,17 @@ mod tests {
     fn test_coarse_tdc_cell() {
         let ctx = setup_ctx();
         let work_dir = test_work_dir("test_coarse_tdc_cell");
-        ctx.write_schematic_to_file::<CoarseTdcCell>(
+        crate::netlist::write_schematic::<CoarseTdcCell>(
+            &ctx,
             &TDC_PARAMS.inv,
             out_spice(&work_dir, "schematic"),
         )
         .expect("failed to write schematic");
-        ctx.write_layout::<CoarseTdcCell>(&TDC_PARAMS.inv, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<CoarseTdcCell>(&TDC_PARAMS.inv, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_layout::<TappedRegister>(&NoParams, out_gds(work_dir, "register"))
+        crate::layout_ctx()
+            .write_layout::<TappedRegister>(&NoParams, out_gds(work_dir, "register"))
             .expect("failed to write layout");
     }
 
@@ -288,8 +358,12 @@ mod tests {
     fn test_coarse_tdc() {
         let ctx = setup_ctx();
         let work_dir = test_work_dir("test_coarse_tdc");
-        ctx.write_schematic_to_file::<CoarseTdc>(&TDC_PARAMS, out_spice(work_dir, "schematic"))
-            .expect("failed to write schematic");
+        crate::netlist::write_schematic::<CoarseTdc>(
+            &ctx,
+            &TDC_PARAMS,
+            out_spice(work_dir, "schematic"),
+        )
+        .expect("failed to write schematic");
     }
 
     #[test]
@@ -297,7 +371,7 @@ mod tests {
     fn test_coarse_tdc_sim() {
         let ctx = setup_ctx();
         let work_dir = test_work_dir("test_coarse_tdc_sim");
-        ctx.write_simulation::<CoarseTdcTb>(&TDC_TB_PARAMS, work_dir)
+        crate::sim::run::<CoarseTdcTb>(&ctx, &TDC_TB_PARAMS, work_dir)
             .expect("failed to run simulation");
     }
 }

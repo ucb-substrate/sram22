@@ -2,41 +2,35 @@
 
 use std::path::PathBuf;
 
-#[cfg(feature = "commercial")]
-use crate::verification::calibre::SKY130_LAYERPROPS_PATH;
 pub use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
-#[cfg(not(feature = "commercial"))]
-use ngspice::Ngspice;
+use sky130::Sky130;
 #[cfg(feature = "commercial")]
 use sky130_commercial_pdk::Sky130CommercialPdk;
 #[cfg(not(feature = "commercial"))]
 use sky130_open_pdk::Sky130OpenPdk;
-#[cfg(feature = "commercial")]
-use spectre::Spectre;
-#[cfg(feature = "commercial")]
-use sub_calibre::CalibreDrc;
-#[cfg(feature = "commercial")]
-use sub_calibre::CalibreLvs;
-#[cfg(feature = "commercial")]
-use sub_calibre::CalibrePex;
-use substrate::data::{SubstrateConfig, SubstrateCtx};
+use substrate::context::Context;
+use substrate1::data::{SubstrateConfig, SubstrateCtx};
 #[cfg(not(feature = "commercial"))]
-use substrate::pdk::PdkParams;
-use substrate::schematic::netlist::impls::spice::SpiceNetlister;
-use substrate::verification::simulation::{Simulator, SimulatorOpts};
+use substrate1::pdk::PdkParams;
 use tera::Tera;
 
 pub mod abs;
+pub mod bits;
 pub mod blocks;
 pub mod cli;
 #[cfg(feature = "commercial")]
 pub mod liberate;
 pub mod liberty;
+pub mod logic;
 pub mod measure;
+pub mod netlist;
 pub mod paths;
 pub mod pex;
 pub mod plan;
+pub mod schematic;
+pub mod script;
+pub mod sim;
 pub mod tech;
 pub mod verification;
 pub mod verilog;
@@ -59,48 +53,48 @@ pub fn bus_bit(name: &str, index: usize) -> String {
     format!("{name}[{index}]")
 }
 
-pub fn setup_ctx() -> SubstrateCtx {
-    #[cfg(not(feature = "commercial"))]
-    let simulator = Ngspice::new(SimulatorOpts::default()).unwrap();
+thread_local! {
+    static LAYOUT_DESIGN_CONTEXTS: std::cell::RefCell<Vec<(SubstrateCtx, Context)>> = const { std::cell::RefCell::new(Vec::new()) };
+    static LAYOUT_CONTEXT: std::cell::RefCell<Option<SubstrateCtx>> = const { std::cell::RefCell::new(None) };
+}
 
-    #[cfg(feature = "commercial")]
-    let simulator = Spectre::new(SimulatorOpts::default()).unwrap();
+/// Runs a design script against the layout context currently generating geometry.
+pub(crate) fn with_layout_context<T>(layout: &SubstrateCtx, f: impl FnOnce(&Context) -> T) -> T {
+    struct Restore(Option<SubstrateCtx>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            LAYOUT_CONTEXT.with(|slot| *slot.borrow_mut() = self.0.take());
+        }
+    }
+    let previous = LAYOUT_CONTEXT.with(|slot| slot.replace(Some(layout.clone())));
+    let _restore = Restore(previous);
+    let design = LAYOUT_DESIGN_CONTEXTS.with(|contexts| {
+        let mut contexts = contexts.borrow_mut();
+        if let Some((_, design)) = contexts
+            .iter()
+            .find(|(other, _)| std::sync::Arc::ptr_eq(&other.pdk(), &layout.pdk()))
+        {
+            return design.clone();
+        }
+        let design = setup_ctx();
+        contexts.push((layout.clone(), design.clone()));
+        design
+    });
+    f(&design)
+}
 
+/// Creates the Substrate 1 context used only for layout generation.
+pub fn setup_layout_ctx() -> SubstrateCtx {
     let mut builder = SubstrateConfig::builder();
 
     #[cfg(feature = "commercial")]
-    let builder = builder
-        .pdk(
-            Sky130CommercialPdk::new(
-                PathBuf::from(SKY130_COMMERCIAL_PDK_ROOT),
-                PathBuf::from(SKY130_OPEN_PDK_ROOT),
-            )
-            .unwrap(),
+    let builder = builder.pdk(
+        Sky130CommercialPdk::new(
+            PathBuf::from(SKY130_COMMERCIAL_PDK_ROOT),
+            PathBuf::from(SKY130_OPEN_PDK_ROOT),
         )
-        .drc_tool(
-            CalibreDrc::builder()
-                .rules_file(PathBuf::from(
-                    crate::verification::calibre::SKY130_DRC_RULES_PATH,
-                ))
-                .runset_file(PathBuf::from(
-                    crate::verification::calibre::SKY130_DRC_RUNSET_PATH,
-                ))
-                .layerprops(PathBuf::from(SKY130_LAYERPROPS_PATH))
-                .build()
-                .unwrap(),
-        )
-        .lvs_tool(
-            CalibreLvs::builder()
-                .rules_file(PathBuf::from(
-                    crate::verification::calibre::SKY130_LVS_RULES_PATH,
-                ))
-                .layerprops(PathBuf::from(SKY130_LAYERPROPS_PATH))
-                .build()
-                .unwrap(),
-        )
-        .pex_tool(CalibrePex::new(PathBuf::from(
-            crate::verification::calibre::SKY130_PEX_RULES_PATH,
-        )));
+        .unwrap(),
+    );
     #[cfg(not(feature = "commercial"))]
     let builder = builder.pdk(
         Sky130OpenPdk::new(&PdkParams {
@@ -109,19 +103,53 @@ pub fn setup_ctx() -> SubstrateCtx {
         .unwrap(),
     );
 
-    #[cfg(feature = "commercial")]
-    builder.simulation_bashrc("/tools/B/rahulkumar/sky130/priv/drc/.bashrc");
-
-    let cfg = builder
-        .netlister(SpiceNetlister::new())
-        .simulator(simulator)
-        .build();
+    let cfg = builder.build();
 
     SubstrateCtx::from_config(cfg).unwrap()
 }
 
+/// Creates the Substrate 2 context used for schematic generation, netlisting, and simulation.
+///
+/// Legacy layout generation uses a separate thread-local context.
+pub fn setup_ctx() -> Context {
+    let mut builder = Context::builder();
+    #[cfg(not(feature = "spectre"))]
+    {
+        builder.install(ngspice::Ngspice::default());
+        builder.install(crate::sim::ac::NgspiceAc);
+    }
+    #[cfg(feature = "spectre")]
+    builder.install(spectre::Spectre::default());
+
+    #[cfg(not(feature = "commercial"))]
+    {
+        builder.install(Sky130::open(SKY130_OPEN_PDK_ROOT));
+    }
+
+    #[cfg(feature = "commercial")]
+    {
+        builder.install(Sky130::src_nda(
+            SKY130_OPEN_PDK_ROOT,
+            SKY130_COMMERCIAL_PDK_ROOT,
+        ));
+    }
+
+    builder.build()
+}
+
+/// Returns this thread's layout context. Legacy layout state never crosses threads.
+pub fn layout_ctx() -> SubstrateCtx {
+    LAYOUT_CONTEXT.with(|slot| {
+        if slot.borrow().is_none() {
+            *slot.borrow_mut() = Some(setup_layout_ctx());
+        }
+        slot.borrow().as_ref().unwrap().clone()
+    })
+}
+
 #[cfg(test)]
 pub mod tests {
+
     use std::path::PathBuf;
 
     use super::BUILD_PATH;

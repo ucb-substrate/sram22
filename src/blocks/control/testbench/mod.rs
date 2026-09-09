@@ -1,24 +1,18 @@
+use crate::sim::waveform::{DigitalTrace as Waveform, DigitalWaveform};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use substrate::component::Component;
-use substrate::pdk::mos::query::Query;
-use substrate::pdk::mos::spec::MosKind;
-use substrate::pdk::mos::MosParams;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::elements::capacitor::Capacitor;
-use substrate::schematic::elements::mos::SchematicMos;
-use substrate::schematic::elements::vdc::Vdc;
-use substrate::schematic::elements::vpwl::Vpwl;
-use substrate::units::{SiPrefix, SiValue};
-use substrate::verification::simulation::{Save, TranAnalysis};
+use crate::sim::blocks::Capacitor;
+use crate::sim::blocks::Vdc;
+use crate::sim::blocks::Vpwl;
+use crate::sim::run::{Save, TranAnalysis};
 
+use crate::sim::run::SimulationTestbench as Testbench;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use substrate::verification::simulation::testbench::Testbench;
-use substrate::verification::simulation::waveform::{TimeWaveform, Waveform};
+use substrate::simulation::waveform::TimeWaveform;
 
-use super::{ControlLogicParams, ControlLogicReplicaV2, InvChain};
+use super::{ControlLogicParams, ControlLogicReplicaV2};
 
 #[derive(Debug, Clone, Builder, Serialize, Deserialize)]
 #[builder(derive(Debug))]
@@ -52,7 +46,7 @@ impl TbParams {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 pub enum Op {
     Read,
     Write,
@@ -156,53 +150,96 @@ fn generate_waveforms(params: &TbParams) -> TbWaveforms {
     TbWaveforms { clk, we, ce, rstb }
 }
 
-impl Component for ControlLogicTestbench {
+impl ControlLogicTestbench {
+    // Float bit patterns give block identity a reflexive Eq and matching Hash, including NaNs.
+    fn cache_key(&self) -> impl std::hash::Hash + Eq + '_ {
+        let p = &self.params;
+        (
+            [
+                p.clk_period.to_bits(),
+                p.tr.to_bits(),
+                p.tf.to_bits(),
+                p.vdd.to_bits(),
+                p.c_load.to_bits(),
+                p.t_hold.to_bits(),
+            ],
+            &p.ops,
+            &p.pex_netlist,
+        )
+    }
+}
+
+impl std::hash::Hash for ControlLogicTestbench {
+    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+        std::hash::Hash::hash(&self.cache_key(), h)
+    }
+}
+impl PartialEq for ControlLogicTestbench {
+    fn eq(&self, other: &Self) -> bool {
+        self.cache_key() == other.cache_key()
+    }
+}
+impl Eq for ControlLogicTestbench {}
+impl crate::schematic::FromParams for ControlLogicTestbench {
     type Params = TbParams;
-    fn new(
-        params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
     }
-
+}
+impl substrate::block::Block for ControlLogicTestbench {
+    type Io = substrate::types::TestbenchIo;
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("control_logic_testbench")
     }
-
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+impl substrate::schematic::Schematic for ControlLogicTestbench {
+    type Schema = crate::sim::Simulator;
+    type NestedData = ();
     fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
     ) -> substrate::error::Result<()> {
-        let vss = ctx.port("vss", Direction::InOut);
-        let [vdd, clk, we, ce, rstb, saen, pc_b, wlen, wrdrven, rbl, decrepstart, decrepend] = ctx
-            .signals([
-                "vdd",
-                "clk",
-                "we",
-                "ce",
-                "rstb",
-                "saen",
-                "pc_b",
-                "wlen",
-                "wrdrven",
-                "rbl",
-                "decrepstart",
-                "decrepend",
-            ]);
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl ControlLogicTestbench {
+    fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder<crate::sim::Simulator>,
+    ) -> anyhow::Result<()> {
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
+        let [vdd, clk, we, ce, rstb, saen, pc_b, wlen, wrdrven, rbl, rwl] = ctx.signals([
+            "vdd", "clk", "we", "ce", "rstb", "saen", "pc_b", "wlen", "wrdrven", "rbl", "rwl",
+        ]);
 
         let waveforms = generate_waveforms(&self.params);
-        let output_cap = SiValue::with_precision(self.params.c_load, SiPrefix::Femto);
+        let output_cap = crate::sim::dec(self.params.c_load);
 
-        ctx.instantiate::<ControlLogicReplicaV2>(&ControlLogicParams {
+        let params = ControlLogicParams {
             decoder_delay_invs: 20,
             wlen_pulse_invs: 11,
             pc_set_delay_invs: 8,
             wrdrven_set_delay_invs: 2,
             wrdrven_rst_delay_invs: 0,
-        })?
-        .with_connections([
+        };
+        let dut = if let Some(path) = &self.params.pex_netlist {
+            ctx.instantiate_pex::<ControlLogicReplicaV2>(&params, path)?
+        } else {
+            ctx.instantiate::<ControlLogicReplicaV2>(&params)?
+        };
+        dut.with_connections([
             ("vdd", vdd),
             ("vss", vss),
             ("clk", clk),
@@ -213,24 +250,13 @@ impl Component for ControlLogicTestbench {
             ("pc_b", pc_b),
             ("wlen", wlen),
             ("wrdrven", wrdrven),
-            ("decrepstart", decrepstart),
-            ("decrepend", decrepend),
+            ("rwl", rwl),
             ("rbl", rbl),
         ])
         .named("dut")
         .add_to(ctx);
 
-        ctx.instantiate::<InvChain>(&8)?
-            .with_connections([
-                ("din", decrepstart),
-                ("dout", decrepend),
-                ("vdd", vdd),
-                ("vss", vss),
-            ])
-            .named("decoder_replica")
-            .add_to(ctx);
-
-        ctx.instantiate::<Vdc>(&SiValue::with_precision(self.params.vdd, SiPrefix::Milli))?
+        ctx.instantiate::<Vdc>(&crate::sim::dec(self.params.vdd))?
             .with_connections([("p", vdd), ("n", vss)])
             .named("Vdd")
             .add_to(ctx);
@@ -256,34 +282,14 @@ impl Component for ControlLogicTestbench {
             .named("Crbl")
             .add_to(ctx);
 
-        let nmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Nmos).build().unwrap())?
-            .id();
-        let pmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Pmos).build().unwrap())?
-            .id();
-        ctx.instantiate::<SchematicMos>(&MosParams {
-            w: 1000,
-            l: 150,
-            m: 1,
-            nf: 1,
-            id: nmos_id,
-        })?
-        .with_connections([("d", rbl), ("g", wlen), ("s", vss), ("b", vss)])
-        .named("Mpd")
-        .add_to(ctx);
-        ctx.instantiate::<SchematicMos>(&MosParams {
-            w: 1000,
-            l: 150,
-            m: 1,
-            nf: 1,
-            id: pmos_id,
-        })?
-        .with_connections([("d", rbl), ("g", pc_b), ("s", vdd), ("b", vdd)])
-        .named("Mpu")
-        .add_to(ctx);
+        ctx.instantiate::<sky130::mos::Nfet01v8>(&(1000, 150))?
+            .with_connections([("d", rbl), ("g", rwl), ("s", vss), ("b", vss)])
+            .named("Mpd")
+            .add_to(ctx);
+        ctx.instantiate::<sky130::mos::Pfet01v8>(&(1000, 150))?
+            .with_connections([("d", rbl), ("g", pc_b), ("s", vdd), ("b", vdd)])
+            .named("Mpu")
+            .add_to(ctx);
 
         Ok(())
     }
@@ -317,10 +323,7 @@ pub fn tb_params(vdd: f64) -> TbParams {
 
 impl Testbench for ControlLogicTestbench {
     type Output = ();
-    fn setup(
-        &mut self,
-        ctx: &mut substrate::verification::simulation::context::PreSimCtx,
-    ) -> substrate::error::Result<()> {
+    fn setup(&self, ctx: &mut crate::sim::run::SimulationPlan) -> anyhow::Result<()> {
         let wav = generate_waveforms(&self.params);
         let step = self.params.clk_period / 8.0;
         if let Some(ref netlist) = self.params.pex_netlist {
@@ -341,10 +344,7 @@ impl Testbench for ControlLogicTestbench {
         Ok(())
     }
 
-    fn measure(
-        &mut self,
-        _ctx: &substrate::verification::simulation::context::PostSimCtx,
-    ) -> substrate::error::Result<Self::Output> {
+    fn measure(&self, _ctx: &crate::sim::run::SimulationResults) -> anyhow::Result<Self::Output> {
         Ok(())
     }
 }

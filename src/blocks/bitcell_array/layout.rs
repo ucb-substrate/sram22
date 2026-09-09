@@ -2,17 +2,17 @@ use arcstr::ArcStr;
 
 use grid::Grid;
 use serde::{Deserialize, Serialize};
-use substrate::component::{Component, NoParams};
+use substrate1::component::{Component, NoParams};
 
 use subgeom::orientation::Named;
 use subgeom::Shape;
-use substrate::layout::cell::{CellPort, PortConflictStrategy, PortId};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerKey;
-use substrate::layout::placement::grid::GridTiler;
-use substrate::layout::placement::nine_patch::{NpTiler, Region};
-use substrate::layout::placement::tile::{LayerBbox, OptionTile};
-use substrate::{into_grid, into_vec};
+use substrate1::layout::cell::{CellPort, PortConflictStrategy, PortId};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::LayerKey;
+use substrate1::layout::placement::grid::GridTiler;
+use substrate1::layout::placement::nine_patch::{NpTiler, Region};
+use substrate1::layout::placement::tile::{LayerBbox, OptionTile};
+use substrate1::{into_grid, into_vec};
 
 use crate::blocks::macros::{
     SpCell, SpCellOpt1a, SpColend, SpColendPCent, SpColenda, SpColendaPCent, SpCorner, SpCornera,
@@ -62,8 +62,8 @@ impl Component for SpCellArrayCornerUl {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -73,8 +73,8 @@ impl Component for SpCellArrayCornerUl {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let vmetal = ctx.layers().get(Selector::Metal(1))?;
         let hmetal = ctx.layers().get(Selector::Metal(2))?;
         let colend = ctx.instantiate::<SpColend>(&NoParams)?;
@@ -101,8 +101,8 @@ impl Component for SpCellArrayCornerUr {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -112,8 +112,8 @@ impl Component for SpCellArrayCornerUr {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let vmetal = ctx.layers().get(Selector::Metal(1))?;
         let hmetal = ctx.layers().get(Selector::Metal(2))?;
         let colend = ctx
@@ -151,8 +151,8 @@ impl Component for SpCellArrayCornerLr {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -162,8 +162,8 @@ impl Component for SpCellArrayCornerLr {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let vmetal = ctx.layers().get(Selector::Metal(1))?;
         let hmetal = ctx.layers().get(Selector::Metal(2))?;
         let colend = ctx
@@ -217,8 +217,8 @@ impl Component for SpCellArrayCornerLl {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -228,8 +228,8 @@ impl Component for SpCellArrayCornerLl {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let vmetal = ctx.layers().get(Selector::Metal(1))?;
         let hmetal = ctx.layers().get(Selector::Metal(2))?;
         let colenda = ctx
@@ -282,8 +282,8 @@ impl Component for SpCellArrayLeft {
 
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
 
@@ -293,8 +293,8 @@ impl Component for SpCellArrayLeft {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let hmetal = ctx.layers().get(Selector::Metal(2))?;
         let rowend_replica = ctx.instantiate::<SpRowend>(&NoParams)?;
         let mut rowenda_replica = ctx.instantiate::<SpRowenda>(&NoParams)?;
@@ -352,8 +352,8 @@ impl Component for SpCellArrayCornerBottom {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -363,8 +363,8 @@ impl Component for SpCellArrayCornerBottom {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let mut colenda = ctx.instantiate::<SpColenda>(&NoParams)?;
         let mut cornera = ctx.instantiate::<SpCornera>(&NoParams)?;
         let mut rowenda = ctx.instantiate::<SpRowenda>(&NoParams)?;
@@ -390,8 +390,8 @@ impl Component for SpCellArrayTop {
 
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
 
@@ -401,8 +401,8 @@ impl Component for SpCellArrayTop {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let colend_1 = ctx.instantiate::<SpColend>(&NoParams)?;
         let mut colend_2 = ctx.instantiate::<SpColend>(&NoParams)?;
         let cell_1 = ctx.instantiate::<SpCell>(&NoParams)?;
@@ -459,8 +459,8 @@ impl Component for SpCellArrayCenter {
 
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
 
@@ -470,8 +470,8 @@ impl Component for SpCellArrayCenter {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let cell_1 = ctx.instantiate::<SpCell>(&NoParams)?;
         let mut cell_2 = ctx.instantiate::<SpCell>(&NoParams)?;
         let mut cell_opt1a_1 = ctx.instantiate::<SpCellOpt1a>(&NoParams)?;
@@ -531,8 +531,8 @@ impl Component for SpCellArrayBottom {
 
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
 
@@ -542,8 +542,8 @@ impl Component for SpCellArrayBottom {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let mut colenda_1 = ctx.instantiate::<SpColenda>(&NoParams)?;
         let mut colenda_2 = ctx.instantiate::<SpColenda>(&NoParams)?;
         let mut cell_opt1a_1 = ctx.instantiate::<SpCellOpt1a>(&NoParams)?;
@@ -614,8 +614,8 @@ impl Component for SpCellArrayRight {
 
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
 
@@ -625,8 +625,8 @@ impl Component for SpCellArrayRight {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let mut rowend = ctx.instantiate::<SpRowend>(&NoParams)?;
         let mut rowenda = ctx.instantiate::<SpRowenda>(&NoParams)?;
         let mut rowend_hstrap = ctx.instantiate::<SpRowendHstrap>(&NoParams)?;
@@ -690,8 +690,8 @@ impl Component for SpCellArrayRight {
 impl SpCellArray {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let hstrap_ratio = 4;
         let nx = self.params.cols / self.params.mux_ratio;
         let ny = self.params.rows / hstrap_ratio;
@@ -812,8 +812,9 @@ impl SpCellArray {
 
 #[cfg(test)]
 mod tests {
+
     use crate::paths::out_gds;
-    use crate::setup_ctx;
+
     use crate::tests::test_work_dir;
 
     use super::{SpCellArrayBottom, TapRatio};
@@ -821,13 +822,13 @@ mod tests {
     #[test]
     #[ignore]
     fn test_sp_cell_array_bottom() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_sp_cell_array_bottom");
         let tap_ratio = TapRatio {
             mux_ratio: 4,
             hstrap_ratio: 4,
         };
-        ctx.write_layout::<SpCellArrayBottom>(&tap_ratio, out_gds(work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<SpCellArrayBottom>(&tap_ratio, out_gds(work_dir, "layout"))
             .expect("failed to write layout");
     }
 }

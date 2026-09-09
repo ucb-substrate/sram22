@@ -1,23 +1,22 @@
-use substrate::component::NoParams;
-use substrate::index::IndexOwned;
-use substrate::pdk::stdcell::StdCell;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::context::SchematicCtx;
-
 use crate::blocks::macros::{SvtInv2, SvtInv4};
 
 use super::{ControlLogicReplicaV2, EdgeDetector, InvChain, SrLatch, SvtInvChain};
 
 impl ControlLogicReplicaV2 {
-    pub(crate) fn schematic(&self, ctx: &mut SchematicCtx) -> substrate::error::Result<()> {
+    pub(crate) fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder,
+    ) -> anyhow::Result<()> {
         // PORTS
-        let [clk, ce, we, rstb, rbl] =
-            ctx.ports(["clk", "ce", "we", "rstb", "rbl"], Direction::Input);
+        let [clk, ce, we, rstb, rbl] = ctx.ports(
+            ["clk", "ce", "we", "rstb", "rbl"],
+            crate::schematic::Direction::Input,
+        );
         let [saen, pc_b, rwl, wlen, wrdrven] = ctx.ports(
             ["saen", "pc_b", "rwl", "wlen", "wrdrven"],
-            Direction::Output,
+            crate::schematic::Direction::Output,
         );
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
 
         // SIGNALS
         let [clkd, clk_buf, clkp0, clkp, clkp_b, clkpd, clkpd_b, clkpdd, clkp_grst_b] = ctx
@@ -51,25 +50,15 @@ impl ControlLogicReplicaV2 {
             ctx.signals(["reset", "we_b", "pc", "pc_set_b", "pc_b0", "rbl_b"]);
 
         // STANDARD CELLS
-        let stdcells = ctx.inner().std_cell_db();
-        let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
-        let inv = lib.try_cell_named("sky130_fd_sc_hs__inv_2")?;
-        let and2 = lib.try_cell_named("sky130_fd_sc_hs__and2_2")?;
-        let and2_med = lib.try_cell_named("sky130_fd_sc_hs__and2_4")?;
-        let nand2 = lib.try_cell_named("sky130_fd_sc_hs__nand2_4")?;
-        let nor2 = lib.try_cell_named("sky130_fd_sc_hs__nor2_4")?;
-        let mux2 = lib.try_cell_named("sky130_fd_sc_hs__mux2_4")?;
-        let buf = lib.try_cell_named("sky130_fd_sc_hs__buf_16")?;
-        let biginv = lib.try_cell_named("sky130_fd_sc_hs__inv_16")?;
 
-        ctx.instantiate::<StdCell>(&biginv.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsInv>(&16)?
             .with_connections([
                 ("A", rstb),
                 ("Y", reset),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("reset_inv")
             .add_to(ctx);
@@ -79,19 +68,19 @@ impl ControlLogicReplicaV2 {
             .with_connections([("din", clk), ("dout", clkd), ("vdd", vdd), ("vss", vss)])
             .named("clk_delay")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&and2.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsAnd2>(&4)?
             .with_connections([
                 ("A", clkd),
                 ("B", ce),
                 ("X", clk_buf),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("clk_gate")
             .add_to(ctx);
-        ctx.instantiate::<EdgeDetector>(&NoParams)?
+        ctx.instantiate::<EdgeDetector>(&crate::schematic::NoParams)?
             .with_connections([
                 ("din", clk_buf),
                 ("dout", clkp0),
@@ -100,25 +89,25 @@ impl ControlLogicReplicaV2 {
             ])
             .named("clk_pulse")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&buf.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsBuf>(&16)?
             .with_connections([
                 ("A", clkp0),
                 ("X", clkp),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("clk_pulse_buf")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&biginv.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsInv>(&16)?
             .with_connections([
                 ("A", clkp),
                 ("Y", clkp_b),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("clk_pulse_inv")
             .add_to(ctx);
@@ -126,14 +115,14 @@ impl ControlLogicReplicaV2 {
             .with_connections([("din", clkp_b), ("dout", clkpd), ("vdd", vdd), ("vss", vss)])
             .named("clkp_delay")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&inv.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsInv>(&2)?
             .with_connections([
                 ("A", clkpd),
                 ("Y", clkpd_b),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("clkpd_inv")
             .add_to(ctx);
@@ -151,16 +140,16 @@ impl ControlLogicReplicaV2 {
         //
         // Turn on wordlines at start of cycle.
         // Turn them off when replica bitline drops low enough to flip an inverter.
-        ctx.instantiate::<StdCell>(&mux2.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsMux2>(&4)?
             .with_connections([
                 ("A0", rbl_b),
                 ("A1", clkpdd),
                 ("S", we),
                 ("X", decrepstart),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("mux_wlen_rst")
             .add_to(ctx);
@@ -182,126 +171,126 @@ impl ControlLogicReplicaV2 {
             ])
             .named("decoder_replica_delay")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&inv.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsInv>(&2)?
             .with_connections([
                 ("A", we),
                 ("Y", we_b),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("inv_we")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&inv.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsInv>(&2)?
             .with_connections([
                 ("A", rbl),
                 ("Y", rbl_b),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("inv_rbl")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&nor2.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsNor2>(&4)?
             .with_connections([
                 ("A", decrepstart),
                 ("B", reset),
                 ("Y", wlen_grst_b),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("wlen_grst")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&nor2.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsNor2>(&4)?
             .with_connections([
                 ("A", wlen_rst_decoderd),
                 ("B", reset),
                 ("Y", pc_set_b),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("pc_set")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&nor2.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsNor2>(&4)?
             .with_connections([
                 ("A", decrepend),
                 ("B", reset),
                 ("Y", wrdrven_grst_b),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("wrdrven_grst")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&nor2.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsNor2>(&4)?
             .with_connections([
                 ("A", clkp),
                 ("B", reset),
                 ("Y", clkp_grst_b),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("clkp_grst")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&nand2.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsNand2>(&8)?
             .with_connections([
                 ("A", we_b),
                 ("B", decrepend),
                 ("Y", saen_set_b),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("nand_sense_en")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&nand2.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsNand2>(&8)?
             .with_connections([
                 ("A", rbl_b),
                 ("B", we_b),
                 ("Y", wlend),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("nand_wlendb_web")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&and2_med.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsAnd2>(&4)?
             .with_connections([
                 ("A", wlen_q),
                 ("B", wlend),
                 ("X", wlen),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("and_wlen")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&buf.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsBuf>(&16)?
             .with_connections([
                 ("A", wlen_q),
                 ("X", rwl),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("rwl_buf")
             .add_to(ctx);
 
         // CONTROL LATCHES
-        ctx.instantiate::<SrLatch>(&NoParams)?
+        ctx.instantiate::<SrLatch>(&crate::schematic::NoParams)?
             .with_connections([
                 ("sb", clkpd_b),
                 ("rb", wlen_grst_b),
@@ -312,7 +301,7 @@ impl ControlLogicReplicaV2 {
             ])
             .named("wl_ctl")
             .add_to(ctx);
-        ctx.instantiate::<SrLatch>(&NoParams)?
+        ctx.instantiate::<SrLatch>(&crate::schematic::NoParams)?
             .with_connections([
                 ("sb", saen_set_b),
                 ("rb", clkp_grst_b),
@@ -323,7 +312,7 @@ impl ControlLogicReplicaV2 {
             ])
             .named("saen_ctl")
             .add_to(ctx);
-        ctx.instantiate::<SrLatch>(&NoParams)?
+        ctx.instantiate::<SrLatch>(&crate::schematic::NoParams)?
             .with_connections([
                 ("sb", pc_set_b),
                 ("rb", clkp_b),
@@ -334,26 +323,26 @@ impl ControlLogicReplicaV2 {
             ])
             .named("pc_ctl")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&buf.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsBuf>(&16)?
             .with_connections([
                 ("A", pc_b0),
                 ("X", pc_b),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("pc_b_buf")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&nand2.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsNand2>(&8)?
             .with_connections([
                 ("A", clkpd),
                 ("B", we),
                 ("Y", wrdrven_set_b0),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("wrdrven_set")
             .add_to(ctx);
@@ -366,7 +355,7 @@ impl ControlLogicReplicaV2 {
             ])
             .named("wrdrven_set_delay")
             .add_to(ctx);
-        ctx.instantiate::<SrLatch>(&NoParams)?
+        ctx.instantiate::<SrLatch>(&crate::schematic::NoParams)?
             .with_connections([
                 ("sb", wrdrven_set_b),
                 ("rb", wrdrven_grst_b),
@@ -383,29 +372,27 @@ impl ControlLogicReplicaV2 {
 }
 
 impl SrLatch {
-    pub(crate) fn schematic(&self, ctx: &mut SchematicCtx) -> substrate::error::Result<()> {
-        let [sb, rb] = ctx.ports(["sb", "rb"], Direction::Input);
-        let [q, qb] = ctx.ports(["q", "qb"], Direction::Output);
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
+    pub(crate) fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder,
+    ) -> anyhow::Result<()> {
+        let [sb, rb] = ctx.ports(["sb", "rb"], crate::schematic::Direction::Input);
+        let [q, qb] = ctx.ports(["q", "qb"], crate::schematic::Direction::Output);
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
 
         let [q0, q0b] = ctx.signals(["q0", "q0b"]);
 
-        let stdcells = ctx.inner().std_cell_db();
-        let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
-        let nand2 = lib.try_cell_named("sky130_fd_sc_hs__nand2_8")?;
-        let inv = lib.try_cell_named("sky130_fd_sc_hs__inv_2")?;
-
-        let mut nand_set = ctx.instantiate::<StdCell>(&nand2.id())?;
+        let mut nand_set = ctx.instantiate::<crate::blocks::stdcells::HsNand2>(&8)?;
         let mut nand_reset = nand_set.clone();
 
         nand_set.connect_all([
             ("A", q0b),
             ("B", sb),
             ("Y", q0),
-            ("VPWR", vdd),
-            ("VPB", vdd),
-            ("VGND", vss),
-            ("VNB", vss),
+            ("pwr_vpwr", vdd),
+            ("pwr_vpb", vdd),
+            ("pwr_vgnd", vss),
+            ("pwr_vnb", vss),
         ]);
         nand_set.set_name("nand_set");
         ctx.add_instance(nand_set);
@@ -414,33 +401,33 @@ impl SrLatch {
             ("A", q0),
             ("B", rb),
             ("Y", q0b),
-            ("VPWR", vdd),
-            ("VPB", vdd),
-            ("VGND", vss),
-            ("VNB", vss),
+            ("pwr_vpwr", vdd),
+            ("pwr_vpb", vdd),
+            ("pwr_vgnd", vss),
+            ("pwr_vnb", vss),
         ]);
         nand_reset.set_name("nand_reset");
         ctx.add_instance(nand_reset);
 
-        ctx.instantiate::<StdCell>(&inv.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsInv>(&2)?
             .with_connections([
                 ("A", q0),
                 ("Y", qb),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("qb_inv")
             .add_to(ctx);
-        ctx.instantiate::<StdCell>(&inv.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsInv>(&2)?
             .with_connections([
                 ("A", q0b),
                 ("Y", q),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("q_inv")
             .add_to(ctx);
@@ -450,30 +437,28 @@ impl SrLatch {
 }
 
 impl InvChain {
-    pub(crate) fn schematic(&self, ctx: &mut SchematicCtx) -> substrate::error::Result<()> {
-        let din = ctx.port("din", Direction::Input);
-        let dout = ctx.port("dout", Direction::Output);
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
+    pub(crate) fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder,
+    ) -> anyhow::Result<()> {
+        let din = ctx.port("din", crate::schematic::Direction::Input);
+        let dout = ctx.port("dout", crate::schematic::Direction::Output);
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
         let x = ctx.bus("x", self.n - 1);
 
-        let stdcells = ctx.inner().std_cell_db();
-        let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
-        let inv = lib.try_cell_named("sky130_fd_sc_hs__inv_2")?;
-        let inv_end = lib.try_cell_named("sky130_fd_sc_hs__inv_4")?;
-
         for i in 0..self.n {
-            ctx.instantiate::<StdCell>(&if i == self.n - 1 {
-                inv_end.id()
+            ctx.instantiate::<crate::blocks::stdcells::HsInv>(&if i == self.n - 1 {
+                4
             } else {
-                inv.id()
+                2
             })?
             .with_connections([
                 ("A", if i == 0 { din } else { x.index(i - 1) }),
                 ("Y", if i == self.n - 1 { dout } else { x.index(i) }),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named(format!("inv{i}"))
             .add_to(ctx);
@@ -483,25 +468,28 @@ impl InvChain {
 }
 
 impl SvtInvChain {
-    pub(crate) fn schematic(&self, ctx: &mut SchematicCtx) -> substrate::error::Result<()> {
-        let din = ctx.port("din", Direction::Input);
-        let dout = ctx.port("dout", Direction::Output);
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
+    pub(crate) fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder,
+    ) -> anyhow::Result<()> {
+        let din = ctx.port("din", crate::schematic::Direction::Input);
+        let dout = ctx.port("dout", crate::schematic::Direction::Output);
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
         let x = ctx.bus("x", self.n - 1);
 
         for i in 0..self.n {
             if i == self.n - 1 {
-                ctx.instantiate::<SvtInv4>(&NoParams)?
+                ctx.instantiate::<SvtInv4>(&crate::schematic::NoParams)?
             } else {
-                ctx.instantiate::<SvtInv2>(&NoParams)?
+                ctx.instantiate::<SvtInv2>(&crate::schematic::NoParams)?
             }
             .with_connections([
                 ("A", if i == 0 { din } else { x.index(i - 1) }),
                 ("Y", if i == self.n - 1 { dout } else { x.index(i) }),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("vpwr", vdd),
+                ("vpb", vdd),
+                ("vgnd", vss),
+                ("vnb", vss),
             ])
             .named(format!("inv{i}"))
             .add_to(ctx);
@@ -511,10 +499,13 @@ impl SvtInvChain {
 }
 
 impl EdgeDetector {
-    pub(crate) fn schematic(&self, ctx: &mut SchematicCtx) -> substrate::error::Result<()> {
-        let din = ctx.port("din", Direction::Input);
-        let dout = ctx.port("dout", Direction::Output);
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
+    pub(crate) fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder,
+    ) -> anyhow::Result<()> {
+        let din = ctx.port("din", crate::schematic::Direction::Input);
+        let dout = ctx.port("dout", crate::schematic::Direction::Output);
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
         let delayed = ctx.signal("delayed");
 
         ctx.instantiate::<InvChain>(&self.invs)?
@@ -522,19 +513,15 @@ impl EdgeDetector {
             .named("delay_chain")
             .add_to(ctx);
 
-        let stdcells = ctx.inner().std_cell_db();
-        let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
-        let and2 = lib.try_cell_named("sky130_fd_sc_hs__and2_4")?;
-
-        ctx.instantiate::<StdCell>(&and2.id())?
+        ctx.instantiate::<crate::blocks::stdcells::HsAnd2>(&4)?
             .with_connections([
                 ("A", din),
                 ("B", delayed),
                 ("X", dout),
-                ("VPWR", vdd),
-                ("VPB", vdd),
-                ("VGND", vss),
-                ("VNB", vss),
+                ("pwr_vpwr", vdd),
+                ("pwr_vpb", vdd),
+                ("pwr_vgnd", vss),
+                ("pwr_vnb", vss),
             ])
             .named("and")
             .add_to(ctx);

@@ -4,18 +4,14 @@ use std::path::PathBuf;
 use arcstr::ArcStr;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use substrate::component::Component;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::elements::idc::Idc;
-use substrate::schematic::elements::vdc::Vdc;
-use substrate::schematic::signal::Signal;
-use substrate::units::{SiPrefix, SiValue};
-use substrate::verification::simulation::testbench::Testbench;
-use substrate::verification::simulation::{Analysis, Save, TranAnalysis};
 
-use crate::pex::Pex;
+use crate::schematic::Signal;
+use crate::sim::blocks::Idc;
+use crate::sim::blocks::Vdc;
+use crate::sim::run::SimulationTestbench as Testbench;
+use crate::sim::run::{Analysis, Save, TranAnalysis};
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub enum TbNode {
     Vdd,
     Vss,
@@ -48,30 +44,112 @@ impl<T: Clone> TbParams<T> {
     }
 }
 
-pub struct CapTestbench<T: Component> {
+pub struct CapTestbench<T: crate::schematic::FromParams<Params: std::hash::Hash + Eq>> {
     params: TbParams<T::Params>,
 }
 
-impl<P: Clone + Serialize, T: Component<Params = P>> Component for CapTestbench<T> {
+impl<T: crate::schematic::FromParams<Params: std::hash::Hash + Eq>> CapTestbench<T> {
+    fn cache_key(&self) -> impl std::hash::Hash + Eq + '_ {
+        let p = &self.params;
+        let mut connections: Vec<_> = p.connections.iter().collect();
+        connections.sort_by(|a, b| a.0.cmp(b.0));
+        (
+            [p.vdd.to_bits()],
+            &p.idc,
+            &p.dut,
+            &p.pex_netlist,
+            connections,
+        )
+    }
+}
+
+impl<
+        T: crate::schematic::FromParams<Params: std::hash::Hash + Eq>
+            + substrate::schematic::Schematic<Schema = sky130::Sky130>
+            + crate::schematic::BuildIn<crate::sim::Simulator>,
+    > std::hash::Hash for CapTestbench<T>
+{
+    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+        std::hash::Hash::hash(&self.cache_key(), h)
+    }
+}
+impl<
+        T: crate::schematic::FromParams<Params: std::hash::Hash + Eq>
+            + substrate::schematic::Schematic<Schema = sky130::Sky130>
+            + crate::schematic::BuildIn<crate::sim::Simulator>,
+    > PartialEq for CapTestbench<T>
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.cache_key() == other.cache_key()
+    }
+}
+impl<
+        T: crate::schematic::FromParams<Params: std::hash::Hash + Eq>
+            + substrate::schematic::Schematic<Schema = sky130::Sky130>
+            + crate::schematic::BuildIn<crate::sim::Simulator>,
+    > Eq for CapTestbench<T>
+{
+}
+impl<
+        T: crate::schematic::FromParams<Params: std::hash::Hash + Eq>
+            + substrate::schematic::Schematic<Schema = sky130::Sky130>
+            + crate::schematic::BuildIn<crate::sim::Simulator>,
+    > crate::schematic::FromParams for CapTestbench<T>
+{
     type Params = TbParams<T::Params>;
-    fn new(
-        params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
     }
-
+}
+impl<
+        T: crate::schematic::FromParams<Params: std::hash::Hash + Eq>
+            + substrate::schematic::Schematic<Schema = sky130::Sky130>
+            + crate::schematic::BuildIn<crate::sim::Simulator>,
+    > substrate::block::Block for CapTestbench<T>
+{
+    type Io = substrate::types::TestbenchIo;
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("cap_testbench")
     }
-
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+impl<
+        T: crate::schematic::FromParams<Params: std::hash::Hash + Eq>
+            + substrate::schematic::Schematic<Schema = sky130::Sky130>
+            + crate::schematic::BuildIn<crate::sim::Simulator>,
+    > substrate::schematic::Schematic for CapTestbench<T>
+{
+    type Schema = crate::sim::Simulator;
+    type NestedData = ();
     fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
     ) -> substrate::error::Result<()> {
-        let vss = ctx.port("vss", Direction::InOut);
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl<
+        T: crate::schematic::FromParams<Params: std::hash::Hash + Eq>
+            + substrate::schematic::Schematic<Schema = sky130::Sky130>
+            + crate::schematic::BuildIn<crate::sim::Simulator>,
+    > CapTestbench<T>
+{
+    fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder<crate::sim::Simulator>,
+    ) -> anyhow::Result<()> {
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
         let vdd = ctx.signal("vdd");
         let vmeas = ctx.signal("vmeas");
         let mut ctr = 0;
@@ -94,8 +172,8 @@ impl<P: Clone + Serialize, T: Component<Params = P>> Component for CapTestbench<
             connections.push((k.clone(), Signal::new(signal)));
         }
 
-        if self.params.pex_netlist.is_some() {
-            ctx.instantiate::<Pex<T>>(&self.params.dut)?
+        if let Some(netlist) = &self.params.pex_netlist {
+            ctx.instantiate_pex::<T>(&self.params.dut, netlist)?
                 .with_connections(connections)
                 .named("dut")
                 .add_to(ctx);
@@ -106,32 +184,33 @@ impl<P: Clone + Serialize, T: Component<Params = P>> Component for CapTestbench<
                 .add_to(ctx);
         }
 
-        ctx.instantiate::<Vdc>(&SiValue::with_precision(self.params.vdd, SiPrefix::Milli))?
+        ctx.instantiate::<Vdc>(&crate::sim::dec(self.params.vdd))?
             .with_connections([("p", vdd), ("n", vss)])
             .named("Vdd")
             .add_to(ctx);
 
-        let mut idc = ctx.instantiate::<Idc>(&SiValue::new(self.params.idc, SiPrefix::Nano))?;
+        let mut idc = ctx.instantiate::<Idc>(&crate::sim::dec((self.params.idc) as f64 * 1e-9))?;
         idc.connect_all([("p", vss), ("n", vmeas)]);
         idc.set_name("iin");
         ctx.add_instance(idc);
-
-        ctx.set_spice(".ic v(vmeas)=0");
 
         Ok(())
     }
 }
 
-impl<P: Clone + Serialize, T: Component<Params = P>> Testbench for CapTestbench<T> {
+impl<
+        T: crate::schematic::FromParams<Params: std::hash::Hash + Eq>
+            + substrate::schematic::Schematic<Schema = sky130::Sky130>
+            + crate::schematic::BuildIn<crate::sim::Simulator>,
+    > Testbench for CapTestbench<T>
+{
     type Output = NodeCap;
 
-    fn setup(
-        &mut self,
-        ctx: &mut substrate::verification::simulation::context::PreSimCtx,
-    ) -> substrate::error::Result<()> {
+    fn setup(&self, ctx: &mut crate::sim::run::SimulationPlan) -> anyhow::Result<()> {
         if let Some(ref netlist) = self.params.pex_netlist {
             ctx.include(netlist);
         }
+        ctx.set_ic("vmeas", rust_decimal::Decimal::ZERO);
         ctx.add_analysis(Analysis::Tran(
             TranAnalysis::builder()
                 .stop(6e-6)
@@ -144,11 +223,8 @@ impl<P: Clone + Serialize, T: Component<Params = P>> Testbench for CapTestbench<
         Ok(())
     }
 
-    fn measure(
-        &mut self,
-        ctx: &substrate::verification::simulation::context::PostSimCtx,
-    ) -> substrate::error::Result<Self::Output> {
-        let data = ctx.output().data[0].tran();
+    fn measure(&self, ctx: &crate::sim::run::SimulationResults) -> anyhow::Result<Self::Output> {
+        let data = ctx.data[0].tran();
         let sig = &data.data["vmeas"];
         let (idx1, v1) = sig
             .values

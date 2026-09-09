@@ -4,6 +4,7 @@ use crate::blocks::columns::ColumnsPhysicalDesignScript;
 use crate::blocks::control::{ControlLogicParams, ControlLogicReplicaV2};
 use crate::blocks::precharge::layout::ReplicaPrecharge;
 use crate::blocks::precharge::PrechargeParams;
+use crate::script::{DesignContext, Script};
 use arcstr::ArcStr;
 use layout::{ReplicaColumnMos, ReplicaColumnMosParams, ReplicaMetalRoutingParams};
 use serde::{Deserialize, Serialize};
@@ -11,20 +12,15 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::path::{Path, PathBuf};
 use subgeom::bbox::BoundBox;
 use subgeom::{snap_to_grid, Corner, Dir, Point, Rect, Span};
-use substrate::component::{error, Component};
-use substrate::data::SubstrateCtx;
-use substrate::error::ErrorSource;
-use substrate::layout::cell::{CellPort, Element, Port, PortConflictStrategy, PortId};
-use substrate::layout::elements::via::{Via, ViaExpansion, ViaParams};
-use substrate::layout::group::Group;
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerSpec;
-use substrate::layout::placement::place_bbox::PlaceBbox;
-use substrate::layout::routing::auto::straps::PlacedStraps;
-use substrate::layout::straps::SingleSupplyNet;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::context::SchematicCtx;
-use substrate::script::Script;
+use substrate1::component::Component;
+use substrate1::layout::cell::{CellPort, Element, Port, PortConflictStrategy, PortId};
+use substrate1::layout::elements::via::{Via, ViaExpansion, ViaParams};
+use substrate1::layout::group::Group;
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::LayerSpec;
+use substrate1::layout::placement::place_bbox::PlaceBbox;
+use substrate1::layout::routing::auto::straps::PlacedStraps;
+use substrate1::layout::straps::SingleSupplyNet;
 
 use super::bitcell_array::replica::ReplicaCellArrayParams;
 use super::bitcell_array::SpCellArrayParams;
@@ -84,18 +80,22 @@ pub fn parse_sram_batch_config(path: impl AsRef<Path>) -> anyhow::Result<Vec<Sra
     Ok(vec![single])
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct SramInner {
     params: SramParams,
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct Sram {
     params: SramParams,
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct SramPex {
     params: SramPexParams,
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct SramAggregator {
     params: Vec<SramParams>,
 }
@@ -107,13 +107,13 @@ pub enum MuxRatio {
     M8 = 8,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct SramPexParams {
     params: SramParams,
     pex_netlist: PathBuf,
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct SramParams {
     wmask_granularity: usize,
     mux_ratio: MuxRatio,
@@ -219,7 +219,7 @@ impl SramParams {
 
 pub struct SramPhysicalDesignScript;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct SramPhysicalDesign {
     pub(crate) bitcells: SpCellArrayParams,
     pub(crate) row_decoder: DecoderParams,
@@ -249,12 +249,12 @@ impl Script for SramPhysicalDesignScript {
 
     fn run(
         params: &Self::Params,
-        ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self::Output> {
+        ctx: &substrate::context::Context,
+    ) -> anyhow::Result<Self::Output> {
         let wl_cap = (params.cols() + 4) as f64 * WORDLINE_CAP_PER_CELL * 1.5; // safety factor.
         let clamped_wl_cap = f64::min(wl_cap, WORDLINE_CAP_MAX);
         let mut col_params = params.col_params();
-        let cols = ctx.instantiate_layout::<ColPeripherals>(&col_params)?;
+        let cols = crate::layout_ctx().instantiate_layout::<ColPeripherals>(&col_params)?;
         // +2 for dummy bitcells, then div_ceil by 6 and multiply by 2 for at least 0.9/3 = 0.3 V
         // differential and even number of rows.
         let rbl_ratio = 6;
@@ -264,7 +264,7 @@ impl Script for SramPhysicalDesignScript {
             rows: rbl_rows,
             cols: 2,
         };
-        let rbl_inst = ctx.instantiate_layout::<ReplicaCellArray>(&rbl)?;
+        let rbl_inst = crate::layout_ctx().instantiate_layout::<ReplicaCellArray>(&rbl)?;
         let addr_gate = DecoderStageParams {
             pd: DecoderPhysicalDesignParams {
                 style: DecoderStyle::Minimum,
@@ -282,7 +282,7 @@ impl Script for SramPhysicalDesignScript {
             dont_connect_outputs: false,
             child_sizes: vec![],
         };
-        let addr_gate_inst = ctx.instantiate_layout::<DecoderStage>(&addr_gate)?;
+        let addr_gate_inst = crate::layout_ctx().instantiate_layout::<DecoderStage>(&addr_gate)?;
         let pc_b_cap = COL_CAPACITANCES.pc_b
             * (col_params.cols + 4) as f64
             * col_params.pc.pull_up_width as f64
@@ -397,13 +397,16 @@ impl Script for SramPhysicalDesignScript {
             use_multi_finger_invs: true,
         };
 
-        let control_inst = ctx.instantiate_layout::<ControlLogicReplicaV2>(&control)?;
+        let control_inst =
+            crate::layout_ctx().instantiate_layout::<ControlLogicReplicaV2>(&control)?;
 
-        let col_dec_inst = ctx.instantiate_layout::<Decoder>(&col_decoder)?;
-        let pc_b_buffer_inst = ctx.instantiate_layout::<DecoderStage>(&pc_b_buffer)?;
-        let sense_en_buffer_inst = ctx.instantiate_layout::<DecoderStage>(&sense_en_buffer)?;
+        let col_dec_inst = crate::layout_ctx().instantiate_layout::<Decoder>(&col_decoder)?;
+        let pc_b_buffer_inst =
+            crate::layout_ctx().instantiate_layout::<DecoderStage>(&pc_b_buffer)?;
+        let sense_en_buffer_inst =
+            crate::layout_ctx().instantiate_layout::<DecoderStage>(&sense_en_buffer)?;
         let write_driver_en_buffer_inst =
-            ctx.instantiate_layout::<DecoderStage>(&write_driver_en_buffer)?;
+            crate::layout_ctx().instantiate_layout::<DecoderStage>(&write_driver_en_buffer)?;
         let col_dec_wh = col_dec_inst.brect().width() * col_dec_inst.brect().height();
         let pc_b_buffer_wh = pc_b_buffer_inst.brect().width() * pc_b_buffer_inst.brect().height();
         let sense_en_buffer_wh =
@@ -413,7 +416,7 @@ impl Script for SramPhysicalDesignScript {
         let mut total_wh =
             col_dec_wh + pc_b_buffer_wh + sense_en_buffer_wh + write_driver_en_buffer_wh;
         let num_dffs = params.addr_width() + 2;
-        let dffs_inst = ctx.instantiate_layout::<DffArray>(&num_dffs)?;
+        let dffs_inst = crate::layout_ctx().instantiate_layout::<DffArray>(&num_dffs)?;
 
         // Subtract DFF offset and routing tracks.
         let mut available_height = [
@@ -439,8 +442,8 @@ impl Script for SramPhysicalDesignScript {
         let write_driver_en_buffer_max_width =
             available_height * write_driver_en_buffer_wh / total_wh;
 
-        let col_dec_inst = ctx.instantiate_layout::<Decoder>(&col_decoder)?;
-        let row_dec_inst = ctx.instantiate_layout::<Decoder>(&row_decoder)?;
+        let col_dec_inst = crate::layout_ctx().instantiate_layout::<Decoder>(&col_decoder)?;
+        let row_dec_inst = crate::layout_ctx().instantiate_layout::<Decoder>(&row_decoder)?;
         let col_dec_wh = col_dec_inst.brect().width() * col_dec_inst.brect().height();
         let col_dec_width_to_match_row_dec = col_dec_wh / row_dec_inst.brect().height();
         let col_dec_max_width = if col_dec_width_to_match_row_dec < 2 * col_dec_max_width {
@@ -467,7 +470,7 @@ impl Script for SramPhysicalDesignScript {
         col_params.mux.sel_width = 320 + (320 + 360) * (col_dec_routing_tracks - 1);
         col_params.pc.en_b_width = 320 + (320 + 360) * (pc_b_routing_tracks - 1);
 
-        let mux_inst = ctx.instantiate_layout::<TGateMux>(&col_params.mux)?;
+        let mux_inst = crate::layout_ctx().instantiate_layout::<TGateMux>(&col_params.mux)?;
         let replica_pc = ReplicaPrechargeParams {
             cols: 2,
             inner: PrechargeParams {
@@ -475,7 +478,8 @@ impl Script for SramPhysicalDesignScript {
                 ..col_params.pc.scale(1. / rbl_ratio as f64)
             },
         };
-        let replica_pc_inst = ctx.instantiate_layout::<ReplicaPrecharge>(&replica_pc)?;
+        let replica_pc_inst =
+            crate::layout_ctx().instantiate_layout::<ReplicaPrecharge>(&replica_pc)?;
         let replica_nmos = ReplicaColumnMosParams {
             max_height: replica_pc_inst.brect().height(),
             gate_width_n: snap_to_grid(3_360usize.div_ceil(rbl_ratio) as i64, 50),
@@ -493,7 +497,8 @@ impl Script for SramPhysicalDesignScript {
             ),
             length: 150,
         };
-        let replica_nmos_inst = ctx.instantiate_layout::<ReplicaColumnMos>(&replica_nmos)?;
+        let replica_nmos_inst =
+            crate::layout_ctx().instantiate_layout::<ReplicaColumnMos>(&replica_nmos)?;
 
         Ok(Self::Output {
             bitcells: SpCellArrayParams {
@@ -542,53 +547,100 @@ impl Component for SramInner {
     type Params = SramParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("sram22_inner")
     }
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
+
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
+
+impl crate::schematic::FromParams for SramInner {
+    type Params = SramParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+impl substrate::block::Block for SramInner {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("sram22_inner")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("clk", 1, crate::schematic::Direction::Input),
+            ("we", 1, crate::schematic::Direction::Input),
+            ("ce", 1, crate::schematic::Direction::Input),
+            ("rstb", 1, crate::schematic::Direction::Input),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+            (
+                "addr",
+                self.params.addr_width(),
+                crate::schematic::Direction::Input,
+            ),
+            (
+                "wmask",
+                self.params.wmask_width(),
+                crate::schematic::Direction::Input,
+            ),
+            (
+                "din",
+                self.params.data_width(),
+                crate::schematic::Direction::Input,
+            ),
+            (
+                "dout",
+                self.params.data_width(),
+                crate::schematic::Direction::Output,
+            ),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for SramInner {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+crate::impl_sky130_build!(SramInner);
 
 impl Component for Sram {
     type Params = SramParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         self.params.name()
     }
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let mut inner = ctx.instantiate::<SramInner>(&self.params)?;
-        ctx.bubble_all_ports(&mut inner);
-        ctx.add_instance(inner);
-        Ok(())
-    }
 
     // Draws guard ring and shifts coordinates such that origin is at lower left corner.
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let mut group = Group::new();
         let sram = ctx.instantiate::<SramInner>(&self.params)?;
         ctx.set_metadata(*sram.cell().get_metadata::<columns::layout::Metadata>());
@@ -731,79 +783,184 @@ impl Component for Sram {
     }
 }
 
-impl Component for SramPex {
+impl crate::schematic::FromParams for Sram {
+    type Params = SramParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+impl substrate::block::Block for Sram {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        self.params.name()
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("clk", 1, crate::schematic::Direction::Input),
+            ("we", 1, crate::schematic::Direction::Input),
+            ("ce", 1, crate::schematic::Direction::Input),
+            ("rstb", 1, crate::schematic::Direction::Input),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+            (
+                "addr",
+                self.params.addr_width(),
+                crate::schematic::Direction::Input,
+            ),
+            (
+                "wmask",
+                self.params.wmask_width(),
+                crate::schematic::Direction::Input,
+            ),
+            (
+                "din",
+                self.params.data_width(),
+                crate::schematic::Direction::Input,
+            ),
+            (
+                "dout",
+                self.params.data_width(),
+                crate::schematic::Direction::Output,
+            ),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for Sram {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl Sram {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let mut inner = ctx.instantiate::<SramInner>(&self.params)?;
+        ctx.bubble_all_ports(&mut inner);
+        ctx.add_instance(inner);
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(Sram);
+
+impl crate::schematic::FromParams for SramPex {
     type Params = SramPexParams;
-    fn new(
-        params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
     }
-    fn name(&self) -> arcstr::ArcStr {
+}
+impl substrate::block::Block for SramPex {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> ArcStr {
         arcstr::format!("{}_pex", self.params.params.name())
     }
+    fn io(&self) -> Self::Io {
+        <Sram as substrate::block::Block>::io(&Sram {
+            params: self.params.params,
+        })
+    }
+}
+impl substrate::schematic::Schematic for SramPex {
+    type Schema = spice::Spice;
+    type NestedData = ();
     fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<spice::Spice>,
     ) -> substrate::error::Result<()> {
-        use std::fmt::Write;
-
-        let inner = ctx.instantiate::<Sram>(&self.params.params)?.named("Xdut");
-        let mut s = inner.name().to_string();
-        for port in inner.ports()? {
-            ctx.bus_port(port.name(), port.width(), port.direction());
-            for i in 0..port.width() {
-                if port.width > 1 {
-                    write!(&mut s, " {}[{}]", port.name(), i).unwrap();
-                } else {
-                    write!(&mut s, " {}", port.name()).unwrap();
-                }
-            }
-        }
-        write!(&mut s, " {}", inner.module().local().unwrap().name()).unwrap();
-        ctx.set_spice(s);
-        Ok(())
+        substrate::schematic::Schematic::schematic(
+            &crate::netlist::Pex::new(
+                Sram {
+                    params: self.params.params,
+                },
+                self.params.pex_netlist.clone(),
+            ),
+            io,
+            cell,
+        )
     }
-
-    fn layout(
-        &self,
-        _ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
-        Err(ErrorSource::Component(error::Error::ViewUnsupported(
-            substrate::component::View::Layout,
-        ))
-        .into())
+}
+impl crate::schematic::BuildIn<crate::sim::Simulator> for SramPex {
+    fn build_in(self) -> crate::schematic::CircuitInstance<crate::sim::Simulator> {
+        crate::schematic::native_instance(substrate::schematic::ConvertSchema::<
+            _,
+            crate::sim::Simulator,
+        >::new(self))
     }
 }
 
-impl Component for SramAggregator {
+impl crate::schematic::FromParams for SramAggregator {
     type Params = Vec<SramParams>;
-
-    fn new(params: &Self::Params, _ctx: &SubstrateCtx) -> substrate::error::Result<Self>
-    where
-        Self: Sized,
-    {
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
     }
-
-    fn name(&self) -> ArcStr {
+}
+impl substrate::block::Block for SramAggregator {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("sram22_sram_aggregator")
     }
-
-    fn schematic(&self, ctx: &mut SchematicCtx) -> substrate::error::Result<()> {
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
-        let [clk, rstb] = ctx.ports(["clk", "rstb"], Direction::Input);
+    fn io(&self) -> Self::Io {
+        self.schematic_io()
+    }
+}
+impl substrate::schematic::Schematic for SramAggregator {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl SramAggregator {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
+        let [clk, rstb] = ctx.ports(["clk", "rstb"], crate::schematic::Direction::Input);
         for (i, sram) in self.params.iter().enumerate() {
-            let we = ctx.port(format!("we_{i}"), Direction::Input);
-            let ce = ctx.port(format!("ce_{i}"), Direction::Input);
-            let addr = ctx.bus_port(format!("addr_{i}"), sram.addr_width(), Direction::Input);
-            let wmask = ctx.bus_port(format!("wmask_{i}"), sram.wmask_width(), Direction::Input);
-            let din = ctx.bus_port(format!("din_{i}"), sram.data_width(), Direction::Input);
-            let dout = ctx.bus_port(format!("dout_{i}"), sram.data_width(), Direction::Output);
+            let we = ctx.port(format!("we_{i}"), crate::schematic::Direction::Input);
+            let ce = ctx.port(format!("ce_{i}"), crate::schematic::Direction::Input);
+            let addr = ctx.bus_port(
+                format!("addr_{i}"),
+                sram.addr_width(),
+                crate::schematic::Direction::Input,
+            );
+            let wmask = ctx.bus_port(
+                format!("wmask_{i}"),
+                sram.wmask_width(),
+                crate::schematic::Direction::Input,
+            );
+            let din = ctx.bus_port(
+                format!("din_{i}"),
+                sram.data_width(),
+                crate::schematic::Direction::Input,
+            );
+            let dout = ctx.bus_port(
+                format!("dout_{i}"),
+                sram.data_width(),
+                crate::schematic::Direction::Output,
+            );
             ctx.instantiate::<Sram>(sram)?
                 .with_connections([
                     ("vdd", vdd),
@@ -822,9 +979,41 @@ impl Component for SramAggregator {
         Ok(())
     }
 }
+crate::impl_sky130_build!(SramAggregator);
+
+impl SramAggregator {
+    fn schematic_io(&self) -> crate::schematic::NamedIo {
+        use crate::schematic::{Direction, NamedIo, Port};
+        let mut io = NamedIo::new([
+            ("vdd", 1, Direction::InOut),
+            ("vss", 1, Direction::InOut),
+            ("clk", 1, Direction::Input),
+            ("rstb", 1, Direction::Input),
+        ]);
+        for (i, p) in self.params.iter().enumerate() {
+            for (name, width, direction) in [
+                ("we", 1, Direction::Input),
+                ("ce", 1, Direction::Input),
+                ("addr", p.addr_width(), Direction::Input),
+                ("wmask", p.wmask_width(), Direction::Input),
+                ("din", p.data_width(), Direction::Input),
+                ("dout", p.data_width(), Direction::Output),
+            ] {
+                io.0.push(Port {
+                    name: arcstr::format!("{name}_{i}"),
+                    width,
+                    direction,
+                });
+            }
+        }
+        io
+    }
+}
 
 #[cfg(test)]
 pub(crate) mod tests {
+    #[cfg(feature = "commercial")]
+    use crate::verification::calibre::CalibreContext;
 
     use crate::paths::*;
     use crate::setup_ctx;
@@ -880,19 +1069,19 @@ pub(crate) mod tests {
 
     #[test]
     fn test_replica_column_nmos() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_replica_column_nmos");
-        ctx.write_layout::<ReplicaColumnMos>(
-            &ReplicaColumnMosParams {
-                max_height: 2_400,
-                gate_width_n: 2_000,
-                drain_width_n: 2_000,
-                drain_width_p: 2_000,
-                length: 150,
-            },
-            out_gds(work_dir, "layout"),
-        )
-        .expect("failed to write layout");
+        crate::layout_ctx()
+            .write_layout::<ReplicaColumnMos>(
+                &ReplicaColumnMosParams {
+                    max_height: 2_400,
+                    gate_width_n: 2_000,
+                    drain_width_n: 2_000,
+                    drain_width_p: 2_000,
+                    length: 150,
+                },
+                out_gds(work_dir, "layout"),
+            )
+            .expect("failed to write layout");
     }
 
     #[test]
@@ -925,7 +1114,7 @@ pub(crate) mod tests {
             SRAM22_8192X32M8W8,
         ];
         let spice_path = out_spice(&work_dir, "sram22_sram_aggregator");
-        ctx.write_schematic_to_file::<SramAggregator>(&params, &spice_path)
+        crate::netlist::write_schematic::<SramAggregator>(&ctx, &params, &spice_path)
             .expect("failed to write schematic");
     }
 
@@ -938,12 +1127,12 @@ pub(crate) mod tests {
                 let work_dir = test_work_dir(stringify!($name));
 
                 let spice_path = out_spice(&work_dir, &*$params.name());
-                ctx.write_schematic_to_file::<Sram>(&$params, &spice_path)
+                crate::netlist::write_schematic::<Sram>(&ctx, &$params, &spice_path)
                     .expect("failed to write schematic");
                     println!("{}: done writing schematic", stringify!($name));
 
                 let gds_path = out_gds(&work_dir, &*$params.name());
-                ctx.write_layout::<Sram>(&$params, &gds_path)
+                crate::layout_ctx().write_layout::<Sram>(&$params, &gds_path)
                     .expect("failed to write layout");
                     println!("{}: done writing layout", stringify!($name));
 
@@ -958,7 +1147,6 @@ pub(crate) mod tests {
                     use crate::blocks::sram::testbench::verify::verify_simulation;
                     use rust_decimal::Decimal;
                     use rust_decimal_macros::dec;
-                    use substrate::schematic::netlist::NetlistPurpose;
                     use calibre::drc::{run_drc, DrcParams};
                     use calibre::lvs::{run_lvs, LvsParams};
                     use rayon::prelude::*;
@@ -966,11 +1154,9 @@ pub(crate) mod tests {
                     use crate::verification::calibre::{SKY130_DRC_RUNSET_PATH, SKY130_LAYERPROPS_PATH, SKY130_LVS_RULES_PATH};
 
                     let lvs_path = out_spice(&work_dir, "lvs_schematic");
-                    ctx.write_schematic_to_file_for_purpose::<Sram>(
+                    crate::netlist::write_schematic::<Sram>(&ctx,
                         &$params,
-                        &lvs_path,
-                        NetlistPurpose::Lvs,
-                    ).expect("failed to write lvs source netlist");
+                        &lvs_path).expect("failed to write lvs source netlist");
                     let lvs_work_dir = work_dir.join("lvs");
                     let output = run_lvs(&LvsParams{
                         work_dir: &lvs_work_dir,
@@ -1016,19 +1202,16 @@ pub(crate) mod tests {
                     let _ = std::fs::remove_dir_all(&pex_dir);
                     let pex_level = calibre::pex::PexLevel::Rc;
                     let pex_netlist_path = crate::paths::out_pex(&work_dir, "pex_netlist", pex_level);
-                    ctx.write_schematic_to_file_for_purpose::<Sram>(
+                    crate::netlist::write_schematic::<Sram>(&ctx,
                         &$params,
-                        &pex_path,
-                        NetlistPurpose::Pex,
-                    ).expect("failed to write pex source netlist");
+                        &pex_path).expect("failed to write pex source netlist");
                     let mut opts = std::collections::HashMap::with_capacity(1);
                     opts.insert("level".into(), pex_level.as_str().into());
 
-                    ctx.run_pex(substrate::verification::pex::PexInput {
+                    ctx.run_pex(crate::verification::calibre::PexInput {
                         work_dir: pex_dir,
                         layout_path: gds_path.clone(),
                         layout_cell_name: $params.name().clone(),
-                        layout_format: substrate::layout::LayoutFormat::Gds,
                         source_paths: vec![pex_path],
                         source_cell_name: $params.name().clone(),
                         pex_netlist_path: pex_netlist_path.clone(),
@@ -1038,12 +1221,12 @@ pub(crate) mod tests {
                     println!("{}: done running PEX", stringify!($name));
 
                     let seq = TestSequence::Short;
-                    let corners = ctx.corner_db();
-                    let tt = corners.corner_named("tt").unwrap();
-                    let sf = corners.corner_named("sf").unwrap();
-                    let fs = corners.corner_named("fs").unwrap();
-                    let ss = corners.corner_named("ss").unwrap();
-                    let ff = corners.corner_named("ff").unwrap();
+
+                    let tt = sky130::corner::Sky130Corner::Tt;
+                    let sf = sky130::corner::Sky130Corner::Sf;
+                    let fs = sky130::corner::Sky130Corner::Fs;
+                    let ss = sky130::corner::Sky130Corner::Ss;
+                    let ff = sky130::corner::Sky130Corner::Ff;
                     itertools::iproduct!([1.8], [tt, sf, fs, ss, ff]).collect_vec().into_par_iter().map(|(vdd, corner)| {
                             let params = $params.clone();
                             let pex_netlist = Some((pex_netlist_path.clone(), pex_level));
@@ -1057,7 +1240,7 @@ pub(crate) mod tests {
                                 vdd,
                                 seq.as_str(),
                             ));
-                            let data = ctx.write_simulation_with_corner::<crate::blocks::sram::testbench::SramTestbench>(
+                            let data = crate::sim::run_with_corner::<crate::blocks::sram::testbench::SramTestbench>(&ctx,
                                 &tb,
                                 &work_dir,
                                 corner.clone(),
@@ -1074,14 +1257,14 @@ pub(crate) mod tests {
                         }).collect::<Vec<_>>();
 
                     crate::abs::write_abstract(
-                        &ctx,
+                        &crate::layout_ctx(),
                         &$params,
                         crate::paths::out_lef(&work_dir, &*$params.name()),
                     )
                     .expect("failed to write abstract");
                     println!("{}: done writing abstract", stringify!($name));
 
-                    let sram = ctx.instantiate_layout::<Sram>(&$params).expect("failed to generate layout");
+                    let sram = crate::layout_ctx().instantiate_layout::<Sram>(&$params).expect("failed to generate layout");
                     let brect = sram.brect();
                     let width = Decimal::new(brect.width(), 3);
                     let height = Decimal::new(brect.height(), 3);

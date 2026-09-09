@@ -8,21 +8,21 @@ use serde::{Deserialize, Serialize};
 use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
 use subgeom::{Shape, Span};
-use substrate::component::{Component, NoParams};
-use substrate::into_grid;
+use substrate1::component::{Component, NoParams};
+use substrate1::into_grid;
 
-use substrate::layout::cell::{CellPort, PortConflictStrategy, PortId};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::placement::grid::GridTiler;
-use substrate::layout::placement::nine_patch::{NpTiler, Region};
-use substrate::layout::placement::tile::{LayerBbox, RectBbox};
-use substrate::schematic::circuit::Direction;
+use substrate1::layout::cell::{CellPort, PortConflictStrategy, PortId};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::placement::grid::GridTiler;
+use substrate1::layout::placement::nine_patch::{NpTiler, Region};
+use substrate1::layout::placement::tile::{LayerBbox, RectBbox};
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct ReplicaCellArray {
     params: ReplicaCellArrayParams,
 }
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct ReplicaCellArrayParams {
     pub rows: usize,
     pub cols: usize,
@@ -35,8 +35,8 @@ impl Component for RowTapEndRowendHstrap {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -46,8 +46,8 @@ impl Component for RowTapEndRowendHstrap {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let wlstrap = ctx
             .instantiate::<SpRowtapendReplica>(&NoParams)?
             .with_orientation(Named::ReflectHoriz);
@@ -90,8 +90,8 @@ impl Component for Center {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -101,8 +101,8 @@ impl Component for Center {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let replica = ctx.instantiate::<SpCellReplica>(&NoParams)?;
         let replica_a = ctx
             .instantiate::<SpCellOpt1aReplica>(&NoParams)?
@@ -145,8 +145,8 @@ impl Component for Top {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -156,8 +156,8 @@ impl Component for Top {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let colend = ctx.instantiate::<SpColend>(&NoParams)?;
         let colend_flip = colend.with_orientation(Named::ReflectHoriz);
 
@@ -212,8 +212,8 @@ impl Component for Bot {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -223,8 +223,8 @@ impl Component for Bot {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let replica = ctx.instantiate::<SpCellReplica>(&NoParams)?;
         let replica_a = ctx
             .instantiate::<SpCellOpt1aReplica>(&NoParams)?
@@ -291,8 +291,8 @@ impl Component for LeftRight {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -302,8 +302,8 @@ impl Component for LeftRight {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let rowend = ctx.instantiate::<SpRowendReplica>(&NoParams)?;
         let rowenda = ctx
             .instantiate::<SpRowendaReplica>(&NoParams)?
@@ -352,8 +352,8 @@ impl Component for CornerTop {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -363,8 +363,8 @@ impl Component for CornerTop {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let rowend = ctx.instantiate::<SpRowendReplica>(&NoParams)?;
         let corner = ctx.instantiate::<SpCorner>(&NoParams)?;
 
@@ -395,8 +395,8 @@ impl Component for CornerBot {
 
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
 
@@ -406,8 +406,8 @@ impl Component for CornerBot {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let rowend = ctx
             .instantiate::<SpRowendaReplica>(&NoParams)?
             .with_orientation(Named::ReflectVert);
@@ -450,8 +450,8 @@ impl Component for ReplicaCellArray {
 
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
 
@@ -459,82 +459,10 @@ impl Component for ReplicaCellArray {
         arcstr::literal!("replica_cell_array")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let bl = ctx.port("rbl", Direction::InOut);
-        let br = ctx.port("rbr", Direction::InOut);
-        let wl = ctx.port("rwl", Direction::Input);
-
-        let rows = (self.params.rows - 2).div_ceil(4) * 4 + 2;
-
-        for i in 0..rows {
-            for j in 0..self.params.cols {
-                let wl = if i == 0 { wl } else { vss };
-                ctx.instantiate::<SpCellReplica>(&NoParams)?
-                    .with_connections([
-                        ("BL", bl),
-                        ("BR", br),
-                        ("VSS", vss),
-                        ("VDD", vdd),
-                        ("VPB", vdd),
-                        ("VNB", vss),
-                        ("WL", wl),
-                    ])
-                    .named(format!("cell_{i}_{j}"))
-                    .add_to(ctx);
-            }
-        }
-
-        for j in 0..self.params.cols {
-            for i in 0..2 {
-                ctx.instantiate::<SpColend>(&NoParams)?
-                    .with_connections([
-                        ("BL", bl),
-                        ("BR", br),
-                        ("VSS", vss),
-                        ("VDD", vdd),
-                        ("VPB", vdd),
-                        ("VNB", vss),
-                    ])
-                    .named(format!("colend_{i}_{j}"))
-                    .add_to(ctx);
-            }
-        }
-
-        let rowtaps = (rows - 2).div_ceil(4) + 1;
-        for j in 0..rowtaps {
-            for i in 0..2 {
-                ctx.instantiate::<SpRowtapendReplica>(&NoParams)?
-                    .with_connections([("VSS", vss), ("VNB", vss)])
-                    .named(format!("rowtapend_{j}_{i}"))
-                    .add_to(ctx);
-            }
-            for i in 0..self.params.cols {
-                ctx.instantiate::<SpHstrap>(&NoParams)?
-                    .with_connections([
-                        ("BL", bl),
-                        ("BR", br),
-                        ("VDD", vdd),
-                        ("VPB", vdd),
-                        ("VSS", vss),
-                        ("VNB", vss),
-                    ])
-                    .named(format!("hstrap_{j}_{i}"))
-                    .add_to(ctx);
-            }
-        }
-
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let outline = layers.get(Selector::Name("outline"))?;
 
@@ -645,23 +573,133 @@ impl Component for ReplicaCellArray {
     }
 }
 
+impl crate::schematic::FromParams for ReplicaCellArray {
+    type Params = ReplicaCellArrayParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+impl substrate::block::Block for ReplicaCellArray {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("replica_cell_array")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("rwl", 1, crate::schematic::Direction::Input),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+            ("rbl", 1, crate::schematic::Direction::InOut),
+            ("rbr", 1, crate::schematic::Direction::InOut),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for ReplicaCellArray {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl ReplicaCellArray {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let vdd = ctx.port("vdd", crate::schematic::Direction::InOut);
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
+        let bl = ctx.port("rbl", crate::schematic::Direction::InOut);
+        let br = ctx.port("rbr", crate::schematic::Direction::InOut);
+        let wl = ctx.port("rwl", crate::schematic::Direction::Input);
+
+        let rows = (self.params.rows - 2).div_ceil(4) * 4 + 2;
+
+        for i in 0..rows {
+            for j in 0..self.params.cols {
+                let wl = if i == 0 { wl } else { vss };
+                ctx.instantiate::<SpCellReplica>(&crate::schematic::NoParams)?
+                    .with_connections([
+                        ("BL", bl),
+                        ("BR", br),
+                        ("VSS", vss),
+                        ("VDD", vdd),
+                        ("VPB", vdd),
+                        ("VNB", vss),
+                        ("WL", wl),
+                    ])
+                    .named(format!("cell_{i}_{j}"))
+                    .add_to(ctx);
+            }
+        }
+
+        for j in 0..self.params.cols {
+            for i in 0..2 {
+                ctx.instantiate::<SpColend>(&crate::schematic::NoParams)?
+                    .with_connections([
+                        ("BL", bl),
+                        ("BR", br),
+                        ("VSS", vss),
+                        ("VDD", vdd),
+                        ("VPB", vdd),
+                        ("VNB", vss),
+                    ])
+                    .named(format!("colend_{i}_{j}"))
+                    .add_to(ctx);
+            }
+        }
+
+        let rowtaps = (rows - 2).div_ceil(4) + 1;
+        for j in 0..rowtaps {
+            for i in 0..2 {
+                ctx.instantiate::<SpRowtapendReplica>(&crate::schematic::NoParams)?
+                    .with_connections([("VSS", vss), ("VNB", vss)])
+                    .named(format!("rowtapend_{j}_{i}"))
+                    .add_to(ctx);
+            }
+            for i in 0..self.params.cols {
+                ctx.instantiate::<SpHstrap>(&crate::schematic::NoParams)?
+                    .with_connections([
+                        ("BL", bl),
+                        ("BR", br),
+                        ("VDD", vdd),
+                        ("VPB", vdd),
+                        ("VSS", vss),
+                        ("VNB", vss),
+                    ])
+                    .named(format!("hstrap_{j}_{i}"))
+                    .add_to(ctx);
+            }
+        }
+
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(ReplicaCellArray);
+
 #[cfg(test)]
 mod tests {
 
     use crate::paths::out_gds;
-    use crate::setup_ctx;
+
     use crate::tests::test_work_dir;
 
     use super::*;
 
     #[test]
     fn test_replica_cell_array() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_replica_cell_array");
-        ctx.write_layout::<ReplicaCellArray>(
-            &ReplicaCellArrayParams { rows: 24, cols: 2 },
-            out_gds(work_dir, "layout"),
-        )
-        .expect("failed to write layout");
+        crate::layout_ctx()
+            .write_layout::<ReplicaCellArray>(
+                &ReplicaCellArrayParams { rows: 24, cols: 2 },
+                out_gds(work_dir, "layout"),
+            )
+            .expect("failed to write layout");
     }
 }

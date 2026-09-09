@@ -1,28 +1,31 @@
 use serde::{Deserialize, Serialize};
 use subgeom::snap_to_grid;
-use substrate::component::Component;
-use substrate::layout::cell::{CellPort, PortConflictStrategy};
-use substrate::layout::placement::align::AlignMode;
-use substrate::layout::placement::array::ArrayTiler;
+use substrate1::component::Component;
+use substrate1::layout::cell::{CellPort, PortConflictStrategy};
+use substrate1::layout::placement::align::AlignMode;
+use substrate1::layout::placement::array::ArrayTiler;
 
 mod layout;
 mod schematic;
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct TGateMux {
     params: TGateMuxParams,
 }
 
 /// [`TGateMux`] taps.
+#[derive(Hash, PartialEq, Eq)]
 pub struct TGateMuxCent {
     params: TGateMuxParams,
 }
 
 /// [`TGateMux`] end cap.
+#[derive(Hash, PartialEq, Eq)]
 pub struct TGateMuxEnd {
     params: TGateMuxParams,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Hash, PartialEq, Eq)]
 pub struct TGateMuxParams {
     pub length: i64,
     pub pwidth: i64,
@@ -47,6 +50,7 @@ impl TGateMuxParams {
     }
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct TappedTGateMux {
     pub params: TGateMuxParams,
 }
@@ -59,8 +63,8 @@ impl Component for TGateMux {
     type Params = TGateMuxParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -69,27 +73,65 @@ impl Component for TGateMux {
         arcstr::literal!("tgate_mux")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
+
+impl crate::schematic::FromParams for TGateMux {
+    type Params = TGateMuxParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for TGateMux {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("tgate_mux")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("sel_b", 1, crate::schematic::Direction::Input),
+            ("sel", 1, crate::schematic::Direction::Input),
+            ("bl", 1, crate::schematic::Direction::InOut),
+            ("br", 1, crate::schematic::Direction::InOut),
+            ("bl_out", 1, crate::schematic::Direction::InOut),
+            ("br_out", 1, crate::schematic::Direction::InOut),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for TGateMux {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+crate::impl_sky130_build!(TGateMux);
 
 impl Component for TGateMuxCent {
     type Params = TGateMuxParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -98,27 +140,61 @@ impl Component for TGateMuxCent {
         arcstr::literal!("tgate_mux_cent")
     }
 
-    fn schematic(
-        &self,
-        _ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
+
+impl crate::schematic::FromParams for TGateMuxCent {
+    type Params = TGateMuxParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for TGateMuxCent {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("tgate_mux_cent")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::default()
+    }
+}
+impl substrate::schematic::Schematic for TGateMuxCent {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl TGateMuxCent {
+    fn build_schematic(&self, _ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(TGateMuxCent);
 
 impl Component for TGateMuxEnd {
     type Params = TGateMuxParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -127,27 +203,61 @@ impl Component for TGateMuxEnd {
         arcstr::literal!("tgate_mux_end")
     }
 
-    fn schematic(
-        &self,
-        _ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
+
+impl crate::schematic::FromParams for TGateMuxEnd {
+    type Params = TGateMuxParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for TGateMuxEnd {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("tgate_mux_end")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::default()
+    }
+}
+impl substrate::schematic::Schematic for TGateMuxEnd {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl TGateMuxEnd {
+    fn build_schematic(&self, _ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(TGateMuxEnd);
 
 impl Component for TappedTGateMux {
     type Params = TGateMuxParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(TappedTGateMux {
             params: params.clone(),
         })
@@ -157,20 +267,10 @@ impl Component for TappedTGateMux {
         arcstr::literal!("tapped_tgate_mux")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let mut gate = ctx.instantiate::<TGateMux>(&self.params)?;
-        ctx.bubble_all_ports(&mut gate);
-        ctx.add_instance(gate);
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let params = TGateMuxParams {
             idx: 0,
             ..self.params
@@ -228,12 +328,59 @@ impl Component for TappedTGateMux {
     }
 }
 
+impl crate::schematic::FromParams for TappedTGateMux {
+    type Params = TGateMuxParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(TappedTGateMux {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for TappedTGateMux {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("tapped_tgate_mux")
+    }
+    fn io(&self) -> Self::Io {
+        <TGateMux as substrate::block::Block>::io(
+            &<TGateMux as crate::schematic::FromParams>::from_params(&self.params)
+                .expect("invalid parameters"),
+        )
+    }
+}
+impl substrate::schematic::Schematic for TappedTGateMux {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl TappedTGateMux {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let mut gate = ctx.instantiate::<TGateMux>(&self.params)?;
+        ctx.bubble_all_ports(&mut gate);
+        ctx.add_instance(gate);
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(TappedTGateMux);
+
 impl Component for TGateMuxGroup {
     type Params = TGateMuxParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(TGateMuxGroup {
             params: params.clone(),
         })
@@ -245,14 +392,16 @@ impl Component for TGateMuxGroup {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "commercial")]
+    use crate::verification::calibre::CalibreContext;
 
     use crate::paths::{out_gds, out_spice};
     use crate::setup_ctx;
@@ -273,9 +422,11 @@ mod tests {
     fn test_tgate_mux() {
         let ctx = setup_ctx();
         let work_dir = test_work_dir("test_tgate_mux");
-        ctx.write_layout::<TGateMux>(&TGATE_MUX_PARAMS, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<TGateMux>(&TGATE_MUX_PARAMS, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<TGateMux>(
+        crate::netlist::write_schematic::<TGateMux>(
+            &ctx,
             &TGATE_MUX_PARAMS,
             out_spice(&work_dir, "schematic"),
         )
@@ -289,32 +440,32 @@ mod tests {
                 .expect("failed to run LVS");
             assert!(matches!(
                 output.summary,
-                substrate::verification::lvs::LvsSummary::Pass
+                crate::verification::calibre::LvsSummary::Pass
             ));
         }
     }
 
     #[test]
     fn test_tgate_mux_cent() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_tgate_mux_cent");
-        ctx.write_layout::<TGateMuxCent>(&TGATE_MUX_PARAMS, out_gds(work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<TGateMuxCent>(&TGATE_MUX_PARAMS, out_gds(work_dir, "layout"))
             .expect("failed to write layout");
     }
 
     #[test]
     fn test_tgate_mux_end() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_tgate_mux_end");
-        ctx.write_layout::<TGateMuxEnd>(&TGATE_MUX_PARAMS, out_gds(work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<TGateMuxEnd>(&TGATE_MUX_PARAMS, out_gds(work_dir, "layout"))
             .expect("failed to write layout");
     }
 
     #[test]
     fn test_tgate_mux_group() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_tgate_mux_group");
-        ctx.write_layout::<TGateMuxGroup>(&TGATE_MUX_PARAMS, out_gds(work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<TGateMuxGroup>(&TGATE_MUX_PARAMS, out_gds(work_dir, "layout"))
             .expect("failed to write layout");
     }
 
@@ -323,8 +474,6 @@ mod tests {
     #[ignore = "slow"]
     fn test_tgate_mux_cap() {
         use std::collections::HashMap;
-
-        use substrate::schematic::netlist::NetlistPurpose;
 
         use crate::measure::impedance::{
             AcImpedanceTbNode, AcImpedanceTbParams, AcImpedanceTestbench,
@@ -337,24 +486,20 @@ mod tests {
         let pex_dir = work_dir.join("pex");
         let pex_level = calibre::pex::PexLevel::Rc;
         let pex_netlist_path = crate::paths::out_pex(&work_dir, "pex_netlist", pex_level);
-        ctx.write_schematic_to_file_for_purpose::<TappedTGateMux>(
-            &TGATE_MUX_PARAMS,
-            &pex_path,
-            NetlistPurpose::Pex,
-        )
-        .expect("failed to write pex source netlist");
+        crate::netlist::write_schematic::<TappedTGateMux>(&ctx, &TGATE_MUX_PARAMS, &pex_path)
+            .expect("failed to write pex source netlist");
         let mut opts = std::collections::HashMap::with_capacity(1);
         opts.insert("level".into(), pex_level.as_str().into());
 
         let gds_path = out_gds(&work_dir, "layout");
-        ctx.write_layout::<TappedTGateMux>(&TGATE_MUX_PARAMS, &gds_path)
+        crate::layout_ctx()
+            .write_layout::<TappedTGateMux>(&TGATE_MUX_PARAMS, &gds_path)
             .expect("failed to write layout");
 
-        ctx.run_pex(substrate::verification::pex::PexInput {
+        ctx.run_pex(crate::verification::calibre::PexInput {
             work_dir: pex_dir,
             layout_path: gds_path.clone(),
             layout_cell_name: arcstr::literal!("tapped_tgate_mux"),
-            layout_format: substrate::layout::LayoutFormat::Gds,
             source_paths: vec![pex_path],
             source_cell_name: arcstr::literal!("tapped_tgate_mux"),
             pex_netlist_path: pex_netlist_path.clone(),
@@ -364,36 +509,36 @@ mod tests {
         .expect("failed to run pex");
 
         let selb_work_dir = work_dir.join("selb_sim");
-        let cap_selb = ctx
-            .write_simulation::<AcImpedanceTestbench<TappedTGateMux>>(
-                &AcImpedanceTbParams {
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    vdd: 1.8,
-                    dut: TGATE_MUX_PARAMS,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Vss,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("sel"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("sel_b"), vec![AcImpedanceTbNode::Vmeas]),
-                        (arcstr::literal!("bl"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("br"), vec![AcImpedanceTbNode::Vdd]),
-                        (
-                            arcstr::literal!("bl_out"),
-                            vec![AcImpedanceTbNode::Floating],
-                        ),
-                        (
-                            arcstr::literal!("br_out"),
-                            vec![AcImpedanceTbNode::Floating],
-                        ),
-                        (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
-                    ]),
-                },
-                &selb_work_dir,
-            )
-            .expect("failed to write simulation");
+        let cap_selb = crate::sim::run::<AcImpedanceTestbench<TappedTGateMux>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                vdd: 1.8,
+                dut: TGATE_MUX_PARAMS,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Vss,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("sel"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("sel_b"), vec![AcImpedanceTbNode::Vmeas]),
+                    (arcstr::literal!("bl"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("br"), vec![AcImpedanceTbNode::Vdd]),
+                    (
+                        arcstr::literal!("bl_out"),
+                        vec![AcImpedanceTbNode::Floating],
+                    ),
+                    (
+                        arcstr::literal!("br_out"),
+                        vec![AcImpedanceTbNode::Floating],
+                    ),
+                    (arcstr::literal!("vdd"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("vss"), vec![AcImpedanceTbNode::Vss]),
+                ]),
+            },
+            &selb_work_dir,
+        )
+        .expect("failed to write simulation");
 
         println!("Cselb = {}", cap_selb.max_freq_cap(),);
     }

@@ -1,6 +1,8 @@
 use crate::blocks::sram::{Sram, SramConfig, SramParams};
 use crate::cli::progress::StepContext;
 use crate::paths::{out_gds, out_spice, out_verilog};
+#[cfg(feature = "commercial")]
+use crate::verification::calibre::CalibreContext;
 use crate::verilog::save_1rw_verilog;
 use crate::{setup_ctx, Result};
 use anyhow::bail;
@@ -207,12 +209,13 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
     let sctx = setup_ctx();
 
     let spice_path = out_spice(work_dir, name);
-    sctx.write_schematic_to_file::<Sram>(&plan.sram_params, &spice_path)
+    crate::netlist::write_schematic::<Sram>(&sctx, &plan.sram_params, &spice_path)
         .expect("failed to write schematic");
     try_finish_task!(ctx, TaskKey::GenerateNetlist);
 
     let gds_path = out_gds(work_dir, name);
-    sctx.write_layout::<Sram>(&plan.sram_params, &gds_path)
+    crate::layout_ctx()
+        .write_layout::<Sram>(&plan.sram_params, &gds_path)
         .expect("failed to write layout");
     try_finish_task!(ctx, TaskKey::GenerateLayout);
 
@@ -221,7 +224,7 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
     try_finish_task!(ctx, TaskKey::GenerateVerilog);
 
     crate::abs::write_abstract(
-        &sctx,
+        &crate::layout_ctx(),
         &plan.sram_params,
         crate::paths::out_lef(work_dir, name),
     )
@@ -232,11 +235,10 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
     {
         use std::collections::HashMap;
 
+        use crate::verification::calibre::PexInput;
         use rust_decimal::Decimal;
         use rust_decimal_macros::dec;
         use subgeom::bbox::BoundBox;
-        use substrate::schematic::netlist::NetlistPurpose;
-        use substrate::verification::pex::PexInput;
 
         try_execute_task!(
             params.tasks,
@@ -249,7 +251,7 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
                 assert!(
                     matches!(
                         output.summary,
-                        substrate::verification::drc::DrcSummary::Pass
+                        crate::verification::calibre::DrcSummary::Pass
                     ),
                     "DRC failed"
                 );
@@ -267,7 +269,7 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
                 assert!(
                     matches!(
                         output.summary,
-                        substrate::verification::lvs::LvsSummary::Pass
+                        crate::verification::calibre::LvsSummary::Pass
                     ),
                     "LVS failed"
                 );
@@ -280,18 +282,13 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
         let pex_out_path = out_spice(&pex_dir, "schematic.pex");
 
         if params.pex_level.is_some() {
-            sctx.write_schematic_to_file_for_purpose::<Sram>(
-                &plan.sram_params,
-                &pex_source_path,
-                NetlistPurpose::Pex,
-            )?;
+            crate::netlist::write_schematic::<Sram>(&sctx, &plan.sram_params, &pex_source_path)?;
             let mut opts = HashMap::with_capacity(1);
             opts.insert("level".into(), params.pex_level.unwrap().as_str().into());
             sctx.run_pex(PexInput {
                 work_dir: pex_dir,
                 layout_path: gds_path,
                 layout_cell_name: name.clone(),
-                layout_format: substrate::layout::LayoutFormat::Gds,
                 source_paths: vec![pex_source_path],
                 source_cell_name: name.clone(),
                 pex_netlist_path: pex_out_path.clone(),
@@ -309,23 +306,21 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
 
         if params.tasks.contains(&TaskKey::GenerateLib) {
             if params.use_liberate {
-                use substrate::schematic::netlist::NetlistPurpose;
-
                 let sram_params = plan.sram_params.clone();
                 let source_path = if params.pex_level.is_some() {
                     pex_out_path
                 } else {
                     let timing_spice_path = out_spice(work_dir, "timing_schematic");
-                    sctx.write_schematic_to_file_for_purpose::<Sram>(
+                    crate::netlist::write_schematic::<Sram>(
+                        &sctx,
                         &sram_params,
                         &timing_spice_path,
-                        NetlistPurpose::Timing,
                     )
                     .expect("failed to write timing schematic");
                     timing_spice_path
                 };
 
-                let sram = sctx
+                let sram = crate::layout_ctx()
                     .instantiate_layout::<Sram>(&sram_params)
                     .expect("failed to generate layout");
                 let brect = sram.brect();

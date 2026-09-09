@@ -1,18 +1,18 @@
 use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
 use subgeom::{Dir, Rect, Sign, Span};
-use substrate::component::{Component, NoParams};
-use substrate::layout::cell::{CellPort, Port};
-use substrate::layout::elements::via::{Via, ViaExpansion, ViaParams};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerBoundBox;
+use substrate1::component::{Component, NoParams};
+use substrate1::layout::cell::{CellPort, Port};
+use substrate1::layout::elements::via::{Via, ViaExpansion, ViaParams};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::LayerBoundBox;
 
 use crate::blocks::columns::ColumnDesignScript;
 use crate::blocks::delay_line::tristate::TristateInv;
 use crate::blocks::gate::PrimitiveGateParams;
 use crate::blocks::macros::SenseAmp;
 use crate::blocks::sram::layout::draw_via;
-use substrate::layout::placement::align::{AlignMode, AlignRect};
+use substrate1::layout::placement::align::{AlignMode, AlignRect};
 
 use super::{WriteDriver, WriteDriverParams};
 
@@ -21,8 +21,8 @@ pub const POWER_HEIGHT: i64 = 800;
 impl WriteDriver {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let m0 = layers.get(Selector::Metal(0))?;
         let m1 = layers.get(Selector::Metal(1))?;
@@ -214,6 +214,7 @@ impl WriteDriver {
     }
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct WriteDriverCent {
     params: WriteDriverParams,
 }
@@ -222,8 +223,8 @@ impl Component for WriteDriverCent {
     type Params = WriteDriverParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -232,17 +233,10 @@ impl Component for WriteDriverCent {
         arcstr::literal!("write_driver_cent")
     }
 
-    fn schematic(
-        &self,
-        _ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let nwell = layers.get(Selector::Name("nwell"))?;
         let nsdm = layers.get(Selector::Name("nsdm"))?;
@@ -253,7 +247,10 @@ impl Component for WriteDriverCent {
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
 
-        let pc = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        let pc = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
 
         let sa = ctx.instantiate::<WriteDriver>(&self.params)?;
         let hspan = Span::new(0, pc.tap_width);
@@ -307,3 +304,44 @@ impl Component for WriteDriverCent {
         Ok(())
     }
 }
+
+impl crate::schematic::FromParams for WriteDriverCent {
+    type Params = WriteDriverParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for WriteDriverCent {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("write_driver_cent")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::default()
+    }
+}
+impl substrate::schematic::Schematic for WriteDriverCent {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl WriteDriverCent {
+    fn build_schematic(&self, _ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(WriteDriverCent);

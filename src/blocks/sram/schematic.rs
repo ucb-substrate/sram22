@@ -1,8 +1,6 @@
-use substrate::error::Result;
-use substrate::index::IndexOwned;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::context::SchematicCtx;
-use substrate::schematic::signal::Signal;
+use crate::schematic::Signal;
+use crate::script::DesignContext;
+use anyhow::Result;
 
 use crate::blocks::bitcell_array::replica::ReplicaCellArray;
 use crate::blocks::bitcell_array::SpCellArray;
@@ -20,17 +18,36 @@ use super::layout::ReplicaColumnMos;
 use super::{SramInner, SramPhysicalDesignScript};
 
 impl SramInner {
-    pub(crate) fn schematic(&self, ctx: &mut SchematicCtx) -> Result<()> {
+    pub(crate) fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> Result<()> {
         let dsn = ctx
             .inner()
             .run_script::<SramPhysicalDesignScript>(&self.params)?;
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
-        let [clk, we, ce, rstb] = ctx.ports(["clk", "we", "ce", "rstb"], Direction::Input);
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
+        let [clk, we, ce, rstb] = ctx.ports(
+            ["clk", "we", "ce", "rstb"],
+            crate::schematic::Direction::Input,
+        );
 
-        let addr = ctx.bus_port("addr", self.params.addr_width(), Direction::Input);
-        let wmask = ctx.bus_port("wmask", self.params.wmask_width(), Direction::Input);
-        let din = ctx.bus_port("din", self.params.data_width(), Direction::Input);
-        let dout = ctx.bus_port("dout", self.params.data_width(), Direction::Output);
+        let addr = ctx.bus_port(
+            "addr",
+            self.params.addr_width(),
+            crate::schematic::Direction::Input,
+        );
+        let wmask = ctx.bus_port(
+            "wmask",
+            self.params.wmask_width(),
+            crate::schematic::Direction::Input,
+        );
+        let din = ctx.bus_port(
+            "din",
+            self.params.data_width(),
+            crate::schematic::Direction::Input,
+        );
+        let dout = ctx.bus_port(
+            "dout",
+            self.params.data_width(),
+            crate::schematic::Direction::Output,
+        );
 
         let [addr_in, addr_in_b] = ctx.buses(["addr_in", "addr_in_b"], self.params.addr_width());
 
@@ -328,6 +345,7 @@ pub fn fanout_buffer_stage_with_inverted_output(
 
 #[cfg(test)]
 mod tests {
+
     use crate::blocks::decoder::INV_MODEL;
     use crate::blocks::sram::schematic::buffer_chain_num_stages;
 

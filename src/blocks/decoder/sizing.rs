@@ -62,6 +62,7 @@ fn left_path_len<T: Tree>(tree: &T) -> usize {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[derive(Debug, Default, Eq, PartialEq)]

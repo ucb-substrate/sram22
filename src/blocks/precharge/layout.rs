@@ -1,51 +1,54 @@
+use crate::script::Script;
 use serde::{Deserialize, Serialize};
 use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
 use subgeom::transform::Translate;
 use subgeom::{Dir, Point, Rect, Shape, Side, Sign, Span};
-use substrate::component::Component;
-use substrate::index::IndexOwned;
-use substrate::layout::cell::{CellPort, MustConnect, Port, PortConflictStrategy, PortId};
-use substrate::layout::elements::mos::LayoutMos;
-use substrate::layout::elements::via::{Via, ViaExpansion, ViaParams};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::{LayerBoundBox, LayerKey};
-use substrate::layout::placement::align::{AlignMode, AlignRect};
-use substrate::layout::placement::array::ArrayTiler;
-use substrate::layout::placement::place_bbox::PlaceBbox;
-use substrate::layout::routing::manual::jog::SimpleJog;
-use substrate::layout::routing::tracks::{
+use substrate1::component::Component;
+use substrate1::index::IndexOwned;
+use substrate1::layout::cell::{CellPort, MustConnect, Port, PortConflictStrategy, PortId};
+use substrate1::layout::elements::mos::LayoutMos;
+use substrate1::layout::elements::via::{Via, ViaExpansion, ViaParams};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::{LayerBoundBox, LayerKey};
+use substrate1::layout::placement::align::{AlignMode, AlignRect};
+use substrate1::layout::placement::array::ArrayTiler;
+use substrate1::layout::placement::place_bbox::PlaceBbox;
+use substrate1::layout::routing::manual::jog::SimpleJog;
+use substrate1::layout::routing::tracks::{
     Boundary, CenteredTrackParams, FixedTracks, UniformTracks,
 };
-use substrate::pdk::mos::query::Query;
-use substrate::pdk::mos::spec::MosKind;
-use substrate::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
-use substrate::script::Script;
+use substrate1::pdk::mos::query::Query;
+use substrate1::pdk::mos::spec::MosKind;
+use substrate1::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
 
 use super::{Precharge, PrechargeParams};
 
 /// Precharge taps.
+#[derive(Hash, PartialEq, Eq)]
 pub struct PrechargeCent {
     params: PrechargeParams,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Hash, PartialEq, Eq)]
 pub struct PrechargeEndParams {
     pub via_top: bool,
     pub inner: PrechargeParams,
 }
 
 /// Precharge end cap.
+#[derive(Hash, PartialEq, Eq)]
 pub struct PrechargeEnd {
     params: PrechargeEndParams,
 }
 
 /// Single replica precharge with taps.
+#[derive(Hash, PartialEq, Eq)]
 pub struct ReplicaPrecharge {
     params: ReplicaPrechargeParams,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct ReplicaPrechargeParams {
     pub cols: usize,
     pub inner: PrechargeParams,
@@ -56,11 +59,9 @@ const LI_VIA_SHRINK: i64 = 20;
 impl Precharge {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
-        let dsn = ctx
-            .inner()
-            .run_script::<PhysicalDesignScript>(&self.params)?;
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
+        let dsn = crate::script::run_for_layout::<PhysicalDesignScript>(ctx.inner(), &self.params)?;
         let db = ctx.mos_db();
         let mos = db
             .query(Query::builder().kind(MosKind::Pmos).build().unwrap())
@@ -351,29 +352,20 @@ impl Component for PrechargeCent {
     type Params = PrechargeParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("precharge_cent")
     }
 
-    fn schematic(
-        &self,
-        _ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let pc = ctx.instantiate::<Precharge>(&self.params)?;
-        let dsn = ctx
-            .inner()
-            .run_script::<PhysicalDesignScript>(&self.params)?;
+        let dsn = crate::script::run_for_layout::<PhysicalDesignScript>(ctx.inner(), &self.params)?;
         let meta = pc.cell().get_metadata::<Metadata>();
         let layers = ctx.layers();
 
@@ -474,12 +466,51 @@ impl Component for PrechargeCent {
     }
 }
 
+impl crate::schematic::FromParams for PrechargeCent {
+    type Params = PrechargeParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+impl substrate::block::Block for PrechargeCent {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("precharge_cent")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::default()
+    }
+}
+impl substrate::schematic::Schematic for PrechargeCent {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl PrechargeCent {
+    fn build_schematic(&self, _ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(PrechargeCent);
+
 impl Component for PrechargeEnd {
     type Params = PrechargeEndParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -488,21 +519,13 @@ impl Component for PrechargeEnd {
         arcstr::literal!("precharge_end")
     }
 
-    fn schematic(
-        &self,
-        _ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let pc = ctx.instantiate::<Precharge>(&self.params.inner)?;
-        let dsn = ctx
-            .inner()
-            .run_script::<PhysicalDesignScript>(&self.params.inner)?;
+        let dsn =
+            crate::script::run_for_layout::<PhysicalDesignScript>(ctx.inner(), &self.params.inner)?;
         let meta = pc.cell().get_metadata::<Metadata>();
         let layers = ctx.layers();
 
@@ -591,12 +614,53 @@ impl Component for PrechargeEnd {
     }
 }
 
+impl crate::schematic::FromParams for PrechargeEnd {
+    type Params = PrechargeEndParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for PrechargeEnd {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("precharge_end")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::default()
+    }
+}
+impl substrate::schematic::Schematic for PrechargeEnd {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl PrechargeEnd {
+    fn build_schematic(&self, _ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(PrechargeEnd);
+
 impl Component for ReplicaPrecharge {
     type Params = ReplicaPrechargeParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -605,17 +669,10 @@ impl Component for ReplicaPrecharge {
         arcstr::literal!("replica_precharge")
     }
 
-    fn schematic(
-        &self,
-        _ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
@@ -714,6 +771,52 @@ impl Component for ReplicaPrecharge {
     }
 }
 
+impl crate::schematic::FromParams for ReplicaPrecharge {
+    type Params = ReplicaPrechargeParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for ReplicaPrecharge {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("replica_precharge")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("en_b", 1, crate::schematic::Direction::Input),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("bl", 1, crate::schematic::Direction::InOut),
+            ("br", 1, crate::schematic::Direction::InOut),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for ReplicaPrecharge {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl ReplicaPrecharge {
+    fn build_schematic(&self, _ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(ReplicaPrecharge);
+
 pub struct PhysicalDesignScript;
 
 pub struct PhysicalDesign {
@@ -740,9 +843,9 @@ impl Script for PhysicalDesignScript {
 
     fn run(
         params: &Self::Params,
-        ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self::Output> {
-        let layers = ctx.layers();
+        _ctx: &substrate::context::Context,
+    ) -> anyhow::Result<Self::Output> {
+        let layers = crate::layout_ctx().layers();
         let m0 = layers.get(Selector::Metal(0))?;
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;

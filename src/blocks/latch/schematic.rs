@@ -1,22 +1,16 @@
 use crate::blocks::gate::FoldedInv;
-use substrate::error::Result;
-use substrate::pdk::mos::query::Query;
-use substrate::pdk::mos::spec::MosKind;
-use substrate::pdk::mos::MosParams;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::context::SchematicCtx;
-use substrate::schematic::elements::mos::SchematicMos;
+use anyhow::Result;
 
 use super::DiffLatch;
 
 impl DiffLatch {
-    pub(crate) fn schematic(&self, ctx: &mut SchematicCtx) -> Result<()> {
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let din1 = ctx.port("din1", Direction::Input);
-        let din2 = ctx.port("din2", Direction::Input);
-        let dout1 = ctx.port("dout1", Direction::Output);
-        let dout2 = ctx.port("dout2", Direction::Output);
+    pub(crate) fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> Result<()> {
+        let vdd = ctx.port("vdd", crate::schematic::Direction::InOut);
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
+        let din1 = ctx.port("din1", crate::schematic::Direction::Input);
+        let din2 = ctx.port("din2", crate::schematic::Direction::Input);
+        let dout1 = ctx.port("dout1", crate::schematic::Direction::Output);
+        let dout2 = ctx.port("dout2", crate::schematic::Direction::Output);
 
         let [rst, set, q, qb] = ctx.signals(["rst", "set", "q", "qb"]);
         for (din, dout, suffix) in [(&din1, &rst, "1"), (&din2, &set, "2")] {
@@ -25,10 +19,7 @@ impl DiffLatch {
             buf.set_name(format!("inbuf_{suffix}"));
             ctx.add_instance(buf);
         }
-        let nmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Nmos).build().unwrap())?
-            .id();
+
         for (din, dout, suffix) in [(&q, &dout2, "1"), (&qb, &dout1, "2")] {
             let mut buf = ctx.instantiate::<FoldedInv>(&self.params.inv_out)?;
             buf.connect_all([("vdd", &vdd), ("vss", &vss), ("a", din), ("y", dout)]);
@@ -44,13 +35,10 @@ impl DiffLatch {
 
         for (d, g, suffix) in [(&q, &rst, "1"), (&qb, &set, "2")] {
             for i in 0..2 {
-                let mut mn = ctx.instantiate::<SchematicMos>(&MosParams {
-                    w: self.params.nwidth / 2,
-                    l: self.params.lch,
-                    m: 1,
-                    nf: 1,
-                    id: nmos_id,
-                })?;
+                let mut mn = ctx.instantiate::<sky130::mos::Nfet01v8>(&(
+                    self.params.nwidth / 2,
+                    self.params.lch,
+                ))?;
                 mn.connect_all([("d", d), ("g", g), ("s", &vss), ("b", &vss)]);
                 mn.set_name(format!("MN{suffix}{i}"));
                 ctx.add_instance(mn);

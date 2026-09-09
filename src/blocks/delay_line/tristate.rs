@@ -4,28 +4,26 @@ use serde::{Deserialize, Serialize};
 use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
 use subgeom::{Rect, Shape, Span};
-use substrate::component::Component;
-use substrate::layout::cell::{CellPort, Port};
-use substrate::layout::elements::mos::LayoutMos;
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::placement::align::AlignRect;
-use substrate::pdk::mos::query::Query;
-use substrate::pdk::mos::spec::MosKind;
-use substrate::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::elements::mos::SchematicMos;
+use substrate1::component::Component;
+use substrate1::layout::cell::{CellPort, Port};
+use substrate1::layout::elements::mos::LayoutMos;
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::placement::align::AlignRect;
+use substrate1::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
 
 use crate::blocks::gate::{Inv, PrimitiveGateParams};
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct TristateInv {
     params: PrimitiveGateParams,
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct TristateBuf {
     params: TristateBufParams,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 pub struct TristateBufParams {
     pub inv1: PrimitiveGateParams,
     pub inv2: PrimitiveGateParams,
@@ -36,8 +34,8 @@ impl Component for TristateInv {
 
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
 
@@ -45,75 +43,10 @@ impl Component for TristateInv {
         arcstr::format!("tristate_inv")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let [din, en, en_b] = ctx.ports(["din", "en", "en_b"], Direction::Input);
-        let din_b = ctx.port("din_b", Direction::Output);
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
-        let [nint, pint] = ctx.signals(["nint", "pint"]);
-
-        let nmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Nmos).build().unwrap())?
-            .id();
-        let pmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Pmos).build().unwrap())?
-            .id();
-
-        ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.nwidth,
-            l: self.params.length,
-            m: 1,
-            nf: 1,
-            id: nmos_id,
-        })?
-        .named("mn_en")
-        .with_connections([("d", din_b), ("g", en), ("s", nint), ("b", vss)])
-        .add_to(ctx);
-
-        ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.nwidth,
-            l: self.params.length,
-            m: 1,
-            nf: 1,
-            id: nmos_id,
-        })?
-        .named("mn_pd")
-        .with_connections([("d", nint), ("g", din), ("s", vss), ("b", vss)])
-        .add_to(ctx);
-
-        ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.pwidth,
-            l: self.params.length,
-            m: 1,
-            nf: 1,
-            id: pmos_id,
-        })?
-        .named("mp_en")
-        .with_connections([("d", din_b), ("g", en_b), ("s", pint), ("b", vdd)])
-        .add_to(ctx);
-
-        ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.pwidth,
-            l: self.params.length,
-            m: 1,
-            nf: 1,
-            id: pmos_id,
-        })?
-        .named("mp_pu")
-        .with_connections([("d", pint), ("g", din), ("s", vdd), ("b", vdd)])
-        .add_to(ctx);
-
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let m0 = layers.get(Selector::Metal(0))?;
         let poly = layers.get(Selector::Name("poly"))?;
@@ -196,27 +129,121 @@ impl Component for TristateInv {
     }
 }
 
-impl Component for TristateBuf {
-    type Params = TristateBufParams;
-
-    fn new(
-        params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+impl crate::schematic::FromParams for TristateInv {
+    type Params = PrimitiveGateParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
         Ok(Self { params: *params })
     }
+}
+impl substrate::block::Block for TristateInv {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::format!("tristate_inv")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("din", 1, crate::schematic::Direction::Input),
+            ("en", 1, crate::schematic::Direction::Input),
+            ("en_b", 1, crate::schematic::Direction::Input),
+            ("din_b", 1, crate::schematic::Direction::Output),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for TristateInv {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl TristateInv {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let [din, en, en_b] = ctx.ports(["din", "en", "en_b"], crate::schematic::Direction::Input);
+        let din_b = ctx.port("din_b", crate::schematic::Direction::Output);
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
+        let [nint, pint] = ctx.signals(["nint", "pint"]);
 
+        ctx.instantiate::<sky130::mos::Nfet01v8>(&(self.params.nwidth, self.params.length))?
+            .named("mn_en")
+            .with_connections([("d", din_b), ("g", en), ("s", nint), ("b", vss)])
+            .add_to(ctx);
+
+        ctx.instantiate::<sky130::mos::Nfet01v8>(&(self.params.nwidth, self.params.length))?
+            .named("mn_pd")
+            .with_connections([("d", nint), ("g", din), ("s", vss), ("b", vss)])
+            .add_to(ctx);
+
+        ctx.instantiate::<sky130::mos::Pfet01v8>(&(self.params.pwidth, self.params.length))?
+            .named("mp_en")
+            .with_connections([("d", din_b), ("g", en_b), ("s", pint), ("b", vdd)])
+            .add_to(ctx);
+
+        ctx.instantiate::<sky130::mos::Pfet01v8>(&(self.params.pwidth, self.params.length))?
+            .named("mp_pu")
+            .with_connections([("d", pint), ("g", din), ("s", vdd), ("b", vdd)])
+            .add_to(ctx);
+
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(TristateInv);
+
+impl crate::schematic::FromParams for TristateBuf {
+    type Params = TristateBufParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+impl substrate::block::Block for TristateBuf {
+    type Io = crate::schematic::NamedIo;
     fn name(&self) -> arcstr::ArcStr {
         arcstr::format!("tristate_buf")
     }
-
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("din", 1, crate::schematic::Direction::Input),
+            ("en", 1, crate::schematic::Direction::Input),
+            ("en_b", 1, crate::schematic::Direction::Input),
+            ("dout", 1, crate::schematic::Direction::Output),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for TristateBuf {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
     fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
     ) -> substrate::error::Result<()> {
-        let [din, en, en_b] = ctx.ports(["din", "en", "en_b"], Direction::Input);
-        let dout = ctx.port("dout", Direction::Output);
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl TristateBuf {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let [din, en, en_b] = ctx.ports(["din", "en", "en_b"], crate::schematic::Direction::Input);
+        let dout = ctx.port("dout", crate::schematic::Direction::Output);
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
         let x = ctx.signal("x");
 
         ctx.instantiate::<Inv>(&self.params.inv1)?
@@ -239,9 +266,11 @@ impl Component for TristateBuf {
         Ok(())
     }
 }
+crate::impl_sky130_build!(TristateBuf);
 
 #[cfg(test)]
 mod tests {
+
     use crate::blocks::gate::PrimitiveGateParams;
     use crate::paths::{out_gds, out_spice};
     use crate::setup_ctx;
@@ -259,9 +288,14 @@ mod tests {
     fn test_tristate_inv() {
         let ctx = setup_ctx();
         let work_dir = test_work_dir("test_tristate_inv");
-        ctx.write_schematic_to_file::<TristateInv>(&INV_SIZING, out_spice(&work_dir, "schematic"))
-            .expect("failed to write schematic");
-        ctx.write_layout::<TristateInv>(&INV_SIZING, out_gds(&work_dir, "layout"))
+        crate::netlist::write_schematic::<TristateInv>(
+            &ctx,
+            &INV_SIZING,
+            out_spice(&work_dir, "schematic"),
+        )
+        .expect("failed to write schematic");
+        crate::layout_ctx()
+            .write_layout::<TristateInv>(&INV_SIZING, out_gds(&work_dir, "layout"))
             .expect("failed to write schematic");
     }
 }

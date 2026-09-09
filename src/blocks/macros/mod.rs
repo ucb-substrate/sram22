@@ -1,125 +1,127 @@
+#[cfg(all(test, feature = "commercial"))]
+use crate::verification::calibre::CalibreContext;
 use std::path::PathBuf;
-
-use codegen::hard_macro;
 
 use crate::blocks::columns::ColumnDesignScript;
 use crate::tech::{external_gds_path, external_spice_path};
 use subgeom::bbox::BoundBox;
 use subgeom::{Rect, Span};
-use substrate::component::{Component, NoParams, View};
-use substrate::data::SubstrateCtx;
-use substrate::layout::cell::{CellPort, Port};
-use substrate::layout::elements::via::{Via, ViaExpansion, ViaParams};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerBoundBox;
+use substrate1::component::{Component, NoParams};
+use substrate1::data::SubstrateCtx;
+use substrate1::layout::cell::{CellPort, Port};
+use substrate1::layout::elements::via::{Via, ViaExpansion, ViaParams};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::LayerBoundBox;
 
-fn path(_ctx: &SubstrateCtx, name: &str, view: View) -> Option<PathBuf> {
-    match view {
-        View::Layout => Some(external_gds_path().join(format!("{name}.gds"))),
-        View::Schematic => Some(external_spice_path().join(format!("{name}.spice"))),
-        _ => None,
-    }
+pub mod schematic;
+
+/// Path to the GDS file backing a layout hard macro.
+pub(crate) fn hard_macro_gds_path(name: &str) -> PathBuf {
+    external_gds_path().join(format!("{name}.gds"))
 }
 
-fn layout_path(_ctx: &SubstrateCtx, name: &str, view: View) -> Option<PathBuf> {
-    match view {
-        View::Layout => Some(external_gds_path().join(format!("{name}.gds"))),
-        _ => None,
-    }
+/// Path to the SPICE file backing a schematic hard macro.
+pub(crate) fn hard_macro_spice_path(name: &str) -> PathBuf {
+    external_spice_path().join(format!("{name}.spice"))
 }
 
-#[hard_macro(
+/// Declares a Substrate 1 layout-only hard macro backed by a GDS file in `tech/sky130/gds`.
+///
+/// Schematic views of hard macros are implemented with Substrate 2 in [`schematic`].
+macro_rules! layout_hard_macro {
+    ($(#[$meta:meta])* $ident:ident, name = $name:literal, gds_cell_name = $gds:literal) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+        pub struct $ident;
+
+        impl Component for $ident {
+            type Params = NoParams;
+
+            fn new(_params: &Self::Params, _ctx: &SubstrateCtx) -> substrate1::error::Result<Self> {
+                Ok(Self)
+            }
+
+            fn name(&self) -> arcstr::ArcStr {
+                arcstr::literal!($name)
+            }
+
+            fn layout(
+                &self,
+                ctx: &mut substrate1::layout::context::LayoutCtx,
+            ) -> substrate1::error::Result<()> {
+                ctx.from_gds_flattened(hard_macro_gds_path($name), $gds)?;
+                Ok(())
+            }
+        }
+    };
+    ($(#[$meta:meta])* $ident:ident, name = $name:literal) => {
+        layout_hard_macro!($(#[$meta])* $ident, name = $name, gds_cell_name = $name);
+    };
+}
+
+layout_hard_macro!(
+    SvtInv2,
     name = "sramgen_svt_inv_2",
-    pdk = "sky130-open",
-    path_fn = "path",
-    gds_cell_name = "sramgen_svt_inv_2",
-    spice_subckt_name = "sramgen_svt_inv_2"
-)]
-pub struct SvtInv2;
+    gds_cell_name = "sramgen_svt_inv_2"
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SvtInv4,
     name = "sramgen_svt_inv_4",
-    pdk = "sky130-open",
-    path_fn = "path",
-    gds_cell_name = "sramgen_svt_inv_4",
-    spice_subckt_name = "sramgen_svt_inv_4"
-)]
-pub struct SvtInv4;
+    gds_cell_name = "sramgen_svt_inv_4"
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpCell,
     name = "sram_sp_cell",
-    pdk = "sky130-open",
-    path_fn = "path",
-    gds_cell_name = "sky130_fd_bd_sram__sram_sp_cell_opt1",
-    spice_subckt_name = "sram_sp_cell"
-)]
-pub struct SpCell;
+    gds_cell_name = "sky130_fd_bd_sram__sram_sp_cell_opt1"
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpCellReplica,
     name = "sram_sp_cell_replica",
-    pdk = "sky130-open",
-    path_fn = "path",
-    gds_cell_name = "sky130_fd_bd_sram__openram_sp_cell_opt1_replica",
-    spice_subckt_name = "sram_sp_cell_replica"
-)]
-pub struct SpCellReplica;
+    gds_cell_name = "sky130_fd_bd_sram__openram_sp_cell_opt1_replica"
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpColend,
     name = "sram_sp_colend",
-    pdk = "sky130-open",
-    path_fn = "path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_colend"
-)]
-pub struct SpColend;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpHstrap,
     name = "sram_sp_hstrap",
-    pdk = "sky130-open",
-    path_fn = "path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_hstrap"
-)]
-pub struct SpHstrap;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SenseAmp,
     name = "sramgen_sp_sense_amp",
-    pdk = "sky130-open",
-    path_fn = "path",
     gds_cell_name = "sramgen_sp_sense_amp"
-)]
-pub struct SenseAmp;
+);
 
-#[hard_macro(
-    name = "sramgen_sp_sense_amp_offset",
-    pdk = "sky130-open",
-    path_fn = "path"
-)]
-pub struct SenseAmpWithOffset;
+layout_hard_macro!(SenseAmpWithOffset, name = "sramgen_sp_sense_amp_offset");
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct SenseAmpCent;
 
 impl Component for SenseAmpCent {
     type Params = NoParams;
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("sense_amp_cent")
     }
 
-    fn schematic(
-        &self,
-        _ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let nwell = layers.get(Selector::Name("nwell"))?;
         let nsdm = layers.get(Selector::Name("nsdm"))?;
@@ -130,7 +132,10 @@ impl Component for SenseAmpCent {
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
 
-        let pc = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        let pc = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
 
         let sa = ctx.instantiate::<SenseAmp>(&NoParams)?;
         let hspan = Span::new(0, pc.tap_width);
@@ -185,198 +190,188 @@ impl Component for SenseAmpCent {
     }
 }
 
-#[hard_macro(
+impl crate::schematic::FromParams for SenseAmpCent {
+    type Params = crate::schematic::NoParams;
+    fn from_params(_params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self)
+    }
+}
+impl substrate::block::Block for SenseAmpCent {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("sense_amp_cent")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::default()
+    }
+}
+impl substrate::schematic::Schematic for SenseAmpCent {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl SenseAmpCent {
+    fn build_schematic(&self, _ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(SenseAmpCent);
+
+layout_hard_macro!(
+    Dff,
     name = "openram_dff",
-    pdk = "sky130-open",
-    path_fn = "path",
     gds_cell_name = "sky130_fd_bd_sram__openram_dff"
-)]
-pub struct Dff;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    DffCol,
     name = "openram_dff_col",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__openram_dff_col"
-)]
-pub struct DffCol;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    DffColCent,
     name = "openram_dff_col_cent",
-    pdk = "sky130-open",
-    path_fn = "path",
     gds_cell_name = "sky130_fd_bd_sram__openram_dff_col_cent"
-)]
-pub struct DffColCent;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    DffColExtend,
     name = "openram_dff_col_extend",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__openram_dff_col_extend"
-)]
-pub struct DffColExtend;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpColendCent,
     name = "sram_sp_colend_cent",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_colend_cent"
-)]
-pub struct SpColendCent;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpColendPCent,
     name = "sram_sp_colend_p_cent",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_colend_p_cent"
-)]
-pub struct SpColendPCent;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpCorner,
     name = "sram_sp_corner",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_corner"
-)]
-pub struct SpCorner;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpRowend,
     name = "sram_sp_rowend",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_rowend"
-)]
-pub struct SpRowend;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpRowendHstrap,
     name = "sram_sp_rowend_hstrap2",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_rowend_hstrap"
-)]
-pub struct SpRowendHstrap;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpRowendReplica,
     name = "sram_sp_rowend_replica",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__openram_sp_rowend_replica"
-)]
-pub struct SpRowendReplica;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpWlstrap,
     name = "sram_sp_wlstrap",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_wlstrap"
-)]
-pub struct SpWlstrap;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpWlstrapP,
     name = "sram_sp_wlstrap_p",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_wlstrap_p"
-)]
-pub struct SpWlstrapP;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpHorizWlstrapP,
     name = "sram_sp_horiz_wlstrap_p2",
-    pdk = "sky130-open",
-    path_fn = "path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_horiz_wlstrap_p"
-)]
-pub struct SpHorizWlstrapP;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpCellOpt1a,
     name = "sram_sp_cell_opt1a",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
-    gds_cell_name = "sky130_fd_bd_sram__sram_sp_cell_opt1a",
-    spice_subckt_name = "sky130_fd_bd_sram__sram_sp_cell_opt1a"
-)]
-pub struct SpCellOpt1a;
+    gds_cell_name = "sky130_fd_bd_sram__sram_sp_cell_opt1a"
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpCellOpt1aReplica,
     name = "sram_sp_cell_opt1a_replica",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__openram_sp_cell_opt1a_replica"
-)]
-pub struct SpCellOpt1aReplica;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpColenda,
     name = "sram_sp_colenda",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_colenda"
-)]
-pub struct SpColenda;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpColendaCent,
     name = "sram_sp_colenda_cent",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_colenda_cent"
-)]
-pub struct SpColendaCent;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpColendaPCent,
     name = "sram_sp_colenda_p_cent",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_colenda_p_cent"
-)]
-pub struct SpColendaPCent;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpCornera,
     name = "sram_sp_cornera",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_cornera"
-)]
-pub struct SpCornera;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpRowenda,
     name = "sram_sp_rowenda",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_rowenda"
-)]
-pub struct SpRowenda;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpRowendaReplica,
     name = "sram_sp_rowenda_replica",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__openram_sp_rowenda_replica"
-)]
-pub struct SpRowendaReplica;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpRowtapendReplica,
     name = "sram_sp_rowtapend_replica",
-    pdk = "sky130-open",
-    path_fn = "path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_rowtapend_replica"
-)]
-pub struct SpRowtapendReplica;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpWlstrapa,
     name = "sram_sp_wlstrapa",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_wlstrapa"
-)]
-pub struct SpWlstrapa;
+);
 
-#[hard_macro(
+layout_hard_macro!(
+    SpWlstrapaP,
     name = "sram_sp_wlstrapa_p",
-    pdk = "sky130-open",
-    path_fn = "layout_path",
     gds_cell_name = "sky130_fd_bd_sram__sram_sp_wlstrapa_p"
-)]
-pub struct SpWlstrapaP;
+);
 
 #[cfg(test)]
 mod tests {
@@ -387,8 +382,7 @@ mod tests {
     fn test_sense_amp_clk_cap() {
         use std::collections::HashMap;
 
-        use substrate::component::NoParams;
-        use substrate::schematic::netlist::NetlistPurpose;
+        use substrate1::component::NoParams;
 
         use crate::paths::{out_gds, out_spice};
         use crate::setup_ctx;
@@ -406,26 +400,22 @@ mod tests {
         let pex_dir = work_dir.join("pex");
         let pex_level = calibre::pex::PexLevel::Rc;
         let pex_netlist_path = crate::paths::out_pex(&work_dir, "pex_netlist", pex_level);
-        ctx.write_schematic_to_file_for_purpose::<SenseAmp>(
-            &NoParams,
-            &pex_path,
-            NetlistPurpose::Pex,
-        )
-        .expect("failed to write pex source netlist");
+        crate::netlist::write_schematic::<SenseAmp>(&ctx, &crate::schematic::NoParams, &pex_path)
+            .expect("failed to write pex source netlist");
         let mut opts = std::collections::HashMap::with_capacity(1);
         opts.insert("level".into(), pex_level.as_str().into());
 
         let gds_path = out_gds(&work_dir, "layout");
-        ctx.write_layout::<SenseAmp>(&NoParams, &gds_path)
+        crate::layout_ctx()
+            .write_layout::<SenseAmp>(&NoParams, &gds_path)
             .expect("failed to write layout");
 
-        ctx.run_pex(substrate::verification::pex::PexInput {
+        ctx.run_pex(crate::verification::calibre::PexInput {
             work_dir: pex_dir,
             layout_path: gds_path.clone(),
             layout_cell_name: arcstr::literal!("sramgen_sp_sense_amp"),
-            layout_format: substrate::layout::LayoutFormat::Gds,
             source_paths: vec![pex_path],
-            source_cell_name: arcstr::literal!("sramgen_sp_sense_amp_wrapper"),
+            source_cell_name: arcstr::literal!("sramgen_sp_sense_amp"),
             pex_netlist_path: pex_netlist_path.clone(),
             ground_net: "vss".to_string(),
             opts,
@@ -433,29 +423,109 @@ mod tests {
         .expect("failed to run pex");
 
         let sim_work_dir = work_dir.join("sim");
-        let cap = ctx
-            .write_simulation::<AcImpedanceTestbench<SenseAmp>>(
-                &AcImpedanceTbParams {
-                    fstart: 100.,
-                    fstop: 100e6,
-                    points: 10,
-                    vdd: 1.8,
-                    dut: NoParams,
-                    pex_netlist: Some(pex_netlist_path.clone()),
-                    vmeas_conn: AcImpedanceTbNode::Vss,
-                    connections: HashMap::from_iter([
-                        (arcstr::literal!("VDD"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("VSS"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("clk"), vec![AcImpedanceTbNode::Vmeas]),
-                        (arcstr::literal!("inn"), vec![AcImpedanceTbNode::Vdd]),
-                        (arcstr::literal!("inp"), vec![AcImpedanceTbNode::Vss]),
-                        (arcstr::literal!("outp"), vec![AcImpedanceTbNode::Floating]),
-                        (arcstr::literal!("outn"), vec![AcImpedanceTbNode::Floating]),
-                    ]),
-                },
-                &sim_work_dir,
-            )
-            .expect("failed to write simulation");
+        let cap = crate::sim::run::<AcImpedanceTestbench<SenseAmp>>(
+            &ctx,
+            &AcImpedanceTbParams {
+                fstart: 100.,
+                fstop: 100e6,
+                points: 10,
+                vdd: 1.8,
+                dut: crate::schematic::NoParams,
+                pex_netlist: Some(pex_netlist_path.clone()),
+                vmeas_conn: AcImpedanceTbNode::Vss,
+                connections: HashMap::from_iter([
+                    (arcstr::literal!("VDD"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("VSS"), vec![AcImpedanceTbNode::Vss]),
+                    (arcstr::literal!("clk"), vec![AcImpedanceTbNode::Vmeas]),
+                    (arcstr::literal!("inn"), vec![AcImpedanceTbNode::Vdd]),
+                    (arcstr::literal!("inp"), vec![AcImpedanceTbNode::Vss]),
+                    (arcstr::literal!("outp"), vec![AcImpedanceTbNode::Floating]),
+                    (arcstr::literal!("outn"), vec![AcImpedanceTbNode::Floating]),
+                ]),
+            },
+            &sim_work_dir,
+        )
+        .expect("failed to write simulation");
         println!("Cclk = {}", cap.max_freq_cap());
     }
 }
+
+impl crate::schematic::FromParams for SvtInv2 {
+    type Params = crate::schematic::NoParams;
+    fn from_params(_: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self)
+    }
+}
+crate::impl_sky130_build!(SvtInv2);
+
+impl crate::schematic::FromParams for SvtInv4 {
+    type Params = crate::schematic::NoParams;
+    fn from_params(_: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self)
+    }
+}
+crate::impl_sky130_build!(SvtInv4);
+
+impl crate::schematic::FromParams for SpCell {
+    type Params = crate::schematic::NoParams;
+    fn from_params(_: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self)
+    }
+}
+crate::impl_sky130_build!(SpCell);
+
+impl crate::schematic::FromParams for SpCellReplica {
+    type Params = crate::schematic::NoParams;
+    fn from_params(_: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self)
+    }
+}
+crate::impl_sky130_build!(SpCellReplica);
+
+impl crate::schematic::FromParams for SpColend {
+    type Params = crate::schematic::NoParams;
+    fn from_params(_: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self)
+    }
+}
+crate::impl_sky130_build!(SpColend);
+
+impl crate::schematic::FromParams for SpHstrap {
+    type Params = crate::schematic::NoParams;
+    fn from_params(_: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self)
+    }
+}
+crate::impl_sky130_build!(SpHstrap);
+
+impl crate::schematic::FromParams for SpHorizWlstrapP {
+    type Params = crate::schematic::NoParams;
+    fn from_params(_: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self)
+    }
+}
+crate::impl_sky130_build!(SpHorizWlstrapP);
+
+impl crate::schematic::FromParams for SpRowtapendReplica {
+    type Params = crate::schematic::NoParams;
+    fn from_params(_: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self)
+    }
+}
+crate::impl_sky130_build!(SpRowtapendReplica);
+
+impl crate::schematic::FromParams for SenseAmp {
+    type Params = crate::schematic::NoParams;
+    fn from_params(_: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self)
+    }
+}
+crate::impl_sky130_build!(SenseAmp);
+
+impl crate::schematic::FromParams for SenseAmpWithOffset {
+    type Params = crate::schematic::NoParams;
+    fn from_params(_: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self)
+    }
+}
+crate::impl_sky130_build!(SenseAmpWithOffset);

@@ -1,9 +1,9 @@
 use crate::blocks::gate::{Inv, PrimitiveGateParams};
-use substrate::schematic::elements::vdc::Vdc;
-use substrate::schematic::elements::vpulse::Vpulse;
-use substrate::units::{SiPrefix, SiValue};
-use substrate::verification::simulation::testbench::Testbench;
-use substrate::verification::simulation::{OutputFormat, TranAnalysis};
+use crate::sim::blocks::Vdc;
+use crate::sim::blocks::Vpulse;
+use crate::sim::run::SimulationTestbench as Testbench;
+use crate::sim::run::TranAnalysis;
+use rust_decimal::Decimal;
 
 use super::*;
 
@@ -23,73 +23,120 @@ pub struct TdcTbParams {
     pub t_stop: f64,
 }
 
-impl Component for TdcTb {
+impl TdcTb {
+    // Float bit patterns give block identity a reflexive Eq and matching Hash, including NaNs.
+    fn cache_key(&self) -> impl std::hash::Hash + Eq + '_ {
+        let p = &self.params;
+        (
+            [
+                p.vdd.to_bits(),
+                p.delta_t.to_bits(),
+                p.tr.to_bits(),
+                p.t_stop.to_bits(),
+            ],
+            &p.inner,
+        )
+    }
+}
+
+impl std::hash::Hash for TdcTb {
+    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+        std::hash::Hash::hash(&self.cache_key(), h)
+    }
+}
+impl PartialEq for TdcTb {
+    fn eq(&self, other: &Self) -> bool {
+        self.cache_key() == other.cache_key()
+    }
+}
+impl Eq for TdcTb {}
+impl crate::schematic::FromParams for TdcTb {
     type Params = TdcTbParams;
-    fn new(
-        params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
         Ok(Self { params: *params })
     }
-
+}
+impl substrate::block::Block for TdcTb {
+    type Io = substrate::types::TestbenchIo;
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("tdc_testbench")
     }
-
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+impl substrate::schematic::Schematic for TdcTb {
+    type Schema = crate::sim::Simulator;
+    type NestedData = ();
     fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
     ) -> substrate::error::Result<()> {
-        let vss = ctx.port("vss", Direction::InOut);
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl TdcTb {
+    fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder<crate::sim::Simulator>,
+    ) -> anyhow::Result<()> {
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
         let [vdd, a, b, b0, reset_b] = ctx.signals(["vdd", "a", "b", "b0", "reset_b"]);
         let dout = ctx.bus("dout", self.params.inner.bits_out());
 
-        let vmax = SiValue::with_precision(self.params.vdd, SiPrefix::Nano);
+        let vmax = crate::sim::dec(self.params.vdd);
         ctx.instantiate::<Vdc>(&vmax)?
             .with_connections([("p", vdd), ("n", vss)])
             .named("Vvdd")
             .add_to(ctx);
 
         let t0 = 100e-12;
-        let ta = SiValue::with_precision(t0, SiPrefix::Femto);
-        let tb = SiValue::with_precision(self.params.delta_t + t0, SiPrefix::Femto);
-        let tr = SiValue::with_precision(self.params.tr, SiPrefix::Femto);
-        let treset = SiValue::with_precision(t0 / 2.0, SiPrefix::Femto);
+        let ta = crate::sim::dec(t0);
+        let tb = crate::sim::dec(self.params.delta_t + t0);
+        let tr = crate::sim::dec(self.params.tr);
+        let treset = crate::sim::dec(t0 / 2.0);
 
         ctx.instantiate::<Vpulse>(&Vpulse {
-            v1: SiValue::zero(),
-            v2: vmax,
-            td: treset,
-            tr,
-            tf: tr,
-            pw: SiValue::new(1000, SiPrefix::None),
-            period: SiValue::new(2000, SiPrefix::None),
+            val0: Decimal::ZERO,
+            val1: vmax,
+            delay: treset,
+            rise: tr,
+            fall: tr,
+            width: crate::sim::dec((1000) as f64 * 1.),
+            period: crate::sim::dec((2000) as f64 * 1.),
         })?
         .with_connections([("p", reset_b), ("n", vss)])
         .named("Vreset")
         .add_to(ctx);
 
         ctx.instantiate::<Vpulse>(&Vpulse {
-            v1: SiValue::zero(),
-            v2: vmax,
-            td: ta,
-            tr,
-            tf: tr,
-            pw: SiValue::new(1000, SiPrefix::None),
-            period: SiValue::new(2000, SiPrefix::None),
+            val0: Decimal::ZERO,
+            val1: vmax,
+            delay: ta,
+            rise: tr,
+            fall: tr,
+            width: crate::sim::dec((1000) as f64 * 1.),
+            period: crate::sim::dec((2000) as f64 * 1.),
         })?
         .with_connections([("p", a), ("n", vss)])
         .named("Va")
         .add_to(ctx);
 
         ctx.instantiate::<Vpulse>(&Vpulse {
-            v1: vmax,
-            v2: SiValue::zero(),
-            td: tb,
-            tr,
-            tf: tr,
-            pw: SiValue::new(1000, SiPrefix::None),
-            period: SiValue::new(2000, SiPrefix::None),
+            val0: vmax,
+            val1: Decimal::ZERO,
+            delay: tb,
+            rise: tr,
+            fall: tr,
+            width: crate::sim::dec((1000) as f64 * 1.),
+            period: crate::sim::dec((2000) as f64 * 1.),
         })?
         .with_connections([("p", b0), ("n", vss)])
         .named("Vb")
@@ -124,10 +171,7 @@ impl Component for TdcTb {
 
 impl Testbench for TdcTb {
     type Output = ();
-    fn setup(
-        &mut self,
-        ctx: &mut substrate::verification::simulation::context::PreSimCtx,
-    ) -> substrate::error::Result<()> {
+    fn setup(&self, ctx: &mut crate::sim::run::SimulationPlan) -> anyhow::Result<()> {
         let tran = TranAnalysis::builder()
             .start(0.0)
             .stop(self.params.t_stop)
@@ -135,15 +179,11 @@ impl Testbench for TdcTb {
             .build()
             .unwrap();
         ctx.add_analysis(tran);
-        ctx.set_format(OutputFormat::DefaultViewable);
-        ctx.save(substrate::verification::simulation::Save::All);
+        ctx.save(crate::sim::run::Save::All);
         Ok(())
     }
 
-    fn measure(
-        &mut self,
-        _ctx: &substrate::verification::simulation::context::PostSimCtx,
-    ) -> substrate::error::Result<Self::Output> {
+    fn measure(&self, _ctx: &crate::sim::run::SimulationResults) -> anyhow::Result<Self::Output> {
         Ok(())
     }
 }

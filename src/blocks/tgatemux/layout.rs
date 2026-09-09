@@ -1,29 +1,28 @@
 use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
 use subgeom::{Dir, Point, Rect, Side, Span};
-use substrate::component::NoParams;
-use substrate::index::IndexOwned;
-use substrate::layout::cell::{CellPort, Port, PortConflictStrategy, PortId};
-use substrate::layout::context::LayoutCtx;
-use substrate::layout::elements::mos::LayoutMos;
-use substrate::layout::elements::via::{Via, ViaExpansion, ViaParams};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerBoundBox;
+use substrate1::index::IndexOwned;
+use substrate1::layout::cell::{CellPort, Port, PortConflictStrategy, PortId};
+use substrate1::layout::context::LayoutCtx;
+use substrate1::layout::elements::mos::LayoutMos;
+use substrate1::layout::elements::via::{Via, ViaExpansion, ViaParams};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::LayerBoundBox;
 
-use substrate::layout::placement::place_bbox::PlaceBbox;
-use substrate::layout::routing::manual::jog::SimpleJog;
+use substrate1::layout::placement::place_bbox::PlaceBbox;
+use substrate1::layout::routing::manual::jog::SimpleJog;
 
-use substrate::pdk::mos::query::Query;
-use substrate::pdk::mos::spec::MosKind;
-use substrate::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
+use substrate1::pdk::mos::query::Query;
+use substrate1::pdk::mos::spec::MosKind;
+use substrate1::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
 
 use super::{TGateMux, TGateMuxCent, TGateMuxEnd, TGateMuxGroup, TGateMuxParams};
 
 use crate::blocks::columns::ColumnDesignScript;
 use crate::blocks::sram::layout::draw_via;
 use derive_builder::Builder;
-use substrate::layout::placement::align::{AlignMode, AlignRect};
-use substrate::layout::placement::array::ArrayTiler;
+use substrate1::layout::placement::align::{AlignMode, AlignRect};
+use substrate1::layout::placement::array::ArrayTiler;
 
 const GATE_LINE: i64 = 320;
 const GATE_SPACE: i64 = 180;
@@ -31,9 +30,12 @@ const GATE_SPACE: i64 = 180;
 impl TGateMux {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
-        let pc = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
+        let pc = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
 
         let db = ctx.mos_db();
         let pmos = db
@@ -353,9 +355,12 @@ impl Metadata {
 impl TGateMuxCent {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
-        let pc = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
+        let pc = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
 
         tgate_mux_tap_layout(pc.tap_width, false, &self.params, ctx)?;
         Ok(())
@@ -367,8 +372,11 @@ fn tgate_mux_tap_layout(
     end: bool,
     params: &TGateMuxParams,
     ctx: &mut LayoutCtx,
-) -> substrate::error::Result<()> {
-    let pc = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+) -> substrate1::error::Result<()> {
+    let pc = crate::script::run_for_layout::<ColumnDesignScript>(
+        ctx.inner(),
+        &crate::schematic::NoParams,
+    )?;
 
     let mux = ctx.instantiate::<TGateMux>(params)?;
     let stripe_hspan = Span::new(-width, 2 * width);
@@ -518,9 +526,12 @@ fn tgate_mux_tap_layout(
 impl TGateMuxEnd {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
-        let pc = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
+        let pc = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
         tgate_mux_tap_layout(pc.tap_width, true, &self.params, ctx)?;
         Ok(())
     }
@@ -529,9 +540,12 @@ impl TGateMuxEnd {
 impl TGateMuxGroup {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
-        let pc = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
+        let pc = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
 
         let params = TGateMuxParams {
             idx: 0,

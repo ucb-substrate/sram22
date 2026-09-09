@@ -2,11 +2,11 @@ use serde::{Deserialize, Serialize};
 use subgeom::bbox::BoundBox;
 use subgeom::ring::Ring;
 use subgeom::Rect;
-use substrate::component::Component;
-use substrate::layout::cell::CellPort;
-use substrate::layout::elements::via::{Via, ViaParams};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::{LayerBoundBox, LayerKey};
+use substrate1::component::Component;
+use substrate1::layout::cell::CellPort;
+use substrate1::layout::elements::via::{Via, ViaParams};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::{LayerBoundBox, LayerKey};
 
 pub struct GuardRing {
     params: GuardRingParams,
@@ -55,8 +55,8 @@ where
     type Params = WrapperParams<T::Params>;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -68,8 +68,8 @@ where
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let &WrapperParams {
             enclosure,
             h_metal,
@@ -103,8 +103,8 @@ impl Component for GuardRing {
     type Params = GuardRingParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -114,8 +114,8 @@ impl Component for GuardRing {
     }
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let space = 2 * std::cmp::max(self.params.h_width, self.params.v_width);
         let vss_ring = Ring::builder()
             .inner(self.params.enclosure)
@@ -221,19 +221,18 @@ impl Component for GuardRing {
 mod tests {
 
     use subgeom::Point;
-    use substrate::layout::layers::selector::Selector;
+    use substrate1::layout::layers::selector::Selector;
 
     use crate::paths::out_gds;
-    use crate::setup_ctx;
+
     use crate::tests::test_work_dir;
 
     use super::*;
 
     #[test]
-    fn test_guard_ring() -> substrate::error::Result<()> {
-        let ctx = setup_ctx();
+    fn test_guard_ring() -> substrate1::error::Result<()> {
         let work_dir = test_work_dir("test_guard_ring");
-        let layers = ctx.layers();
+        let layers = crate::layout_ctx().layers();
 
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
@@ -245,7 +244,8 @@ mod tests {
             h_width: 1_360,
             v_width: 1_360,
         };
-        ctx.write_layout::<GuardRing>(&params, out_gds(work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<GuardRing>(&params, out_gds(work_dir, "layout"))
             .expect("failed to write layout");
         Ok(())
     }

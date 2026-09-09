@@ -11,7 +11,7 @@ license = "BSD-3-Clause"
 derive_builder = "0.12"
 grid = "0.9"
 thiserror = "1"
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
 serde_repr = "0.1"
 serde_json = "1"
 toml = "0.5"
@@ -19,7 +19,6 @@ log = "0.4"
 indicatif = "0.17"
 clap = { version = "4", features = ["derive"] }
 itertools = "0.10"
-psfparser = { git = "https://github.com/rahulk29/psfparser.git", branch = "master" }
 arcstr = "1"
 anyhow = "1"
 calibre = { git = "ssh://git@bwrcrepo.eecs.berkeley.edu/rahulkumar/calibre.git", branch = "master", optional = true }
@@ -31,16 +30,33 @@ colored = "2"
 approx = "0.5"
 lef21 = { git = "https://github.com/dan-fritchman/Layout21.git", branch = "main" }
 plotters = "0.3.7"
+regex = "1"
+bitvec = "1"
+slotmap = "1"
 
-# Substrate dependencies
-substrate = { git = "https://github.com/ucb-substrate/substrate", branch = "main" }
+# Substrate 1 dependencies are retained only for layout generation.
+# Schematics, design scripts, simulation and verification use Substrate 2
+# or standalone tool drivers. Substrate 1 is renamed to `substrate1`
+# so that Substrate 2 can own the `substrate` crate name.
+#
+# IMPORTANT: keep the Substrate 2 `substrate` entry *after* `substrate1`.
+# The Substrate 2 derive macros locate the `substrate` crate through
+# `proc-macro-crate`, which resolves duplicate package names by taking the
+# last matching dependency in this manifest.
+substrate1 = { package = "substrate", git = "https://github.com/ucb-substrate/substrate", branch = "main" }
 subgeom = { git = "https://github.com/ucb-substrate/substrate", branch = "main" }
-codegen = { git = "https://github.com/ucb-substrate/substrate", branch = "main" }
 sky130_open_pdk = { git = "https://github.com/ucb-substrate/substrate", branch = "main" }
-ngspice = { git = "https://github.com/ucb-substrate/substrate", branch = "main" }
 sky130_commercial_pdk = { git = "https://github.com/ucb-substrate/substrate", branch = "main", optional = true }
-spectre = { git = "https://github.com/ucb-substrate/substrate", branch = "main", optional = true }
-sub_calibre = { git = "ssh://git@bwrcrepo.eecs.berkeley.edu/rohankumar/substrate_mentor_plugins.git", branch = "main", optional = true }
+
+# Substrate 2 dependencies (schematic generation, netlisting, simulation).
+substrate = { git = "https://github.com/ucb-substrate/substrate2", branch = "main" }
+sky130 = { git = "https://github.com/ucb-substrate/substrate2", branch = "main" }
+ngspice = { git = "https://github.com/ucb-substrate/substrate2", branch = "main" }
+spice = { git = "https://github.com/ucb-substrate/substrate2", branch = "main" }
+nutlex = { git = "https://github.com/ucb-substrate/substrate2", branch = "main" }
+scir = { git = "https://github.com/ucb-substrate/substrate2", branch = "main" }
+spectre = { git = "https://github.com/ucb-substrate/substrate2", branch = "main", optional = true }
+
 rust_decimal = "1"
 rust_decimal_macros = "1"
 
@@ -48,8 +64,8 @@ rust_decimal_macros = "1"
 tempfile = "3"
 paste = "1"
 rayon = "1"
-itertools = "0.14"
 
 [features]
-commercial = ["dep:calibre", "dep:abstract_lef", "dep:liberate_mx", "dep:spectre", "dep:sky130_commercial_pdk", "dep:sub_calibre"]
+spectre = ["dep:spectre"]
+commercial = ["dep:calibre", "dep:abstract_lef", "dep:liberate_mx", "spectre", "dep:sky130_commercial_pdk"]
 default = ["commercial"]

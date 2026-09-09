@@ -1,20 +1,19 @@
+use crate::sim::waveform::{DigitalTrace as Waveform, DigitalWaveform};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use substrate::component::Component;
-use substrate::index::IndexOwned;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::elements::capacitor::Capacitor;
-use substrate::schematic::elements::vdc::Vdc;
-use substrate::schematic::elements::vpwl::Vpwl;
-use substrate::units::{SiPrefix, SiValue};
-use substrate::verification::simulation::bits::BitSignal;
-use substrate::verification::simulation::testbench::Testbench;
-use substrate::verification::simulation::waveform::{TimeWaveform, Waveform};
-use substrate::verification::simulation::{Save, TranAnalysis, TranData};
+
+use crate::bits::BitSignal;
+use crate::sim::blocks::Capacitor;
+use crate::sim::blocks::Vdc;
+use crate::sim::blocks::Vpwl;
+use crate::sim::run::SimulationTestbench as Testbench;
+use crate::sim::run::{Save, TranAnalysis, TranData};
+use rust_decimal::Decimal;
+use substrate::simulation::waveform::TimeWaveform;
 
 use super::{Sram, SramParams, SramPhysicalDesign};
 
@@ -129,16 +128,20 @@ impl TbParams {
     }
 
     pub fn sram_signal_path(&self, signal: TbSignals) -> String {
-        #[allow(unused_variables)]
-        let mut last_stage_decoder_depth = 0;
-        let mut node = &self.dsn.row_decoder.tree.root;
-        let num_children = node.children.len();
-        if num_children == 1 {
-            while node.gate.gate_type().is_inv() {
-                last_stage_decoder_depth += 1;
-                node = &node.children[0];
+        #[cfg(feature = "commercial")]
+        let last_stage_decoder_depth = {
+            let mut last_stage_decoder_depth = 0;
+            let mut node = &self.dsn.row_decoder.tree.root;
+            let num_children = node.children.len();
+            if num_children == 1 {
+                while node.gate.gate_type().is_inv() {
+                    last_stage_decoder_depth += 1;
+                    node = &node.children[0];
+                }
             }
-        }
+
+            last_stage_decoder_depth
+        };
 
         match signal {
             TbSignals::Clk => "clk".to_string(),
@@ -152,10 +155,10 @@ impl TbParams {
             _ => {
                 #[cfg(feature = "commercial")]
                 if let Some((_, ref level)) = self.pex_netlist {
-                    format!(
-                        "Xdut.Xdut.{}",
+                    return format!(
+                        "Xdut_xinst0.{}",
                         match level {
-                            PexLevel::Rc => {
+                            PexLevel::R | PexLevel::Rc | PexLevel::Rcc => {
                                 match signal {
                                     TbSignals::Clk | TbSignals::We | TbSignals::Ce | TbSignals::RstB | TbSignals::Addr(_) | TbSignals::Wmask(_) | TbSignals::Din(_) | TbSignals::Dout(_) => unreachable!(),
                                     TbSignals::Wlen => format!("N_X0/wl_en_X0/Xaddr_gate/Xgate_0_{}_0/X0/Xn1/M0_g", self.sram.row_bits() - 1),
@@ -175,8 +178,8 @@ impl TbParams {
                                     TbSignals::WeIb(i) => format!("N_X0/Xcol_circuitry/we_ib{}_X0/Xcol_circuitry/Xcol_group_{}/Xwrite_driver/Xbrdriver/Xmp_en/M0_g",if self.sram.wmask_width() > 1 { format!("[{i}]") } else { "".to_string() }, (i + 1) * self.sram.wmask_granularity() - 1),
                                     TbSignals::Bl(i) => format!("N_X0/bl[{i}]_X0/Xcol_circuitry/Xcol_group_{}/Xprecharge_{}/Xbl_pull_up/M0_d", i / self.sram.mux_ratio(), i % self.sram.mux_ratio()),
                                     TbSignals::Br(i) => format!("N_X0/br[{i}]_X0/Xcol_circuitry/Xcol_group_{}/Xprecharge_{}/Xbr_pull_up/M0_d", i / self.sram.mux_ratio(), i % self.sram.mux_ratio()),
-                                    TbSignals::BitcellQ(i,j) => format!("N_X0/Xbitcell_array/Xcell_{i}_{j}/X0/Q_X0/Xbitcell_array/Xcell_{i}_{j}/X0/X3/M0_s"),
-                                    TbSignals::BitcellQB(i,j) => format!("N_X0/Xbitcell_array/Xcell_{i}_{j}/X0/QB_X0/Xbitcell_array/Xcell_{i}_{j}/X0/X4/M0_s"),
+                                    TbSignals::BitcellQ(i,j) => format!("N_X0/Xbitcell_array/Xcell_{i}_{j}/Q_X0/Xbitcell_array/Xcell_{i}_{j}/X0/X3/M0_s"),
+                                    TbSignals::BitcellQB(i,j) => format!("N_X0/Xbitcell_array/Xcell_{i}_{j}/QB_X0/Xbitcell_array/Xcell_{i}_{j}/X0/X4/M0_s"),
                                     TbSignals::WlCtlQ => "N_X0/Xcontrol_logic/Xwl_ctl/q0_X0/Xcontrol_logic/Xwl_ctl/Xnand_set/X0/X1/M0_d".to_string(),
                                     TbSignals::WlCtlQB => "N_X0/Xcontrol_logic/Xwl_ctl/q0b_X0/Xcontrol_logic/Xwl_ctl/Xnand_set/X0/X1/M0_g".to_string(),
                                     TbSignals::SaenCtlQ => "N_X0/Xcontrol_logic/Xsaen_ctl/q0_X0/Xcontrol_logic/Xsaen_ctl/Xnand_set/X0/X1/M0_d".to_string(),
@@ -185,10 +188,10 @@ impl TbParams {
                                     TbSignals::PcCtlQB => "N_X0/Xcontrol_logic/Xpc_ctl/q0b_X0/Xcontrol_logic/Xpc_ctl/Xnand_set/X0/X1/M0_g".to_string(),
                                     TbSignals::WrdrvenCtlQ => "N_X0/Xcontrol_logic/Xwrdrven_ctl/q0_X0/Xcontrol_logic/Xwrdrven_ctl/Xnand_set/X0/X1/M0_d".to_string(),
                                     TbSignals::WrdrvenCtlQB => "N_X0/Xcontrol_logic/Xwrdrven_ctl/q0b_X0/Xcontrol_logic/Xwrdrven_ctl/Xnand_set/X0/X1/M0_g".to_string(),
-                                    TbSignals::DffsQ1(i) => format!("N_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/a_331_392#_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/X36/M0_s"),
-                                    TbSignals::DffsQ1B(i) => format!("N_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/a_298_294#_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/X8/M0_s"),
-                                    TbSignals::DffsQ2(i) => format!("N_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/a_1586_149#_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/X4/M0_s"),
-                                    TbSignals::DffsQ2B(i) => format!("N_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/a_1800_291#_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/X28/M0_s"),
+                                    TbSignals::DffsQ1(i) => format!("N_X0/Xaddr_we_ce_dffs/Xdff_{i}/a_331_392#_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/X36/M0_s"),
+                                    TbSignals::DffsQ1B(i) => format!("N_X0/Xaddr_we_ce_dffs/Xdff_{i}/a_298_294#_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/X8/M0_s"),
+                                    TbSignals::DffsQ2(i) => format!("N_X0/Xaddr_we_ce_dffs/Xdff_{i}/a_1586_149#_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/X4/M0_s"),
+                                    TbSignals::DffsQ2B(i) => format!("N_X0/Xaddr_we_ce_dffs/Xdff_{i}/a_1800_291#_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/X28/M0_s"),
                                     TbSignals::Wlen0 => "N_X0/wl_en0_X0/Xcontrol_logic/Xand_wlen/X0/X9/M0_s".to_string(),
                                     TbSignals::PcB0 => "N_X0/pc_b0_X0/Xcontrol_logic/Xpc_ctl/Xqb_inv/X0/X3/M0_s".to_string(),
                                     TbSignals::SenseEn0 => "N_X0/sense_en0_X0/Xcontrol_logic/Xsaen_ctl/Xq_inv/X0/X3/M0_s".to_string(),
@@ -274,10 +277,10 @@ impl TbParams {
                                     TbSignals::Bl(i) => format!("X0/bl[{i}]"),
                                     TbSignals::Br(i) => format!("X0/br[{i}]"),
                                     TbSignals::BitcellQ(i, j) => {
-                                        format!("X0/Xbitcell_array/Xcell_{i}_{j}/X0/Q")
+                                        format!("X0/Xbitcell_array/Xcell_{i}_{j}/Q")
                                     }
                                     TbSignals::BitcellQB(i, j) => {
-                                        format!("X0/Xbitcell_array/Xcell_{i}_{j}/X0/QB")
+                                        format!("X0/Xbitcell_array/Xcell_{i}_{j}/QB")
                                     }
                                     TbSignals::WlCtlQ => "X0/Xcontrol_logic/Xwl_ctl/q0".to_string(),
                                     TbSignals::WlCtlQB => {
@@ -300,16 +303,16 @@ impl TbParams {
                                         "X0/Xcontrol_logic/Xwrdrven_ctl/q0b".to_string()
                                     }
                                     TbSignals::DffsQ1(i) => {
-                                        format!("X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/a_331_392#")
+                                        format!("X0/Xaddr_we_ce_dffs/Xdff_{i}/a_331_392#")
                                     }
                                     TbSignals::DffsQ1B(i) => {
-                                        format!("X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/a_298_294#")
+                                        format!("X0/Xaddr_we_ce_dffs/Xdff_{i}/a_298_294#")
                                     }
                                     TbSignals::DffsQ2(i) => {
-                                        format!("X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/a_1586_149#")
+                                        format!("X0/Xaddr_we_ce_dffs/Xdff_{i}/a_1586_149#")
                                     }
                                     TbSignals::DffsQ2B(i) => {
-                                        format!("X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/a_1800_291#")
+                                        format!("X0/Xaddr_we_ce_dffs/Xdff_{i}/a_1800_291#")
                                     }
                                     TbSignals::Wlen0 => "X0/wl_en0".to_string(),
                                     TbSignals::PcB0 => "X0/pc_b0".to_string(),
@@ -351,12 +354,12 @@ impl TbParams {
                                     }
                                 }
                             }
-                            _ => unimplemented!(),
                         }
-                    )
-                } else {
+                    );
+                }
+                {
                     format!(
-                        "Xdut.X0.{}",
+                        "Xdut_xinst0_xinst0.X0.{}",
                         match signal {
                             TbSignals::Clk
                             | TbSignals::We
@@ -395,10 +398,9 @@ impl TbParams {
                             ),
                             TbSignals::Bl(i) => format!("bl[{i}]"),
                             TbSignals::Br(i) => format!("br[{i}]"),
-                            TbSignals::BitcellQ(i, j) =>
-                                format!("Xbitcell_array.Xcell_{i}_{j}.X0.Q"),
+                            TbSignals::BitcellQ(i, j) => format!("Xbitcell_array.Xcell_{i}_{j}.Q"),
                             TbSignals::BitcellQB(i, j) =>
-                                format!("Xbitcell_array.Xcell_{i}_{j}.X0.QB"),
+                                format!("Xbitcell_array.Xcell_{i}_{j}.QB"),
                             TbSignals::WlCtlQ => "Xcontrol_logic.Xwl_ctl.q0".to_string(),
                             TbSignals::WlCtlQB => "Xcontrol_logic.Xwl_ctl.q0b".to_string(),
                             TbSignals::SaenCtlQ => "Xcontrol_logic.Xsaen_ctl.q0".to_string(),
@@ -408,14 +410,13 @@ impl TbParams {
                             TbSignals::WrdrvenCtlQ => "Xcontrol_logic.Xwrdrven_ctl.q0".to_string(),
                             TbSignals::WrdrvenCtlQB =>
                                 "Xcontrol_logic.Xwrdrven_ctl.q0b".to_string(),
-                            TbSignals::DffsQ1(i) =>
-                                format!("Xaddr_we_ce_dffs.Xdff_{i}.X0.a_331_392#"),
+                            TbSignals::DffsQ1(i) => format!("Xaddr_we_ce_dffs.Xdff_{i}.a_331_392#"),
                             TbSignals::DffsQ1B(i) =>
-                                format!("Xaddr_we_ce_dffs.Xdff_{i}.X0.a_298_294#"),
+                                format!("Xaddr_we_ce_dffs.Xdff_{i}.a_298_294#"),
                             TbSignals::DffsQ2(i) =>
-                                format!("Xaddr_we_ce_dffs.Xdff_{i}.X0.a_1586_149#"),
+                                format!("Xaddr_we_ce_dffs.Xdff_{i}.a_1586_149#"),
                             TbSignals::DffsQ2B(i) =>
-                                format!("Xaddr_we_ce_dffs.Xdff_{i}.X0.a_1800_291#"),
+                                format!("Xaddr_we_ce_dffs.Xdff_{i}.a_1800_291#"),
                             TbSignals::Wlen0 => "wl_en0".to_string(),
                             TbSignals::PcB0 => "pc_b0".to_string(),
                             TbSignals::SenseEn0 => "sense_en0".to_string(),
@@ -448,14 +449,12 @@ impl TbParams {
                         }
                     )
                 }
-                #[cfg(not(feature = "commercial"))]
-                unimplemented!()
             }
         }
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 pub enum Op {
     Reset,
     None,
@@ -642,26 +641,85 @@ fn generate_waveforms(params: &TbParams) -> TbWaveforms {
     }
 }
 
-impl Component for SramTestbench {
+impl SramTestbench {
+    // Float bit patterns give block identity a reflexive Eq and matching Hash, including NaNs.
+    fn cache_key(&self) -> impl std::hash::Hash + Eq + '_ {
+        let p = &self.params;
+        #[cfg(feature = "commercial")]
+        let pex = p
+            .pex_netlist
+            .as_ref()
+            .map(|(path, level)| (path, level.as_str()));
+        #[cfg(not(feature = "commercial"))]
+        let pex: Option<(&std::path::PathBuf, &str)> = None;
+        (
+            [
+                p.clk_period.to_bits(),
+                p.tr.to_bits(),
+                p.tf.to_bits(),
+                p.vdd.to_bits(),
+                p.c_load.to_bits(),
+                p.t_hold.to_bits(),
+            ],
+            &p.ops,
+            &p.sram,
+            &p.dsn,
+            pex,
+        )
+    }
+}
+
+impl std::hash::Hash for SramTestbench {
+    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+        std::hash::Hash::hash(&self.cache_key(), h)
+    }
+}
+impl PartialEq for SramTestbench {
+    fn eq(&self, other: &Self) -> bool {
+        self.cache_key() == other.cache_key()
+    }
+}
+impl Eq for SramTestbench {}
+impl crate::schematic::FromParams for SramTestbench {
     type Params = TbParams;
-    fn new(
-        params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
     }
-
+}
+impl substrate::block::Block for SramTestbench {
+    type Io = substrate::types::TestbenchIo;
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("sram_testbench")
     }
-
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+impl substrate::schematic::Schematic for SramTestbench {
+    type Schema = crate::sim::Simulator;
+    type NestedData = ();
     fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
     ) -> substrate::error::Result<()> {
-        let vss = ctx.port("vss", Direction::InOut);
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl SramTestbench {
+    fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder<crate::sim::Simulator>,
+    ) -> anyhow::Result<()> {
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
         let [vdd, clk, ce, we, rstb] = ctx.signals(["vdd", "clk", "ce", "we", "rstb"]);
 
         let addr = ctx.bus("addr", self.params.sram.addr_width());
@@ -670,7 +728,7 @@ impl Component for SramTestbench {
         let wmask = ctx.bus("wmask", self.params.sram.wmask_width());
 
         let waveforms = generate_waveforms(&self.params);
-        let output_cap = SiValue::with_precision(self.params.c_load, SiPrefix::Femto);
+        let output_cap = crate::sim::dec(self.params.c_load);
 
         #[cfg(feature = "commercial")]
         if let Some((ref pex_netlist, _)) = self.params.pex_netlist {
@@ -726,7 +784,7 @@ impl Component for SramTestbench {
             .named("dut")
             .add_to(ctx);
 
-        ctx.instantiate::<Vdc>(&SiValue::with_precision(self.params.vdd, SiPrefix::Milli))?
+        ctx.instantiate::<Vdc>(&crate::sim::dec(self.params.vdd))?
             .with_connections([("p", vdd), ("n", vss)])
             .named("Vdd")
             .add_to(ctx);
@@ -987,17 +1045,10 @@ pub fn tb_params(
 
 impl Testbench for SramTestbench {
     type Output = TranData;
-    fn setup(
-        &mut self,
-        ctx: &mut substrate::verification::simulation::context::PreSimCtx,
-    ) -> substrate::error::Result<()> {
+    fn setup(&self, ctx: &mut crate::sim::run::SimulationPlan) -> anyhow::Result<()> {
         let wav = generate_waveforms(&self.params);
         let step = self.params.clk_period / 8.0;
-        use std::collections::HashMap;
-        let opts = HashMap::from_iter([
-            ("write".to_string(), "initial.ic".to_string()),
-            ("readns".to_string(), "initial.ic".to_string()),
-        ]);
+
         #[cfg(feature = "commercial")]
         if let Some((ref netlist, _)) = self.params.pex_netlist {
             ctx.include(netlist);
@@ -1008,7 +1059,6 @@ impl Testbench for SramTestbench {
                 // .stop(80e-9)
                 .step(step)
                 // .strobe_period(step)
-                .opts(opts)
                 .build()
                 .unwrap(),
         );
@@ -1064,14 +1114,11 @@ impl Testbench for SramTestbench {
                     TbSignals::WmaskQ(i),
                 ]
             }))
-            .chain((0..self.params.sram.cols()).flat_map(|i| {
-                [
-                    TbSignals::Bl(i),
-                    TbSignals::Br(i),
-                    TbSignals::BlOut(i),
-                    TbSignals::BrOut(i),
-                ]
-            }))
+            .chain((0..self.params.sram.cols()).flat_map(|i| [TbSignals::Bl(i), TbSignals::Br(i)]))
+            .chain(
+                (0..self.params.sram.data_width())
+                    .flat_map(|i| [TbSignals::BlOut(i), TbSignals::BrOut(i)]),
+            )
             .chain(
                 (0..self.params.sram.row_bits())
                     .flat_map(|i| [TbSignals::AddrGated(i), TbSignals::AddrBGated(i)]),
@@ -1090,17 +1137,17 @@ impl Testbench for SramTestbench {
         ctx.save(Save::Signals(signals));
         // ctx.save(Save::All);
 
-        let vdd = SiValue::with_precision(self.params.vdd, SiPrefix::Nano);
+        let vdd = crate::sim::dec(self.params.vdd);
 
         for i in 0..self.params.sram.rows() {
             ctx.set_ic(
                 self.params.sram_signal_path(TbSignals::WlStart(i)),
-                SiValue::zero(),
+                Decimal::ZERO,
             );
             for j in 0..self.params.sram.cols() {
                 ctx.set_ic(
                     self.params.sram_signal_path(TbSignals::BitcellQ(i, j)),
-                    SiValue::zero(),
+                    Decimal::ZERO,
                 );
                 ctx.set_ic(
                     self.params.sram_signal_path(TbSignals::BitcellQB(i, j)),
@@ -1114,7 +1161,7 @@ impl Testbench for SramTestbench {
             TbSignals::SaenCtlQ,
             TbSignals::WrdrvenCtlQ,
         ] {
-            ctx.set_ic(self.params.sram_signal_path(signal), SiValue::zero());
+            ctx.set_ic(self.params.sram_signal_path(signal), Decimal::ZERO);
         }
         for signal in [
             TbSignals::WlCtlQB,
@@ -1127,11 +1174,11 @@ impl Testbench for SramTestbench {
         for i in 0..self.params.sram.addr_width() + 2 {
             ctx.set_ic(
                 self.params.sram_signal_path(TbSignals::DffsQ1(i)),
-                SiValue::zero(),
+                Decimal::ZERO,
             );
             ctx.set_ic(
                 self.params.sram_signal_path(TbSignals::DffsQ2(i)),
-                SiValue::zero(),
+                Decimal::ZERO,
             );
             ctx.set_ic(self.params.sram_signal_path(TbSignals::DffsQ1B(i)), vdd);
             ctx.set_ic(self.params.sram_signal_path(TbSignals::DffsQ2B(i)), vdd);
@@ -1139,11 +1186,45 @@ impl Testbench for SramTestbench {
         Ok(())
     }
 
-    fn measure(
-        &mut self,
-        ctx: &substrate::verification::simulation::context::PostSimCtx,
-    ) -> substrate::error::Result<Self::Output> {
-        let data = ctx.output().data[0].tran();
+    fn measure(&self, ctx: &crate::sim::run::SimulationResults) -> anyhow::Result<Self::Output> {
+        let data = ctx.data[0].tran();
         Ok(data.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[ignore = "requires the selected simulator and SKY130 models; generates and simulates a full SRAM"]
+    fn sram_read_write() {
+        use crate::blocks::sram::testbench::verify::verify_simulation;
+        use crate::blocks::sram::testbench::{tb_params, SramTestbench, TbSignals, TestSequence};
+        use crate::blocks::sram::{MuxRatio, SramParams, SramPhysicalDesignScript};
+        use crate::script::DesignContext;
+        let ctx = crate::setup_ctx();
+        let params = SramParams::new(4, MuxRatio::M4, 64, 8);
+        let dsn = ctx.run_script::<SramPhysicalDesignScript>(&params).unwrap();
+        let tb = tb_params(
+            params,
+            dsn,
+            1.8,
+            TestSequence::Short,
+            #[cfg(feature = "commercial")]
+            None,
+        );
+        let dir = std::path::Path::new(crate::BUILD_PATH).join("sram_read_write");
+        let data = crate::sim::run::<SramTestbench>(&ctx, &tb, &dir).unwrap();
+        for signal in [
+            TbSignals::BitcellQ(0, 0),
+            TbSignals::DffsQ1(0),
+            TbSignals::WlCtlQ,
+        ] {
+            let path = tb.sram_signal_path(signal);
+            assert!(
+                data.waveform(&path).is_some(),
+                "missing internal node {path}"
+            );
+        }
+        verify_simulation(&dir, &data, &tb).unwrap();
     }
 }

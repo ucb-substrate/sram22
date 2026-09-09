@@ -2,11 +2,12 @@ use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+use substrate::simulation::waveform::Waveform;
 
+use crate::bits::{to_bit, BitSignal};
+use crate::sim::run::TranData;
 use itertools::izip;
-use substrate::verification::simulation::bits::{to_bit, BitSignal};
-use substrate::verification::simulation::waveform::{TimeWaveform, Transition, Waveform};
-use substrate::verification::simulation::TranData;
+use substrate::simulation::waveform::{TimeWaveform, Transition};
 
 use super::{Op, TbParams, TbSignals};
 use anyhow::{anyhow, bail, Result};
@@ -154,7 +155,7 @@ pub fn write_internal_rpt(
             }
         }
         if matches!(op, Op::Write { .. }) {
-            let check_overlap = |we_trans: &VecDeque<Transition>| -> Option<_> {
+            let check_overlap = |we_trans: &VecDeque<Transition<f64>>| -> Option<_> {
                 let active_wl = active_wls.first()?;
                 let wl_start = wl_trans[*active_wl].front()?.center_time();
                 let wl_end = wl_trans[*active_wl].get(1)?.center_time();
@@ -198,22 +199,19 @@ pub fn write_internal_rpt(
     let wlen = data
         .waveform(&tb.sram_signal_path(TbSignals::Wlen))
         .ok_or_else(|| anyhow!("Unable to find signal wlen"))?;
-    let wl_max = wl
+    let wl_max: Waveform<f64> = data
+        .time
+        .values
         .iter()
-        .fold(None, |a: Option<Waveform>, b| {
-            let mut wf_new = Waveform::new();
-            if let Some(wf) = a {
-                for (a, b) in b.values().zip(wf.values()) {
-                    wf_new.push(a.t(), if a.x() < b.x() { b.x() } else { a.x() });
-                }
-            } else {
-                for val in b.values() {
-                    wf_new.push(val.t(), val.x());
-                }
-            }
-            Some(wf_new)
+        .enumerate()
+        .map(|(i, &t)| {
+            let value = wl
+                .iter()
+                .map(|wf| wf.get(i).unwrap().x())
+                .fold(f64::NEG_INFINITY, f64::max);
+            (t, value)
         })
-        .unwrap();
+        .collect();
 
     writeln!(rpt, "DECODER REPLICA")?;
     writeln!(rpt, "==========================")?;

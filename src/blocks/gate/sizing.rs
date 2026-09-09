@@ -1,8 +1,8 @@
 use crate::blocks::decoder::sizing::{path_map_tree, Tree, ValueTree};
 use crate::blocks::decoder::{primitive_gate_model, primitive_gate_params};
 use crate::blocks::gate::{PrimitiveGateParams, PrimitiveGateType};
+use crate::logic::delay::{LogicPath, OptimizerOpts};
 use serde::{Deserialize, Serialize};
-use substrate::logic::delay::{LogicPath, OptimizerOpts};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct InverterGateTreeNode {

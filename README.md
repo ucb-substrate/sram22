@@ -9,8 +9,9 @@ SRAM22 is still a work in progress.
 
 In order to use SRAM22, your system will need to have the following components:
 
-- Rust (SRAM22 is tested with version 1.81.0)
+- Rust (tested with version 1.98.0)
 - Make
+- ngspice for open-source simulation, or Spectre when using the `spectre` feature.
 - A local clone of our [slightly modified version of the SKY 130 PDK](https://github.com/ucb-substrate/skywater-pdk). 
 You will also need to set the environment variable `SKY130_OPEN_PDK_ROOT` to the absolute path of the local PDK's root directory.
 Substrate uses standard cells from the `sky130_fd_sc_hs` library, so you will also need to run the following from the PDK root directory:
@@ -41,7 +42,7 @@ cd sram22 && mv Cargo.bwrc.toml Cargo.toml && make install && cd -
 #### External
 
 If you do not have BWRC access, you can still install SRAM22, albeit without
-the ability to invoke proprietary tools for DRC, LVS, PEX, and simulation.
+the ability to invoke proprietary tools for DRC, LVS, and PEX. Schematic simulation uses ngspice by default.
 
 Use the following commands:
 
@@ -77,6 +78,48 @@ Options:
 By default all SRAMs are generated concurrently. Pass `--parallel` (or `-p`) to cap how many
 run at once — useful in a commercial install, where each SRAM also runs PEX and Liberate MX
 steps that invoke licensed tools and are memory-intensive.
+
+### Development
+
+Schematics, design scripts, netlisting, and simulation use Substrate 2. Layout generation
+and its geometry helpers use the separate `substrate1` dependency. `setup_ctx()` returns a
+Substrate 2 `Context`; use `setup_layout_ctx()` for layout-only work.
+
+Circuit generators implement `substrate::block::Block` and `substrate::schematic::Schematic`.
+Dynamic interfaces use `schematic::NamedIo` and `CircuitBuilder`. Design scripts implement
+`script::Script` and run through `script::DesignContext::run_script`, with results cached in
+the context using typed parameter keys. Physical sizing scripts request geometry through
+`layout_ctx()`, which returns the active thread’s layout context. Layout callers use
+`script::run_for_layout` to run design scripts with their own geometry context.
+
+`netlist::write_schematic` constructs and exports a circuit from its parameters, with top-level
+bus pins matching layout labels (`addr[0]`). Testbenches implement `Schematic` and
+`sim::run::SimulationTestbench`; `sim::run` and `sim::run_with_corner` execute their analyses
+through Substrate 2 simulation controllers. Setup and measurements use the same immutable
+testbench. Transient waveforms share sample buffers and are saved as `transient.json`. PEX
+wrappers bind extracted pins by name and reject ambiguous internal-node matches.
+
+The default manifest uses the open SKY130 PDK and ngspice. `--features spectre` selects Spectre
+with the same open PDK. The BWRC manifest's `commercial` feature selects Spectre with the NDA
+PDK and standalone Calibre drivers. Both PDK root environment variables are required for that
+build. Licensed verification tools and their rule decks must be available to run those flows.
+
+Useful checks, with `SKY130_OPEN_PDK_ROOT` set:
+
+```sh
+cargo check --all-targets
+cargo check --all-targets --features spectre
+cargo test --lib
+cargo test --lib sim::tests::transient_and_ac -- --ignored
+cargo test --lib measure::impedance::tests::inverter_transition_measurement -- --ignored
+cargo test --lib blocks::senseamp::tests::resolves_differential_input -- --ignored
+cargo test --lib blocks::sram::testbench::tests::sram_read_write -- --ignored
+```
+
+Tests live alongside the modules they exercise. Simulation tests require the selected simulator
+and PDK models; the full SRAM test also
+runs physical sizing and can take several minutes. Full layout/verification tests remain
+available as ignored tests in `blocks::sram::tests`.
 
 ### Configuration
 

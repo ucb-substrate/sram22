@@ -1,4 +1,5 @@
 use crate::blocks::sram::testbench::{TbParams, TbSignals};
+use crate::sim::run::TranData;
 use plotters::backend::BitMapBackend;
 use plotters::chart::ChartBuilder;
 use plotters::drawing::IntoDrawingArea;
@@ -6,14 +7,13 @@ use plotters::element::PathElement;
 use plotters::prelude::IntoFont;
 use plotters::series::LineSeries;
 use plotters::style::{Color, RGBColor, ShapeStyle};
-use psfparser::analysis::transient::TransientData;
 use std::ops::Range;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct PlotParams {
     tb: TbParams,
-    psf: PathBuf,
+    data: PathBuf,
     output_path: PathBuf,
     plot_name: String,
 }
@@ -22,11 +22,9 @@ fn plot_inner(
     params: PlotParams,
     time_span: Range<f32>,
     signals: &[(&str, TbSignals)],
-) -> substrate::error::Result<()> {
-    let data = std::fs::read(params.psf)?;
-    let ast = psfparser::binary::parse(&data)?;
-    let data = TransientData::from_binary(ast);
-    let t = data.signal("time").unwrap();
+) -> anyhow::Result<()> {
+    let data: TranData = serde_json::from_slice(&std::fs::read(params.data)?)?;
+    let t = &data.time.values;
 
     let root = BitMapBackend::new(&params.output_path, (1920, 1080)).into_drawing_area();
     root.fill(&WHITE).unwrap();
@@ -62,10 +60,10 @@ fn plot_inner(
             filled: true,
             stroke_width: 3,
         };
-        let y = data.signal(&params.tb.sram_signal_path(sig)).unwrap();
+        let y = &data.data[&params.tb.sram_signal_path(sig).to_ascii_lowercase()].values;
         chart
             .draw_series(LineSeries::new(
-                t.iter().zip(y).map(|(x, y)| (*x as f32, *y as f32)),
+                t.iter().zip(y.iter()).map(|(x, y)| (*x as f32, *y as f32)),
                 style,
             ))
             .unwrap()
@@ -89,7 +87,7 @@ fn plot_inner(
     Ok(())
 }
 
-pub fn plot_read(params: PlotParams) -> substrate::error::Result<()> {
+pub fn plot_read(params: PlotParams) -> anyhow::Result<()> {
     plot_inner(
         params,
         138e-9f32..158e-9f32,
@@ -106,7 +104,7 @@ pub fn plot_read(params: PlotParams) -> substrate::error::Result<()> {
     )
 }
 
-pub fn plot_write(params: PlotParams) -> substrate::error::Result<()> {
+pub fn plot_write(params: PlotParams) -> anyhow::Result<()> {
     plot_inner(
         params,
         38e-9f32..58e-9f32,
@@ -129,6 +127,7 @@ mod tests {
     use crate::blocks::sram::testbench::TestSequence;
     use crate::blocks::sram::tests::*;
     use crate::blocks::sram::SramPhysicalDesignScript;
+    use crate::script::DesignContext;
     use crate::setup_ctx;
     use crate::tests::test_work_dir;
     use std::path::PathBuf;
@@ -171,14 +170,13 @@ mod tests {
             let tb =
                 crate::blocks::sram::testbench::tb_params(params, dsn, 1.8f64, seq, pex_netlist);
             for corner in ["sf", "fs", "ss", "ff"] {
-                let psf =
-                    sram_work_dir.join(format!("{corner}_1.80_short/psf/analysis_0.tran.tran"));
+                let psf = sram_work_dir.join(format!("{corner}_1.80_short/transient.json"));
 
                 let work_dir = test_work_dir("plot_sram");
                 std::fs::create_dir_all(&work_dir).unwrap();
                 let plot = PlotParams {
                     tb: tb.clone(),
-                    psf: psf.clone(),
+                    data: psf.clone(),
                     output_path: work_dir.join(format!("{}_{}_read.png", params.name(), corner)),
                     plot_name: format!(
                         "{} read (RC extracted, {}/25C/1.8V)",
@@ -189,7 +187,7 @@ mod tests {
                 plot_read(plot).unwrap();
                 let plot = PlotParams {
                     tb: tb.clone(),
-                    psf: psf.clone(),
+                    data: psf.clone(),
                     output_path: work_dir.join(format!("{}_{}_write.png", params.name(), corner)),
                     plot_name: format!(
                         "{} write (RC extracted, {}/25C/1.8V)",

@@ -11,6 +11,7 @@ pub mod macros;
 pub mod precharge;
 pub mod senseamp;
 pub mod sram;
+pub mod stdcells;
 pub mod tdc;
 pub mod tgatemux;
 pub mod wrdriver;

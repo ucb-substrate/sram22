@@ -1,10 +1,6 @@
+use crate::script::DesignContext;
+use anyhow::Result;
 use std::collections::HashMap;
-use substrate::component::NoParams;
-use substrate::error::Result;
-use substrate::index::IndexOwned;
-use substrate::pdk::stdcell::StdCell;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::context::SchematicCtx;
 
 use crate::blocks::decoder::DecoderStage;
 use crate::blocks::latch::DiffLatch;
@@ -36,26 +32,26 @@ impl ColPeripherals {
         ])
     }
 
-    pub(crate) fn schematic(&self, ctx: &mut SchematicCtx) -> Result<()> {
+    pub(crate) fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> Result<()> {
         let cols = self.params.cols;
         let mux_ratio = self.params.mux_ratio();
         let word_length = self.params.word_length();
         let wmask_bits = self.params.wmask_bits();
 
-        let clk = ctx.port("clk", Direction::Input);
-        let rstb = ctx.port("rstb", Direction::Input);
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let sense_en = ctx.port("sense_en", Direction::Input);
-        let bl = ctx.bus_port("bl", cols, Direction::InOut);
-        let br = ctx.bus_port("br", cols, Direction::InOut);
-        let pc_b = ctx.port("pc_b", Direction::Input);
-        let sel = ctx.bus_port("sel", mux_ratio, Direction::Input);
-        let sel_b = ctx.bus_port("sel_b", mux_ratio, Direction::Input);
-        let we = ctx.port("we", Direction::Input);
-        let wmask = ctx.bus_port("wmask", wmask_bits, Direction::Input);
-        let din = ctx.bus_port("din", word_length, Direction::Input);
-        let dout = ctx.bus_port("dout", word_length, Direction::Output);
+        let clk = ctx.port("clk", crate::schematic::Direction::Input);
+        let rstb = ctx.port("rstb", crate::schematic::Direction::Input);
+        let vdd = ctx.port("vdd", crate::schematic::Direction::InOut);
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
+        let sense_en = ctx.port("sense_en", crate::schematic::Direction::Input);
+        let bl = ctx.bus_port("bl", cols, crate::schematic::Direction::InOut);
+        let br = ctx.bus_port("br", cols, crate::schematic::Direction::InOut);
+        let pc_b = ctx.port("pc_b", crate::schematic::Direction::Input);
+        let sel = ctx.bus_port("sel", mux_ratio, crate::schematic::Direction::Input);
+        let sel_b = ctx.bus_port("sel_b", mux_ratio, crate::schematic::Direction::Input);
+        let we = ctx.port("we", crate::schematic::Direction::Input);
+        let wmask = ctx.bus_port("wmask", wmask_bits, crate::schematic::Direction::Input);
+        let din = ctx.bus_port("din", word_length, crate::schematic::Direction::Input);
+        let dout = ctx.bus_port("dout", word_length, crate::schematic::Direction::Output);
 
         let wmask_in = ctx.bus("wmask_in", wmask_bits);
         let wmask_in_b = ctx.bus("wmask_in_b", wmask_bits);
@@ -140,21 +136,37 @@ impl Column {
         ])
     }
 
-    pub(crate) fn schematic(&self, ctx: &mut SchematicCtx) -> Result<()> {
-        let clk = ctx.port("clk", Direction::Input);
-        let rstb = ctx.port("rstb", Direction::Input);
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let bl = ctx.bus_port("bl", self.params.mux_ratio(), Direction::InOut);
-        let br = ctx.bus_port("br", self.params.mux_ratio(), Direction::InOut);
-        let pc_b = ctx.port("pc_b", Direction::Input);
-        let sel = ctx.bus_port("sel", self.params.mux_ratio(), Direction::Input);
-        let sel_b = ctx.bus_port("sel_b", self.params.mux_ratio(), Direction::Input);
-        let we = ctx.port("we", Direction::Input);
-        let we_b = ctx.port("we_b", Direction::Input);
-        let din = ctx.port("din", Direction::Input);
-        let dout = ctx.port("dout", Direction::Output);
-        let sense_en = ctx.port("sense_en", Direction::Input);
+    pub(crate) fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> Result<()> {
+        let clk = ctx.port("clk", crate::schematic::Direction::Input);
+        let rstb = ctx.port("rstb", crate::schematic::Direction::Input);
+        let vdd = ctx.port("vdd", crate::schematic::Direction::InOut);
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
+        let bl = ctx.bus_port(
+            "bl",
+            self.params.mux_ratio(),
+            crate::schematic::Direction::InOut,
+        );
+        let br = ctx.bus_port(
+            "br",
+            self.params.mux_ratio(),
+            crate::schematic::Direction::InOut,
+        );
+        let pc_b = ctx.port("pc_b", crate::schematic::Direction::Input);
+        let sel = ctx.bus_port(
+            "sel",
+            self.params.mux_ratio(),
+            crate::schematic::Direction::Input,
+        );
+        let sel_b = ctx.bus_port(
+            "sel_b",
+            self.params.mux_ratio(),
+            crate::schematic::Direction::Input,
+        );
+        let we = ctx.port("we", crate::schematic::Direction::Input);
+        let we_b = ctx.port("we_b", crate::schematic::Direction::Input);
+        let din = ctx.port("din", crate::schematic::Direction::Input);
+        let dout = ctx.port("dout", crate::schematic::Direction::Output);
+        let sense_en = ctx.port("sense_en", crate::schematic::Direction::Input);
 
         let bl_out = ctx.signal("bl_out");
         let br_out = ctx.signal("br_out");
@@ -166,10 +178,6 @@ impl Column {
 
         let mux_ratio = self.params.mux_ratio();
         let pc = ctx.instantiate::<Precharge>(&self.params.pc)?;
-
-        let stdcells = ctx.inner().std_cell_db();
-        let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
-        let dfrtp = lib.try_cell_named("sky130_fd_sc_hs__dfrbp_2")?;
 
         for i in 0..mux_ratio {
             let bl_i = bl.index(i);
@@ -209,7 +217,7 @@ impl Column {
         wrdrv.set_name("write_driver");
         ctx.add_instance(wrdrv);
 
-        let mut sa = ctx.instantiate::<SenseAmp>(&NoParams)?;
+        let mut sa = ctx.instantiate::<SenseAmp>(&crate::schematic::NoParams)?;
         sa.connect_all([
             ("clk", &sense_en),
             ("inn", &br_out),
@@ -234,12 +242,12 @@ impl Column {
         latch.set_name("latch");
         ctx.add_instance(latch);
 
-        let mut dff = ctx.instantiate::<StdCell>(&dfrtp.id())?;
+        let mut dff = ctx.instantiate::<crate::blocks::stdcells::HsDfrbp>(&2)?;
         dff.connect_all([
-            ("VPWR", vdd),
-            ("VGND", vss),
-            ("VNB", vss),
-            ("VPB", vdd),
+            ("pwr_vpwr", vdd),
+            ("pwr_vgnd", vss),
+            ("pwr_vnb", vss),
+            ("pwr_vpb", vdd),
             ("CLK", clk),
             ("RESET_B", rstb),
             ("D", din),

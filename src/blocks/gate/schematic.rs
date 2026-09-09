@@ -1,193 +1,218 @@
-use substrate::pdk::mos::query::Query;
-use substrate::pdk::mos::spec::MosKind;
-use substrate::pdk::mos::MosParams;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::elements::mos::SchematicMos;
+//! Schematics of the primitive and compound logic gates.
+
+use sky130::mos::{Nfet01v8, Pfet01v8};
+use sky130::Sky130;
+use substrate::block::Block;
+use substrate::error::Result;
+use substrate::schematic::{CellBuilder, Schematic};
+use substrate::types::schematic::{IoNodeBundle, Node, NodeBundle};
+use substrate::types::{Array, InOut, Input, Io, Output, Signal};
 
 use super::{
-    And2, And3, FoldedInv, Inv, MultiFingerInv, MultiFingerInvMosParams, Nand2, Nand3, Nor2,
+    And2, And3, FoldedInv, Gate, GateParams, Inv, MultiFingerInv, MultiFingerInvMosParams, Nand2,
+    Nand3, Nor2, PrimitiveGateParams, TappedGate,
 };
 
-impl And2 {
-    pub(crate) fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let a = ctx.port("a", Direction::Input);
-        let b = ctx.port("b", Direction::Input);
-        let y = ctx.port("y", Direction::Output);
-        let yb = ctx.port("yb", Direction::Output);
-        let vss = ctx.port("vss", Direction::InOut);
-
-        let mut nand = ctx.instantiate::<Nand2>(&self.params.nand)?;
-        nand.connect_all([
-            ("vdd", &vdd),
-            ("a", &a),
-            ("b", &b),
-            ("y", &yb),
-            ("vss", &vss),
-        ]);
-        ctx.add_instance(nand);
-
-        let mut inv = ctx.instantiate::<FoldedInv>(&self.params.inv)?;
-        inv.connect_all([("vdd", &vdd), ("a", &yb), ("y", &y), ("vss", &vss)]);
-        ctx.add_instance(inv);
-
-        Ok(())
-    }
+/// The IO of a single-input gate (an inverter).
+#[derive(Debug, Default, Clone, Copy, Io)]
+pub struct InvIo {
+    pub vdd: InOut<Signal>,
+    pub vss: InOut<Signal>,
+    pub a: Input<Signal>,
+    pub y: Output<Signal>,
 }
 
-impl And3 {
-    pub(crate) fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let a = ctx.port("a", Direction::Input);
-        let b = ctx.port("b", Direction::Input);
-        let c = ctx.port("c", Direction::Input);
-        let y = ctx.port("y", Direction::Output);
-        let yb = ctx.port("yb", Direction::Output);
-        let vss = ctx.port("vss", Direction::InOut);
-
-        let mut nand = ctx.instantiate::<Nand3>(&self.params.nand)?;
-        nand.connect_all([
-            ("vdd", &vdd),
-            ("a", &a),
-            ("b", &b),
-            ("c", &c),
-            ("y", &yb),
-            ("vss", &vss),
-        ]);
-        ctx.add_instance(nand);
-
-        let mut inv = ctx.instantiate::<FoldedInv>(&self.params.inv)?;
-        inv.connect_all([("vdd", &vdd), ("a", &yb), ("y", &y), ("vss", &vss)]);
-        ctx.add_instance(inv);
-
-        Ok(())
-    }
+/// The IO of a two-input primitive gate.
+#[derive(Debug, Default, Clone, Copy, Io)]
+pub struct Gate2Io {
+    pub vdd: InOut<Signal>,
+    pub vss: InOut<Signal>,
+    pub a: Input<Signal>,
+    pub b: Input<Signal>,
+    pub y: Output<Signal>,
 }
 
-impl Inv {
-    pub(crate) fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let length = self.params.length;
-
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let a = ctx.port("a", Direction::Input);
-        let y = ctx.port("y", Direction::Output);
-
-        let pmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Pmos).build().unwrap())?
-            .id();
-
-        let nmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Nmos).build().unwrap())?
-            .id();
-
-        let mut mp = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.pwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: pmos_id,
-        })?;
-        mp.connect_all([("d", &y), ("g", &a), ("s", &vdd), ("b", &vdd)]);
-        mp.set_name("MP0");
-        ctx.add_instance(mp);
-
-        let mut mn = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.nwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: nmos_id,
-        })?;
-        mn.connect_all([("d", &y), ("g", &a), ("s", &vss), ("b", &vss)]);
-        mn.set_name("MN0");
-        ctx.add_instance(mn);
-
-        Ok(())
-    }
+/// The IO of a three-input primitive gate.
+#[derive(Debug, Default, Clone, Copy, Io)]
+pub struct Gate3Io {
+    pub vdd: InOut<Signal>,
+    pub vss: InOut<Signal>,
+    pub a: Input<Signal>,
+    pub b: Input<Signal>,
+    pub c: Input<Signal>,
+    pub y: Output<Signal>,
 }
 
-impl FoldedInv {
-    pub(crate) fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let a = ctx.port("a", Direction::Input);
-        let y = ctx.port("y", Direction::Output);
+/// The IO of a two-input AND gate.
+///
+/// `yb` is the (inverted) output of the internal NAND gate.
+#[derive(Debug, Default, Clone, Copy, Io)]
+pub struct And2Io {
+    pub vdd: InOut<Signal>,
+    pub vss: InOut<Signal>,
+    pub a: Input<Signal>,
+    pub b: Input<Signal>,
+    pub y: Output<Signal>,
+    pub yb: Output<Signal>,
+}
 
-        let pmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Pmos).build().unwrap())?
-            .id();
+/// The IO of a three-input AND gate.
+///
+/// `yb` is the (inverted) output of the internal NAND gate.
+#[derive(Debug, Default, Clone, Copy, Io)]
+pub struct And3Io {
+    pub vdd: InOut<Signal>,
+    pub vss: InOut<Signal>,
+    pub a: Input<Signal>,
+    pub b: Input<Signal>,
+    pub c: Input<Signal>,
+    pub y: Output<Signal>,
+    pub yb: Output<Signal>,
+}
 
-        let nmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Nmos).build().unwrap())?
-            .id();
+/// The IO of an arbitrary [`Gate`].
+///
+/// `inputs` has one element per gate input. `yb` has one element (the inverted output)
+/// for AND gates and is empty otherwise.
+#[derive(Debug, Clone, Io)]
+pub struct GateIo {
+    pub vdd: InOut<Signal>,
+    pub vss: InOut<Signal>,
+    pub inputs: Input<Array<Signal>>,
+    pub y: Output<Signal>,
+    pub yb: Output<Array<Signal>>,
+}
 
-        let half_params = self.params.scale(0.5);
-
-        for i in 0..2 {
-            let mut mp = ctx.instantiate::<SchematicMos>(&MosParams {
-                w: half_params.pwidth,
-                l: half_params.length,
-                m: 1,
-                nf: 1,
-                id: pmos_id,
-            })?;
-            mp.connect_all([("d", &y), ("g", &a), ("s", &vdd), ("b", &vdd)]);
-            mp.set_name(format!("MP{i}"));
-            ctx.add_instance(mp);
-
-            let mut mn = ctx.instantiate::<SchematicMos>(&MosParams {
-                w: half_params.nwidth,
-                l: half_params.length,
-                m: 1,
-                nf: 1,
-                id: nmos_id,
-            })?;
-            mn.connect_all([("d", &y), ("g", &a), ("s", &vss), ("b", &vss)]);
-            mn.set_name(format!("MN{i}"));
-            ctx.add_instance(mn);
+impl GateParams {
+    /// The IO of a gate with these parameters.
+    pub fn gate_io(&self) -> GateIo {
+        GateIo {
+            vdd: InOut(Signal),
+            vss: InOut(Signal),
+            inputs: Input(Array::new(self.num_inputs(), Signal)),
+            y: Output(Signal),
+            yb: Output(Array::new(
+                if self.gate_type().is_and() { 1 } else { 0 },
+                Signal,
+            )),
         }
+    }
+}
 
+fn nmos(w: i64, l: i64) -> Nfet01v8 {
+    Nfet01v8::new((w, l))
+}
+
+fn pmos(w: i64, l: i64) -> Pfet01v8 {
+    Pfet01v8::new((w, l))
+}
+
+fn inverter(
+    cell: &mut CellBuilder<Sky130>,
+    params: PrimitiveGateParams,
+    vdd: Node,
+    vss: Node,
+    a: Node,
+    y: Node,
+    suffix: &str,
+) {
+    let mp = cell.instantiate_named(pmos(params.pwidth, params.length), format!("MP{suffix}"));
+    cell.connect(mp.io().d, y);
+    cell.connect(mp.io().g, a);
+    cell.connect(mp.io().s, vdd);
+    cell.connect(mp.io().b, vdd);
+
+    let mn = cell.instantiate_named(nmos(params.nwidth, params.length), format!("MN{suffix}"));
+    cell.connect(mn.io().d, y);
+    cell.connect(mn.io().g, a);
+    cell.connect(mn.io().s, vss);
+    cell.connect(mn.io().b, vss);
+}
+
+impl Block for Inv {
+    type Io = InvIo;
+
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("inv")
+    }
+
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+
+impl Schematic for Inv {
+    type Schema = Sky130;
+    type NestedData = ();
+
+    fn schematic(
+        &self,
+        io: &IoNodeBundle<Self>,
+        cell: &mut CellBuilder<<Self as Schematic>::Schema>,
+    ) -> Result<Self::NestedData> {
+        inverter(cell, self.params, io.vdd, io.vss, io.a, io.y, "0");
         Ok(())
     }
 }
 
-impl MultiFingerInv {
-    pub(crate) fn schematic(
+impl Block for FoldedInv {
+    type Io = InvIo;
+
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("folded_inv")
+    }
+
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+
+impl Schematic for FoldedInv {
+    type Schema = Sky130;
+    type NestedData = ();
+
+    fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let a = ctx.port("a", Direction::Input);
-        let y = ctx.port("y", Direction::Output);
+        io: &IoNodeBundle<Self>,
+        cell: &mut CellBuilder<<Self as Schematic>::Schema>,
+    ) -> Result<Self::NestedData> {
+        let half_params = self.params.scale(0.5);
+        for i in 0..2 {
+            inverter(
+                cell,
+                half_params,
+                io.vdd,
+                io.vss,
+                io.a,
+                io.y,
+                &i.to_string(),
+            );
+        }
+        Ok(())
+    }
+}
 
-        let pmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Pmos).build().unwrap())?
-            .id();
+impl Block for MultiFingerInv {
+    type Io = InvIo;
 
-        let nmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Nmos).build().unwrap())?
-            .id();
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("multi_finger_inv")
+    }
 
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+
+impl Schematic for MultiFingerInv {
+    type Schema = Sky130;
+    type NestedData = ();
+
+    fn schematic(
+        &self,
+        io: &IoNodeBundle<Self>,
+        cell: &mut CellBuilder<<Self as Schematic>::Schema>,
+    ) -> Result<Self::NestedData> {
         let MultiFingerInvMosParams {
             nmos_nf,
             pmos_nf,
@@ -196,271 +221,407 @@ impl MultiFingerInv {
         } = self.mos_params();
 
         for i in 0..pmos_nf {
-            let mut mp = ctx.instantiate::<SchematicMos>(&MosParams {
-                w: unit_width,
-                l: length,
-                m: 1,
-                nf: 1,
-                id: pmos_id,
-            })?;
-            mp.connect_all([("d", &y), ("g", &a), ("s", &vdd), ("b", &vdd)]);
-            mp.set_name(format!("MP{i}"));
-            ctx.add_instance(mp);
+            let mp = cell.instantiate_named(pmos(unit_width, length), format!("MP{i}"));
+            cell.connect(mp.io().d, io.y);
+            cell.connect(mp.io().g, io.a);
+            cell.connect(mp.io().s, io.vdd);
+            cell.connect(mp.io().b, io.vdd);
         }
 
         for i in 0..nmos_nf {
-            let mut mn = ctx.instantiate::<SchematicMos>(&MosParams {
-                w: unit_width,
-                l: length,
-                m: 1,
-                nf: 1,
-                id: nmos_id,
-            })?;
-            mn.connect_all([("d", &y), ("g", &a), ("s", &vss), ("b", &vss)]);
-            mn.set_name(format!("MN{i}"));
-            ctx.add_instance(mn);
+            let mn = cell.instantiate_named(nmos(unit_width, length), format!("MN{i}"));
+            cell.connect(mn.io().d, io.y);
+            cell.connect(mn.io().g, io.a);
+            cell.connect(mn.io().s, io.vss);
+            cell.connect(mn.io().b, io.vss);
         }
 
         Ok(())
     }
 }
 
-impl Nand2 {
-    pub(crate) fn schematic(
+impl Block for Nand2 {
+    type Io = Gate2Io;
+
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("nand2")
+    }
+
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+
+impl Schematic for Nand2 {
+    type Schema = Sky130;
+    type NestedData = ();
+
+    fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
+        io: &IoNodeBundle<Self>,
+        cell: &mut CellBuilder<<Self as Schematic>::Schema>,
+    ) -> Result<Self::NestedData> {
         let length = self.params.length;
+        let x = cell.signal("x", Signal);
 
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let a = ctx.port("a", Direction::Input);
-        let b = ctx.port("b", Direction::Input);
-        let y = ctx.port("y", Direction::Output);
-        let x = ctx.signal("x");
+        let n1 = cell.instantiate_named(nmos(self.params.nwidth, length), "n1");
+        cell.connect(n1.io().d, x);
+        cell.connect(n1.io().g, io.a);
+        cell.connect(n1.io().s, io.vss);
+        cell.connect(n1.io().b, io.vss);
 
-        let pmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Pmos).build().unwrap())?
-            .id();
+        let n2 = cell.instantiate_named(nmos(self.params.nwidth, length), "n2");
+        cell.connect(n2.io().d, io.y);
+        cell.connect(n2.io().g, io.b);
+        cell.connect(n2.io().s, x);
+        cell.connect(n2.io().b, io.vss);
 
-        let nmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Nmos).build().unwrap())?
-            .id();
-
-        let mut n1 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.nwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: nmos_id,
-        })?;
-        n1.connect_all([("d", &x), ("g", &a), ("s", &vss), ("b", &vss)]);
-        n1.set_name("n1");
-        ctx.add_instance(n1);
-
-        let mut n2 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.nwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: nmos_id,
-        })?;
-        n2.connect_all([("d", &y), ("g", &b), ("s", &x), ("b", &vss)]);
-        n2.set_name("n2");
-        ctx.add_instance(n2);
-
-        let mut p1 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.pwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: pmos_id,
-        })?;
-        p1.connect_all([("d", &y), ("g", &a), ("s", &vdd), ("b", &vdd)]);
-        p1.set_name("p1");
-        ctx.add_instance(p1);
-
-        let mut p2 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.pwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: pmos_id,
-        })?;
-        p2.connect_all([("d", &y), ("g", &b), ("s", &vdd), ("b", &vdd)]);
-        p2.set_name("p2");
-        ctx.add_instance(p2);
+        for (i, g) in [io.a, io.b].into_iter().enumerate() {
+            let p = cell.instantiate_named(pmos(self.params.pwidth, length), format!("p{}", i + 1));
+            cell.connect(p.io().d, io.y);
+            cell.connect(p.io().g, g);
+            cell.connect(p.io().s, io.vdd);
+            cell.connect(p.io().b, io.vdd);
+        }
 
         Ok(())
     }
 }
 
-impl Nand3 {
-    pub(crate) fn schematic(
+impl Block for Nand3 {
+    type Io = Gate3Io;
+
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("nand3")
+    }
+
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+
+impl Schematic for Nand3 {
+    type Schema = Sky130;
+    type NestedData = ();
+
+    fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
+        io: &IoNodeBundle<Self>,
+        cell: &mut CellBuilder<<Self as Schematic>::Schema>,
+    ) -> Result<Self::NestedData> {
         let length = self.params.length;
+        let x1 = cell.signal("x1", Signal);
+        let x2 = cell.signal("x2", Signal);
 
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let a = ctx.port("a", Direction::Input);
-        let b = ctx.port("b", Direction::Input);
-        let c = ctx.port("c", Direction::Input);
-        let y = ctx.port("y", Direction::Output);
-        let x1 = ctx.signal("x1");
-        let x2 = ctx.signal("x2");
+        let n1 = cell.instantiate_named(nmos(self.params.nwidth, length), "n1");
+        cell.connect(n1.io().d, x1);
+        cell.connect(n1.io().g, io.a);
+        cell.connect(n1.io().s, io.vss);
+        cell.connect(n1.io().b, io.vss);
 
-        let pmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Pmos).build().unwrap())?
-            .id();
+        let n2 = cell.instantiate_named(nmos(self.params.nwidth, length), "n2");
+        cell.connect(n2.io().d, x2);
+        cell.connect(n2.io().g, io.b);
+        cell.connect(n2.io().s, x1);
+        cell.connect(n2.io().b, io.vss);
 
-        let nmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Nmos).build().unwrap())?
-            .id();
+        let n3 = cell.instantiate_named(nmos(self.params.nwidth, length), "n3");
+        cell.connect(n3.io().d, io.y);
+        cell.connect(n3.io().g, io.c);
+        cell.connect(n3.io().s, x2);
+        cell.connect(n3.io().b, io.vss);
 
-        let mut n1 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.nwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: nmos_id,
-        })?;
-        n1.connect_all([("d", &x1), ("g", &a), ("s", &vss), ("b", &vss)]);
-        n1.set_name("n1");
-        ctx.add_instance(n1);
-
-        let mut n2 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.nwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: nmos_id,
-        })?;
-        n2.connect_all([("d", &x2), ("g", &b), ("s", &x1), ("b", &vss)]);
-        n2.set_name("n2");
-        ctx.add_instance(n2);
-
-        let mut n3 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.nwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: nmos_id,
-        })?;
-        n3.connect_all([("d", &y), ("g", &c), ("s", &x2), ("b", &vss)]);
-        n3.set_name("n3");
-        ctx.add_instance(n3);
-
-        let mut p1 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.pwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: pmos_id,
-        })?;
-        p1.connect_all([("d", &y), ("g", &a), ("s", &vdd), ("b", &vdd)]);
-        p1.set_name("p1");
-        ctx.add_instance(p1);
-
-        let mut p2 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.pwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: pmos_id,
-        })?;
-        p2.connect_all([("d", &y), ("g", &b), ("s", &vdd), ("b", &vdd)]);
-        p2.set_name("p2");
-        ctx.add_instance(p2);
-
-        let mut p3 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.pwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: pmos_id,
-        })?;
-        p3.connect_all([("d", &y), ("g", &c), ("s", &vdd), ("b", &vdd)]);
-        p3.set_name("p3");
-        ctx.add_instance(p3);
+        for (i, g) in [io.a, io.b, io.c].into_iter().enumerate() {
+            let p = cell.instantiate_named(pmos(self.params.pwidth, length), format!("p{}", i + 1));
+            cell.connect(p.io().d, io.y);
+            cell.connect(p.io().g, g);
+            cell.connect(p.io().s, io.vdd);
+            cell.connect(p.io().b, io.vdd);
+        }
 
         Ok(())
     }
 }
 
-impl Nor2 {
-    pub(crate) fn schematic(
+impl Block for Nor2 {
+    type Io = Gate2Io;
+
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("nor2")
+    }
+
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+
+impl Schematic for Nor2 {
+    type Schema = Sky130;
+    type NestedData = ();
+
+    fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
+        io: &IoNodeBundle<Self>,
+        cell: &mut CellBuilder<<Self as Schematic>::Schema>,
+    ) -> Result<Self::NestedData> {
         let length = self.params.length;
+        let x = cell.signal("x", Signal);
 
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let a = ctx.port("a", Direction::Input);
-        let b = ctx.port("b", Direction::Input);
-        let y = ctx.port("y", Direction::Output);
-        let x = ctx.signal("x");
+        for (i, g) in [io.a, io.b].into_iter().enumerate() {
+            let n = cell.instantiate_named(nmos(self.params.nwidth, length), format!("n{}", i + 1));
+            cell.connect(n.io().d, io.y);
+            cell.connect(n.io().g, g);
+            cell.connect(n.io().s, io.vss);
+            cell.connect(n.io().b, io.vss);
+        }
 
-        let pmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Pmos).build().unwrap())?
-            .id();
+        let p1 = cell.instantiate_named(pmos(self.params.pwidth, length), "p1");
+        cell.connect(p1.io().d, io.y);
+        cell.connect(p1.io().g, io.a);
+        cell.connect(p1.io().s, x);
+        cell.connect(p1.io().b, io.vdd);
 
-        let nmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Nmos).build().unwrap())?
-            .id();
+        let p2 = cell.instantiate_named(pmos(self.params.pwidth, length), "p2");
+        cell.connect(p2.io().d, x);
+        cell.connect(p2.io().g, io.b);
+        cell.connect(p2.io().s, io.vdd);
+        cell.connect(p2.io().b, io.vdd);
 
-        let mut n1 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.nwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: nmos_id,
-        })?;
-        n1.connect_all([("d", &y), ("g", &a), ("s", &vss), ("b", &vss)]);
-        n1.set_name("n1");
-        ctx.add_instance(n1);
+        Ok(())
+    }
+}
 
-        let mut n2 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.nwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: nmos_id,
-        })?;
-        n2.connect_all([("d", &y), ("g", &b), ("s", &vss), ("b", &vss)]);
-        n2.set_name("n2");
-        ctx.add_instance(n2);
+impl Block for And2 {
+    type Io = And2Io;
 
-        let mut p1 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.pwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: pmos_id,
-        })?;
-        p1.connect_all([("d", &y), ("g", &a), ("s", &x), ("b", &vdd)]);
-        p1.set_name("p1");
-        ctx.add_instance(p1);
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("and2")
+    }
 
-        let mut p2 = ctx.instantiate::<SchematicMos>(&MosParams {
-            w: self.params.pwidth,
-            l: length,
-            m: 1,
-            nf: 1,
-            id: pmos_id,
-        })?;
-        p2.connect_all([("d", &x), ("g", &b), ("s", &vdd), ("b", &vdd)]);
-        p2.set_name("p2");
-        ctx.add_instance(p2);
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
 
+impl Schematic for And2 {
+    type Schema = Sky130;
+    type NestedData = ();
+
+    fn schematic(
+        &self,
+        io: &IoNodeBundle<Self>,
+        cell: &mut CellBuilder<<Self as Schematic>::Schema>,
+    ) -> Result<Self::NestedData> {
+        cell.instantiate_connected(
+            Nand2::new(self.params.nand),
+            NodeBundle::<Gate2Io> {
+                vdd: io.vdd,
+                vss: io.vss,
+                a: io.a,
+                b: io.b,
+                y: io.yb,
+            },
+        );
+        cell.instantiate_connected(
+            FoldedInv::new(self.params.inv),
+            NodeBundle::<InvIo> {
+                vdd: io.vdd,
+                vss: io.vss,
+                a: io.yb,
+                y: io.y,
+            },
+        );
+        Ok(())
+    }
+}
+
+impl Block for And3 {
+    type Io = And3Io;
+
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("and3")
+    }
+
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+
+impl Schematic for And3 {
+    type Schema = Sky130;
+    type NestedData = ();
+
+    fn schematic(
+        &self,
+        io: &IoNodeBundle<Self>,
+        cell: &mut CellBuilder<<Self as Schematic>::Schema>,
+    ) -> Result<Self::NestedData> {
+        cell.instantiate_connected(
+            Nand3::new(self.params.nand),
+            NodeBundle::<Gate3Io> {
+                vdd: io.vdd,
+                vss: io.vss,
+                a: io.a,
+                b: io.b,
+                c: io.c,
+                y: io.yb,
+            },
+        );
+        cell.instantiate_connected(
+            FoldedInv::new(self.params.inv),
+            NodeBundle::<InvIo> {
+                vdd: io.vdd,
+                vss: io.vss,
+                a: io.yb,
+                y: io.y,
+            },
+        );
+        Ok(())
+    }
+}
+
+impl Block for Gate {
+    type Io = GateIo;
+
+    fn name(&self) -> arcstr::ArcStr {
+        match self {
+            Gate::And2(g) => Block::name(g),
+            Gate::And3(g) => Block::name(g),
+            Gate::Inv(g) => Block::name(g),
+            Gate::FoldedInv(g) => Block::name(g),
+            Gate::MultiFingerInv(g) => Block::name(g),
+            Gate::Nand2(g) => Block::name(g),
+            Gate::Nand3(g) => Block::name(g),
+            Gate::Nor2(g) => Block::name(g),
+        }
+    }
+
+    fn io(&self) -> Self::Io {
+        self.params().gate_io()
+    }
+}
+
+impl Schematic for Gate {
+    type Schema = Sky130;
+    type NestedData = ();
+
+    /// Generates the gate's devices directly in this cell (without an extra level of
+    /// hierarchy), matching the structure of the gate layouts.
+    fn schematic(
+        &self,
+        io: &IoNodeBundle<Self>,
+        cell: &mut CellBuilder<<Self as Schematic>::Schema>,
+    ) -> Result<Self::NestedData> {
+        let (vdd, vss, y) = (io.vdd, io.vss, io.y);
+        let inputs = &io.inputs;
+        match self {
+            Gate::And2(g) => g.schematic(
+                &NodeBundle::<And2Io> {
+                    vdd,
+                    vss,
+                    a: inputs[0],
+                    b: inputs[1],
+                    y,
+                    yb: io.yb[0],
+                },
+                cell,
+            ),
+            Gate::And3(g) => g.schematic(
+                &NodeBundle::<And3Io> {
+                    vdd,
+                    vss,
+                    a: inputs[0],
+                    b: inputs[1],
+                    c: inputs[2],
+                    y,
+                    yb: io.yb[0],
+                },
+                cell,
+            ),
+            Gate::Inv(g) => g.schematic(
+                &NodeBundle::<InvIo> {
+                    vdd,
+                    vss,
+                    a: inputs[0],
+                    y,
+                },
+                cell,
+            ),
+            Gate::FoldedInv(g) => g.schematic(
+                &NodeBundle::<InvIo> {
+                    vdd,
+                    vss,
+                    a: inputs[0],
+                    y,
+                },
+                cell,
+            ),
+            Gate::MultiFingerInv(g) => g.schematic(
+                &NodeBundle::<InvIo> {
+                    vdd,
+                    vss,
+                    a: inputs[0],
+                    y,
+                },
+                cell,
+            ),
+            Gate::Nand2(g) => g.schematic(
+                &NodeBundle::<Gate2Io> {
+                    vdd,
+                    vss,
+                    a: inputs[0],
+                    b: inputs[1],
+                    y,
+                },
+                cell,
+            ),
+            Gate::Nand3(g) => g.schematic(
+                &NodeBundle::<Gate3Io> {
+                    vdd,
+                    vss,
+                    a: inputs[0],
+                    b: inputs[1],
+                    c: inputs[2],
+                    y,
+                },
+                cell,
+            ),
+            Gate::Nor2(g) => g.schematic(
+                &NodeBundle::<Gate2Io> {
+                    vdd,
+                    vss,
+                    a: inputs[0],
+                    b: inputs[1],
+                    y,
+                },
+                cell,
+            ),
+        }
+    }
+}
+
+impl Block for TappedGate {
+    type Io = GateIo;
+
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("tapped_gate")
+    }
+
+    fn io(&self) -> Self::Io {
+        self.params.gate_io()
+    }
+}
+
+impl Schematic for TappedGate {
+    type Schema = Sky130;
+    type NestedData = ();
+
+    fn schematic(
+        &self,
+        io: &IoNodeBundle<Self>,
+        cell: &mut CellBuilder<<Self as Schematic>::Schema>,
+    ) -> Result<Self::NestedData> {
+        cell.instantiate_connected_named(Gate::new(self.params), io, "gate");
         Ok(())
     }
 }

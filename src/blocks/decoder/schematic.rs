@@ -1,10 +1,9 @@
+use crate::schematic::Direction;
+use crate::script::DesignContext;
 use itertools::Itertools;
 use subgeom::bbox::BoundBox;
-use substrate::index::IndexOwned;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::context::SchematicCtx;
 
-use substrate::schematic::signal::Slice;
+use crate::schematic::Slice;
 
 use super::{
     Decoder, DecoderParams, DecoderStage, DecoderStageParams, DecoderStagePhysicalDesignScript,
@@ -13,9 +12,12 @@ use crate::blocks::decoder::{base_indices, DecoderStagePhysicalDesign, RoutingSt
 use crate::blocks::gate::{Gate, GateParams};
 
 impl Decoder {
-    pub(crate) fn schematic(&self, ctx: &mut SchematicCtx) -> substrate::error::Result<()> {
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
+    pub(crate) fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder,
+    ) -> anyhow::Result<()> {
+        let vdd = ctx.port("vdd", crate::schematic::Direction::InOut);
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
         let mut node = &self.params.tree.root;
 
         let mut invs = vec![];
@@ -47,7 +49,7 @@ impl Decoder {
         let mut inst = ctx
             .instantiate::<DecoderStage>(&params)?
             .with_connections([("vdd", vdd), ("vss", vss)]);
-        let layout_inst = ctx.inner().instantiate_layout::<DecoderStage>(&params)?;
+        let layout_inst = crate::layout_ctx().instantiate_layout::<DecoderStage>(&params)?;
         ctx.bubble_filter_map(&mut inst, |port| {
             port.name().starts_with("y").then_some(port.name().into())
         });
@@ -75,7 +77,7 @@ impl Decoder {
                 })?
                 .with_connections([("vdd", vdd), ("vss", vss)]);
 
-            let ports = child.ports()?.collect_vec();
+            let ports = child.ports().cloned().collect_vec();
             for child_port in ports
                 .into_iter()
                 .filter_map(|port| {
@@ -89,7 +91,7 @@ impl Decoder {
             {
                 let port = ctx.port(
                     format!("predecode_{}_{}", next_addr.0, next_addr.1),
-                    Direction::Input,
+                    crate::schematic::Direction::Input,
                 );
                 child.connect(child_port.name().clone(), port);
                 if next_addr.1 > 0 {
@@ -118,7 +120,10 @@ impl Decoder {
 }
 
 impl DecoderStage {
-    pub(crate) fn schematic(&self, ctx: &mut SchematicCtx) -> substrate::error::Result<()> {
+    pub(crate) fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder,
+    ) -> anyhow::Result<()> {
         let DecoderStagePhysicalDesign {
             gate_params,
             folding_factors,
@@ -127,11 +132,11 @@ impl DecoderStage {
             .inner()
             .run_script::<DecoderStagePhysicalDesignScript>(&self.params)?;
         let num_stages = gate_params.len();
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let y = ctx.bus_port("y", self.params.num, Direction::Output);
+        let vdd = ctx.port("vdd", crate::schematic::Direction::InOut);
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
+        let y = ctx.bus_port("y", self.params.num, crate::schematic::Direction::Output);
         let y_b = if num_stages > 1 || gate_params[0].gate_type().is_and() {
-            Some(ctx.bus_port("y_b", self.params.num, Direction::Output))
+            Some(ctx.bus_port("y_b", self.params.num, crate::schematic::Direction::Output))
         } else {
             None
         };
@@ -146,24 +151,23 @@ impl DecoderStage {
                 for (i, s) in self.params.child_sizes.iter().copied().enumerate() {
                     predecode.push(Vec::new());
                     for j in 0..s {
-                        predecode
-                            .last_mut()
-                            .unwrap()
-                            .push(ctx.port(arcstr::format!("predecode_{i}_{j}"), Direction::Input));
+                        predecode.last_mut().unwrap().push(ctx.port(
+                            arcstr::format!("predecode_{i}_{j}"),
+                            crate::schematic::Direction::Input,
+                        ));
                     }
                 }
                 DecoderIO::Decoder { predecode }
             }
             RoutingStyle::Driver => DecoderIO::Driver {
-                wl_en: ctx.port("wl_en", Direction::Input),
-                inn: ctx.bus_port("in", self.params.num, Direction::Input),
+                wl_en: ctx.port("wl_en", crate::schematic::Direction::Input),
+                inn: ctx.bus_port("in", self.params.num, crate::schematic::Direction::Input),
             },
         };
         let x: Vec<_> = (0..num_stages - 1)
             .map(|i| ctx.bus(format!("x_{i}"), self.params.num))
             .collect();
 
-        let ports = ["a", "b", "c", "d"];
         for (stage, (gate, &folding_factor)) in
             gate_params.iter().zip(folding_factors.iter()).enumerate()
         {
@@ -197,24 +201,109 @@ impl DecoderStage {
                         match &io {
                             DecoderIO::Decoder { predecode } => {
                                 let idxs = base_indices(i, &self.params.child_sizes);
-                                for (i, j) in idxs.into_iter().enumerate() {
-                                    gate.connect(ports[i], predecode[i][j]);
-                                }
+                                gate.connect(
+                                    "inputs",
+                                    crate::schematic::Signal::new(
+                                        idxs.into_iter().enumerate().map(|(i, j)| predecode[i][j]),
+                                    ),
+                                );
                             }
                             DecoderIO::Driver { wl_en, inn } => {
-                                gate.connect(ports[0], wl_en);
-                                gate.connect(ports[1], inn.index(i));
+                                gate.connect(
+                                    "inputs",
+                                    crate::schematic::Signal::new([*wl_en, inn.index(i)]),
+                                );
                             }
                         }
                     } else if stage == num_stages - 1 {
-                        gate.connect("a", y_b.unwrap().index(i));
+                        gate.connect("inputs", y_b.unwrap().index(i));
                     } else {
-                        gate.connect("a", x[stage - 1].index(i));
+                        gate.connect("inputs", x[stage - 1].index(i));
                     }
                     gate.add_to(ctx);
                 }
             }
         }
         Ok(())
+    }
+}
+
+impl Decoder {
+    pub(crate) fn schematic_io(&self) -> crate::schematic::NamedIo {
+        use crate::schematic::{NamedIo, Port};
+        let mut io = NamedIo::new([
+            ("vdd", 1, Direction::InOut),
+            ("vss", 1, Direction::InOut),
+            ("y", self.params.tree.root.num, Direction::Output),
+        ]);
+        let mut node = &self.params.tree.root;
+        let mut stages = 1;
+        while let GateParams::Inv(_) | GateParams::FoldedInv(_) = node.gate {
+            if node.children.len() != 1 {
+                break;
+            }
+            stages += 1;
+            node = &node.children[0];
+        }
+        if stages > 1 || node.gate.gate_type().is_and() {
+            io.0.push(Port {
+                name: "y_b".into(),
+                width: self.params.tree.root.num,
+                direction: Direction::Output,
+            });
+        }
+        for i in 0..self.params.tree.root.num.ilog2() {
+            for j in 0..2 {
+                io.0.push(Port {
+                    name: arcstr::format!("predecode_{i}_{j}"),
+                    width: 1,
+                    direction: Direction::Input,
+                });
+            }
+        }
+        io
+    }
+}
+impl DecoderStage {
+    pub(crate) fn schematic_io(&self) -> crate::schematic::NamedIo {
+        use crate::schematic::{NamedIo, Port};
+        let mut io = NamedIo::new([
+            ("vdd", 1, Direction::InOut),
+            ("vss", 1, Direction::InOut),
+            ("y", self.params.num, Direction::Output),
+        ]);
+        if !self.params.invs.is_empty() || self.params.gate.gate_type().is_and() {
+            io.0.push(Port {
+                name: "y_b".into(),
+                width: self.params.num,
+                direction: Direction::Output,
+            });
+        }
+        match self.params.routing_style {
+            RoutingStyle::Decoder => {
+                for (i, &n) in self.params.child_sizes.iter().enumerate() {
+                    for j in 0..n {
+                        io.0.push(Port {
+                            name: arcstr::format!("predecode_{i}_{j}"),
+                            width: 1,
+                            direction: Direction::Input,
+                        });
+                    }
+                }
+            }
+            RoutingStyle::Driver => {
+                io.0.push(Port {
+                    name: "wl_en".into(),
+                    width: 1,
+                    direction: Direction::Input,
+                });
+                io.0.push(Port {
+                    name: "in".into(),
+                    width: self.params.num,
+                    direction: Direction::Input,
+                });
+            }
+        }
+        io
     }
 }

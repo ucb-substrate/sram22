@@ -18,25 +18,22 @@ use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
 use subgeom::transform::Translate;
 use subgeom::{Dir, Rect, Side, Sign, Span};
-use substrate::component::{Component, NoParams};
-use substrate::data::SubstrateCtx;
-use substrate::error::Result;
-use substrate::index::IndexOwned;
-use substrate::into_vec;
-use substrate::layout::cell::{CellPort, Port, PortConflictStrategy, PortId};
-use substrate::layout::context::LayoutCtx;
-use substrate::layout::elements::via::{Via, ViaExpansion, ViaParams};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerBoundBox;
-use substrate::layout::placement::align::{AlignMode, AlignRect};
-use substrate::layout::placement::array::ArrayTiler;
-use substrate::layout::placement::grid::GridTiler;
-use substrate::layout::placement::tile::{OptionTile, Pad, Padding, RectBbox, Tile};
-use substrate::layout::routing::manual::jog::{OffsetJog, SJog};
-use substrate::layout::DrawRef;
-use substrate::pdk::stdcell::StdCell;
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::context::SchematicCtx;
+use substrate1::component::{Component, NoParams};
+use substrate1::data::SubstrateCtx;
+use substrate1::error::Result;
+use substrate1::into_vec;
+use substrate1::layout::cell::{CellPort, Port, PortConflictStrategy, PortId};
+use substrate1::layout::context::LayoutCtx;
+use substrate1::layout::elements::via::{Via, ViaExpansion, ViaParams};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::LayerBoundBox;
+use substrate1::layout::placement::align::{AlignMode, AlignRect};
+use substrate1::layout::placement::array::ArrayTiler;
+use substrate1::layout::placement::grid::GridTiler;
+use substrate1::layout::placement::tile::{OptionTile, Pad, Padding, RectBbox, Tile};
+use substrate1::layout::routing::manual::jog::{OffsetJog, SJog};
+use substrate1::layout::DrawRef;
+use substrate1::pdk::stdcell::StdCell;
 
 use super::{
     ColParams, ColPeripherals, ColumnsPhysicalDesign, ColumnsPhysicalDesignScript, WmaskPeripherals,
@@ -51,13 +48,16 @@ pub struct Metadata {
 }
 
 impl ColPeripherals {
-    pub(crate) fn layout(&self, ctx: &mut LayoutCtx) -> substrate::error::Result<()> {
+    pub(crate) fn layout(&self, ctx: &mut LayoutCtx) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let m0 = layers.get(Selector::Metal(0))?;
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
 
-        let pc_design = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        let pc_design = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
 
         let col = ctx.instantiate::<Column>(&ColParams {
             include_wmask: false,
@@ -345,7 +345,7 @@ impl ColPeripherals {
 }
 
 impl WmaskPeripherals {
-    pub(crate) fn layout(&self, ctx: &mut LayoutCtx) -> substrate::error::Result<()> {
+    pub(crate) fn layout(&self, ctx: &mut LayoutCtx) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let m0 = layers.get(Selector::Metal(0))?;
         let m1 = layers.get(Selector::Metal(1))?;
@@ -353,15 +353,19 @@ impl WmaskPeripherals {
         let outline = layers.get(Selector::Name("outline"))?;
         let nwell = layers.get(Selector::Name("nwell"))?;
 
-        let pc_design = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        let pc_design = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
 
         let ColumnsPhysicalDesign {
             wmask_unit_width,
             nand,
             ..
-        } = &*ctx
-            .inner()
-            .run_script::<ColumnsPhysicalDesignScript>(&self.params)?;
+        } = &*crate::script::run_for_layout::<ColumnsPhysicalDesignScript>(
+            ctx.inner(),
+            &self.params,
+        )?;
 
         let mut nand_stage = ctx.instantiate::<DecoderStage>(nand)?;
         let wmask_dff = ctx.instantiate::<DffCol>(&NoParams)?;
@@ -499,7 +503,10 @@ impl WmaskPeripherals {
 
 impl Column {
     pub(crate) fn layout(&self, ctx: &mut LayoutCtx) -> Result<()> {
-        let pc_design = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        let pc_design = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
         let mut dff = ctx.instantiate::<DffCol>(&NoParams)?;
         let layers = ctx.layers();
         let outline = layers.get(Selector::Name("outline"))?;
@@ -805,8 +812,8 @@ impl Component for ColumnCent {
     type Params = ColCentParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -815,7 +822,7 @@ impl Component for ColumnCent {
         arcstr::literal!("column_cent")
     }
 
-    fn layout(&self, ctx: &mut LayoutCtx) -> substrate::error::Result<()> {
+    fn layout(&self, ctx: &mut LayoutCtx) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let outline = layers.get(Selector::Name("outline"))?;
         // Always use a precharge center tile; the real precharge end
@@ -891,8 +898,8 @@ impl Component for TappedDff {
     type Params = NoParams;
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
     fn name(&self) -> arcstr::ArcStr {
@@ -901,8 +908,8 @@ impl Component for TappedDff {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let stdcells = ctx.inner().std_cell_db();
         let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
         let dff = lib.try_cell_named("sky130_fd_sc_hs__dfrbp_2")?;
@@ -919,7 +926,10 @@ impl Component for TappedDff {
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
 
-        let pc = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        let pc = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
 
         let bbox = dff.layer_bbox(outline).into_rect();
 
@@ -1002,8 +1012,8 @@ impl Component for DffCol {
     type Params = NoParams;
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
     fn name(&self) -> arcstr::ArcStr {
@@ -1012,15 +1022,18 @@ impl Component for DffCol {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let dff = ctx.instantiate::<TappedDff>(&NoParams)?;
         let layers = ctx.layers();
         let outline = layers.get(Selector::Name("outline"))?;
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
 
-        let pc = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        let pc = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
 
         let bbox = dff.layer_bbox(outline).into_rect();
 
@@ -1067,57 +1080,24 @@ impl Component for DffCol {
     }
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct DffArray {
     n: usize,
 }
 
 impl Component for DffArray {
     type Params = usize;
-    fn new(params: &Self::Params, _ctx: &SubstrateCtx) -> substrate::error::Result<Self> {
+    fn new(params: &Self::Params, _ctx: &SubstrateCtx) -> substrate1::error::Result<Self> {
         Ok(Self { n: *params })
     }
     fn name(&self) -> ArcStr {
         arcstr::format!("dff_array_{}", self.n)
     }
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let n = self.n;
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
-        let clk = ctx.port("clk", Direction::Input);
-        let rb = ctx.port("rb", Direction::Input);
-        let d = ctx.bus_port("d", n, Direction::Input);
-        let q = ctx.bus_port("q", n, Direction::Output);
-        let qn = ctx.bus_port("qn", n, Direction::Output);
 
-        let stdcells = ctx.inner().std_cell_db();
-        let lib = stdcells.try_lib_named("sky130_fd_sc_hs")?;
-        let dfrtp = lib.try_cell_named("sky130_fd_sc_hs__dfrbp_2")?;
-
-        for i in 0..self.n {
-            ctx.instantiate::<StdCell>(&dfrtp.id())?
-                .with_connections([
-                    ("VPWR", vdd),
-                    ("VGND", vss),
-                    ("VNB", vss),
-                    ("VPB", vdd),
-                    ("CLK", clk),
-                    ("RESET_B", rb),
-                    ("D", d.index(i)),
-                    ("Q", q.index(i)),
-                    ("Q_N", qn.index(i)),
-                ])
-                .named(format!("dff_{i}"))
-                .add_to(ctx);
-        }
-
-        Ok(())
-    }
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let dff = ctx.instantiate::<TappedDff>(&NoParams)?;
         let mut tiler = ArrayTiler::builder()
             .mode(AlignMode::ToTheRight)
@@ -1133,7 +1113,7 @@ impl Component for DffArray {
                     Some(port)
                 }
             },
-            substrate::layout::cell::PortConflictStrategy::Merge,
+            substrate1::layout::cell::PortConflictStrategy::Merge,
         )?;
         ctx.add_ports(tiler.ports().cloned()).unwrap();
 
@@ -1142,14 +1122,86 @@ impl Component for DffArray {
     }
 }
 
+impl crate::schematic::FromParams for DffArray {
+    type Params = usize;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { n: *params })
+    }
+}
+impl substrate::block::Block for DffArray {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::format!("dff_array_{}", self.n)
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("clk", 1, crate::schematic::Direction::Input),
+            ("rb", 1, crate::schematic::Direction::Input),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+            ("d", self.n, crate::schematic::Direction::Input),
+            ("q", self.n, crate::schematic::Direction::Output),
+            ("qn", self.n, crate::schematic::Direction::Output),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for DffArray {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl DffArray {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let n = self.n;
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
+        let clk = ctx.port("clk", crate::schematic::Direction::Input);
+        let rb = ctx.port("rb", crate::schematic::Direction::Input);
+        let d = ctx.bus_port("d", n, crate::schematic::Direction::Input);
+        let q = ctx.bus_port("q", n, crate::schematic::Direction::Output);
+        let qn = ctx.bus_port("qn", n, crate::schematic::Direction::Output);
+
+        for i in 0..self.n {
+            ctx.instantiate::<crate::blocks::stdcells::HsDfrbp>(&2)?
+                .with_connections([
+                    ("pwr_vpwr", vdd),
+                    ("pwr_vgnd", vss),
+                    ("pwr_vnb", vss),
+                    ("pwr_vpb", vdd),
+                    ("CLK", clk),
+                    ("RESET_B", rb),
+                    ("D", d.index(i)),
+                    ("Q", q.index(i)),
+                    ("Q_N", qn.index(i)),
+                ])
+                .named(format!("dff_{i}"))
+                .add_to(ctx);
+        }
+
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(DffArray);
+
 pub struct DffColCent;
 
 impl Component for DffColCent {
     type Params = NoParams;
     fn new(
         _params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self)
     }
     fn name(&self) -> arcstr::ArcStr {
@@ -1158,15 +1210,18 @@ impl Component for DffColCent {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let outline = layers.get(Selector::Name("outline"))?;
         let m2 = layers.get(Selector::Metal(2))?;
 
         let dff = ctx.instantiate::<DffCol>(&NoParams)?;
 
-        let pc = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        let pc = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
 
         let bbox = dff.layer_bbox(outline).into_rect();
 
@@ -1182,6 +1237,7 @@ impl Component for DffColCent {
     }
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct TappedColumn {
     pub params: ColParams,
 }
@@ -1200,13 +1256,6 @@ impl Component for TappedColumn {
 
     fn name(&self) -> ArcStr {
         arcstr::literal!("tapped_column")
-    }
-
-    fn schematic(&self, ctx: &mut SchematicCtx) -> Result<()> {
-        let mut c = ctx.instantiate::<Column>(&self.params)?;
-        ctx.bubble_all_ports(&mut c);
-        ctx.add_instance(c);
-        Ok(())
     }
 
     fn layout(&self, ctx: &mut LayoutCtx) -> Result<()> {
@@ -1240,3 +1289,50 @@ impl Component for TappedColumn {
         Ok(())
     }
 }
+
+impl crate::schematic::FromParams for TappedColumn {
+    type Params = ColParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for TappedColumn {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("tapped_column")
+    }
+    fn io(&self) -> Self::Io {
+        <Column as substrate::block::Block>::io(
+            &<Column as crate::schematic::FromParams>::from_params(&self.params)
+                .expect("invalid parameters"),
+        )
+    }
+}
+impl substrate::schematic::Schematic for TappedColumn {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl TappedColumn {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let mut c = ctx.instantiate::<Column>(&self.params)?;
+        ctx.bubble_all_ports(&mut c);
+        ctx.add_instance(c);
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(TappedColumn);

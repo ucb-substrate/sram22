@@ -1,9 +1,8 @@
 //! Column peripheral circuitry.
 
 use subgeom::Dir;
-use substrate::component::{Component, NoParams};
-use substrate::layout::context::LayoutCtx;
-use substrate::schematic::context::SchematicCtx;
+use substrate1::component::Component;
+use substrate1::layout::context::LayoutCtx;
 
 use super::decoder::{DecoderPhysicalDesignParams, DecoderStageParams, DecoderStyle, RoutingStyle};
 use super::gate::sizing::InverterGateTreeNode;
@@ -13,17 +12,17 @@ use super::sram::schematic::buffer_chain_num_stages;
 use super::tgatemux::TGateMuxParams;
 use super::wrdriver::WriteDriverParams;
 use crate::blocks::latch::DiffLatchParams;
+use crate::script::{DesignContext, Script};
 use serde::{Deserialize, Serialize};
 use subgeom::Span;
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerKey;
-use substrate::layout::routing::tracks::{Boundary, CenteredTrackParams, FixedTracks};
-use substrate::script::Script;
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::LayerKey;
+use substrate1::layout::routing::tracks::{Boundary, CenteredTrackParams, FixedTracks};
 
 pub mod layout;
 pub mod schematic;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Hash, PartialEq, Eq)]
 pub struct ColParams {
     pub pc: PrechargeParams,
     pub mux: TGateMuxParams,
@@ -48,6 +47,7 @@ impl ColParams {
     }
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct ColPeripherals {
     pub(crate) params: ColParams,
 }
@@ -56,6 +56,7 @@ pub struct WmaskPeripherals {
     params: ColParams,
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct Column {
     params: ColParams,
 }
@@ -64,8 +65,8 @@ impl Component for ColPeripherals {
     type Params = ColParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -75,24 +76,91 @@ impl Component for ColPeripherals {
         arcstr::literal!("col_peripherals")
     }
 
-    fn schematic(&self, ctx: &mut SchematicCtx) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
+
+impl crate::schematic::FromParams for ColPeripherals {
+    type Params = ColParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for ColPeripherals {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("col_peripherals")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("clk", 1, crate::schematic::Direction::Input),
+            ("rstb", 1, crate::schematic::Direction::Input),
+            ("sense_en", 1, crate::schematic::Direction::Input),
+            ("pc_b", 1, crate::schematic::Direction::Input),
+            ("we", 1, crate::schematic::Direction::Input),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+            ("bl", self.params.cols, crate::schematic::Direction::InOut),
+            ("br", self.params.cols, crate::schematic::Direction::InOut),
+            (
+                "sel",
+                self.params.mux_ratio(),
+                crate::schematic::Direction::Input,
+            ),
+            (
+                "sel_b",
+                self.params.mux_ratio(),
+                crate::schematic::Direction::Input,
+            ),
+            (
+                "wmask",
+                self.params.wmask_bits(),
+                crate::schematic::Direction::Input,
+            ),
+            (
+                "din",
+                self.params.word_length(),
+                crate::schematic::Direction::Input,
+            ),
+            (
+                "dout",
+                self.params.word_length(),
+                crate::schematic::Direction::Output,
+            ),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for ColPeripherals {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+crate::impl_sky130_build!(ColPeripherals);
 
 impl Component for WmaskPeripherals {
     type Params = ColParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -104,8 +172,8 @@ impl Component for WmaskPeripherals {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
@@ -114,8 +182,8 @@ impl Component for Column {
     type Params = ColParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -125,14 +193,77 @@ impl Component for Column {
         arcstr::literal!("column")
     }
 
-    fn schematic(&self, ctx: &mut SchematicCtx) -> substrate::error::Result<()> {
-        self.schematic(ctx)
-    }
-
-    fn layout(&self, ctx: &mut LayoutCtx) -> substrate::error::Result<()> {
+    fn layout(&self, ctx: &mut LayoutCtx) -> substrate1::error::Result<()> {
         self.layout(ctx)
     }
 }
+
+impl crate::schematic::FromParams for Column {
+    type Params = ColParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self {
+            params: params.clone(),
+        })
+    }
+}
+impl substrate::block::Block for Column {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("column")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("clk", 1, crate::schematic::Direction::Input),
+            ("rstb", 1, crate::schematic::Direction::Input),
+            ("pc_b", 1, crate::schematic::Direction::Input),
+            ("we", 1, crate::schematic::Direction::Input),
+            ("we_b", 1, crate::schematic::Direction::Input),
+            ("din", 1, crate::schematic::Direction::Input),
+            ("sense_en", 1, crate::schematic::Direction::Input),
+            ("dout", 1, crate::schematic::Direction::Output),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+            (
+                "bl",
+                self.params.mux_ratio(),
+                crate::schematic::Direction::InOut,
+            ),
+            (
+                "br",
+                self.params.mux_ratio(),
+                crate::schematic::Direction::InOut,
+            ),
+            (
+                "sel",
+                self.params.mux_ratio(),
+                crate::schematic::Direction::Input,
+            ),
+            (
+                "sel_b",
+                self.params.mux_ratio(),
+                crate::schematic::Direction::Input,
+            ),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for Column {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+crate::impl_sky130_build!(Column);
 
 pub struct ColumnsPhysicalDesignScript;
 
@@ -148,9 +279,9 @@ impl Script for ColumnsPhysicalDesignScript {
 
     fn run(
         params: &Self::Params,
-        ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self::Output> {
-        let pc_design = ctx.run_script::<ColumnDesignScript>(&NoParams)?;
+        ctx: &substrate::context::Context,
+    ) -> anyhow::Result<Self::Output> {
+        let pc_design = ctx.run_script::<ColumnDesignScript>(&crate::schematic::NoParams)?;
         let wmask_unit_width = params.wmask_granularity as i64
             * (pc_design.width * params.mux_ratio() as i64 + pc_design.tap_width);
         let we_i_cap = params.wmask_granularity as f64
@@ -291,14 +422,14 @@ pub struct ColumnPhysicalDesign {
 }
 
 impl Script for ColumnDesignScript {
-    type Params = NoParams;
+    type Params = crate::schematic::NoParams;
     type Output = ColumnPhysicalDesign;
 
     fn run(
         _params: &Self::Params,
-        ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self::Output> {
-        let layers = ctx.layers();
+        _ctx: &substrate::context::Context,
+    ) -> anyhow::Result<Self::Output> {
+        let layers = crate::layout_ctx().layers();
         let m0 = layers.get(Selector::Metal(0))?;
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
@@ -340,87 +471,30 @@ impl Script for ColumnDesignScript {
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "commercial")]
+    use crate::verification::calibre::CalibreContext;
+    #[cfg(feature = "commercial")]
+    use arcstr::ArcStr;
+
+    #[cfg(feature = "commercial")]
     use crate::measure::impedance::AcImpedanceTbNode;
     use crate::paths::{out_gds, out_spice};
     use crate::setup_ctx;
     use crate::tests::test_work_dir;
-    use arcstr::ArcStr;
     #[cfg(feature = "commercial")]
     use std::collections::HashMap;
-    use subgeom::bbox::{Bbox, BoundBox};
-    use substrate::layout::cell::{CellPort, Port, PortId};
-    use substrate::layout::layers::selector::Selector;
-    #[cfg(feature = "commercial")]
-    use substrate::schematic::netlist::NetlistPurpose;
 
     use super::layout::{ColCentParams, ColumnCent, TappedColumn};
     use super::*;
-
-    struct ColPeripheralsLvs {
-        params: ColParams,
-    }
-
-    impl Component for ColPeripheralsLvs {
-        type Params = ColParams;
-
-        fn new(
-            params: &Self::Params,
-            _ctx: &substrate::data::SubstrateCtx,
-        ) -> substrate::error::Result<Self> {
-            Ok(Self {
-                params: params.clone(),
-            })
-        }
-
-        fn name(&self) -> ArcStr {
-            arcstr::literal!("col_peripherals_lvs")
-        }
-
-        fn schematic(
-            &self,
-            ctx: &mut substrate::schematic::context::SchematicCtx,
-        ) -> substrate::error::Result<()> {
-            let mut cols = ctx.instantiate::<ColPeripherals>(&self.params)?;
-            ctx.bubble_all_ports(&mut cols);
-            ctx.add_instance(cols);
-            Ok(())
-        }
-
-        fn layout(
-            &self,
-            ctx: &mut substrate::layout::context::LayoutCtx,
-        ) -> substrate::error::Result<()> {
-            let m2 = ctx.layers().get(Selector::Metal(2))?;
-            let cols = ctx.instantiate::<ColPeripherals>(&self.params)?;
-
-            for i in 0..2 {
-                let clk0 = cols.port(PortId::new("clk", i))?;
-
-                let mut clk0_brect = Bbox::empty();
-                for shape in clk0.shapes(m2) {
-                    clk0_brect = clk0_brect.union(shape.bbox());
-                }
-
-                ctx.draw_rect(m2, clk0_brect.into_rect());
-                ctx.merge_port(CellPort::with_shape("clk", m2, clk0_brect.into_rect()));
-            }
-            ctx.add_ports(cols.ports().filter_map(|port| match port.name().as_str() {
-                "clk" => None,
-                _ => Some(port),
-            }))?;
-            ctx.draw(cols)?;
-
-            Ok(())
-        }
-    }
 
     #[test]
     fn test_col_peripherals() {
         let ctx = setup_ctx();
         let work_dir = test_work_dir("test_col_peripherals");
-        ctx.write_layout::<ColPeripherals>(&COL_WMASK_PARAMS, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<ColPeripherals>(&COL_WMASK_PARAMS, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<ColPeripherals>(
+        crate::netlist::write_schematic::<ColPeripherals>(
+            &ctx,
             &COL_WMASK_PARAMS,
             out_spice(&work_dir, "netlist"),
         )
@@ -434,7 +508,7 @@ mod tests {
                 .expect("failed to run DRC");
             assert!(matches!(
                 output.summary,
-                substrate::verification::drc::DrcSummary::Pass
+                crate::verification::calibre::DrcSummary::Pass
             ));
             let lvs_work_dir = work_dir.join("lvs");
             let output = ctx
@@ -442,16 +516,16 @@ mod tests {
                 .expect("failed to run LVS");
             assert!(matches!(
                 output.summary,
-                substrate::verification::lvs::LvsSummary::Pass
+                crate::verification::calibre::LvsSummary::Pass
             ));
         }
     }
 
     #[test]
     fn test_column_wmask_4() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_column_wmask_4");
-        ctx.write_layout::<Column>(&COL_WMASK_PARAMS, out_gds(work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<Column>(&COL_WMASK_PARAMS, out_gds(work_dir, "layout"))
             .expect("failed to write layout");
     }
 
@@ -459,20 +533,30 @@ mod tests {
     fn test_column_4() {
         let ctx = setup_ctx();
         let work_dir = test_work_dir("test_column_4");
-        ctx.write_layout::<Column>(&COL_PARAMS, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<Column>(&COL_PARAMS, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<Column>(&COL_PARAMS, out_spice(work_dir, "schematic"))
-            .expect("failed to write layout");
+        crate::netlist::write_schematic::<Column>(
+            &ctx,
+            &COL_PARAMS,
+            out_spice(work_dir, "schematic"),
+        )
+        .expect("failed to write layout");
     }
 
     #[test]
     fn test_tapped_column_4() {
         let ctx = setup_ctx();
         let work_dir = test_work_dir("test_tapped_column_4");
-        ctx.write_layout::<TappedColumn>(&COL_PARAMS, out_gds(&work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<TappedColumn>(&COL_PARAMS, out_gds(&work_dir, "layout"))
             .expect("failed to write layout");
-        ctx.write_schematic_to_file::<TappedColumn>(&COL_PARAMS, out_spice(&work_dir, "schematic"))
-            .expect("failed to write layout");
+        crate::netlist::write_schematic::<TappedColumn>(
+            &ctx,
+            &COL_PARAMS,
+            out_spice(&work_dir, "schematic"),
+        )
+        .expect("failed to write layout");
 
         #[cfg(feature = "commercial")]
         {
@@ -482,7 +566,7 @@ mod tests {
             //     .expect("failed to run DRC");
             // assert!(matches!(
             //     output.summary,
-            //     substrate::verification::drc::DrcSummary::Pass
+            //     crate::verification::calibre::DrcSummary::Pass
             // ));
             let lvs_work_dir = work_dir.join("lvs");
             let output = ctx
@@ -490,39 +574,39 @@ mod tests {
                 .expect("failed to run LVS");
             assert!(matches!(
                 output.summary,
-                substrate::verification::lvs::LvsSummary::Pass
+                crate::verification::calibre::LvsSummary::Pass
             ));
         }
     }
 
     #[test]
     fn test_column_cent_4() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_column_cent_4");
-        ctx.write_layout::<ColumnCent>(
-            &ColCentParams {
-                col: COL_WMASK_PARAMS,
-                end: false,
-                cut_wmask: false,
-            },
-            out_gds(work_dir, "layout"),
-        )
-        .expect("failed to write layout");
+        crate::layout_ctx()
+            .write_layout::<ColumnCent>(
+                &ColCentParams {
+                    col: COL_WMASK_PARAMS,
+                    end: false,
+                    cut_wmask: false,
+                },
+                out_gds(work_dir, "layout"),
+            )
+            .expect("failed to write layout");
     }
 
     #[test]
     fn test_column_end_4() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_column_end_4");
-        ctx.write_layout::<ColumnCent>(
-            &ColCentParams {
-                col: COL_WMASK_PARAMS,
-                end: true,
-                cut_wmask: true,
-            },
-            out_gds(work_dir, "layout"),
-        )
-        .expect("failed to write layout");
+        crate::layout_ctx()
+            .write_layout::<ColumnCent>(
+                &ColCentParams {
+                    col: COL_WMASK_PARAMS,
+                    end: true,
+                    cut_wmask: true,
+                },
+                out_gds(work_dir, "layout"),
+            )
+            .expect("failed to write layout");
     }
 
     #[cfg(feature = "commercial")]
@@ -593,24 +677,20 @@ mod tests {
         let pex_dir = work_dir.join("pex");
         let pex_level = calibre::pex::PexLevel::Rc;
         let pex_netlist_path = crate::paths::out_pex(&work_dir, "pex_netlist", pex_level);
-        ctx.write_schematic_to_file_for_purpose::<ColPeripherals>(
-            &params,
-            &pex_path,
-            NetlistPurpose::Pex,
-        )
-        .expect("failed to write pex source netlist");
+        crate::netlist::write_schematic::<ColPeripherals>(&ctx, &params, &pex_path)
+            .expect("failed to write pex source netlist");
         let mut opts = std::collections::HashMap::with_capacity(1);
         opts.insert("level".into(), pex_level.as_str().into());
 
         let gds_path = out_gds(&work_dir, "layout");
-        ctx.write_layout::<ColPeripherals>(&params, &gds_path)
+        crate::layout_ctx()
+            .write_layout::<ColPeripherals>(&params, &gds_path)
             .expect("failed to write layout");
 
-        ctx.run_pex(substrate::verification::pex::PexInput {
+        ctx.run_pex(crate::verification::calibre::PexInput {
             work_dir: pex_dir,
             layout_path: gds_path.clone(),
             layout_cell_name: arcstr::literal!("col_peripherals"),
-            layout_format: substrate::layout::LayoutFormat::Gds,
             source_paths: vec![pex_path],
             source_cell_name: arcstr::literal!("col_peripherals"),
             pex_netlist_path: pex_netlist_path.clone(),
@@ -624,23 +704,23 @@ mod tests {
             conns.get_mut(port).unwrap()[0] = AcImpedanceTbNode::Vmeas;
 
             let sim_dir = work_dir.join(format!("{port}_cap"));
-            let cap_ac = ctx
-                .write_simulation::<AcImpedanceTestbench<ColPeripherals>>(
-                    &AcImpedanceTbParams {
-                        vdd: 1.8,
-                        fstart: 100.,
-                        fstop: 10e6,
-                        points: 10,
-                        dut: params.clone(),
-                        pex_netlist: Some(pex_netlist_path.clone()),
-                        vmeas_conn: AcImpedanceTbNode::Vdd,
-                        connections: HashMap::from_iter(
-                            conns.into_iter().map(|(k, v)| (ArcStr::from(k), v)),
-                        ),
-                    },
-                    &sim_dir,
-                )
-                .expect("failed to write simulation");
+            let cap_ac = crate::sim::run::<AcImpedanceTestbench<ColPeripherals>>(
+                &ctx,
+                &AcImpedanceTbParams {
+                    vdd: 1.8,
+                    fstart: 100.,
+                    fstop: 10e6,
+                    points: 10,
+                    dut: params.clone(),
+                    pex_netlist: Some(pex_netlist_path.clone()),
+                    vmeas_conn: AcImpedanceTbNode::Vdd,
+                    connections: HashMap::from_iter(
+                        conns.into_iter().map(|(k, v)| (ArcStr::from(k), v)),
+                    ),
+                },
+                &sim_dir,
+            )
+            .expect("failed to write simulation");
 
             println!("C{port} = {}fF", 1e15 * cap_ac.max_freq_cap());
         }
@@ -662,24 +742,20 @@ mod tests {
         let pex_dir = work_dir.join("pex");
         let pex_level = calibre::pex::PexLevel::Rc;
         let pex_netlist_path = crate::paths::out_pex(&work_dir, "pex_netlist", pex_level);
-        ctx.write_schematic_to_file_for_purpose::<TappedColumn>(
-            &params,
-            &pex_path,
-            NetlistPurpose::Pex,
-        )
-        .expect("failed to write pex source netlist");
+        crate::netlist::write_schematic::<TappedColumn>(&ctx, &params, &pex_path)
+            .expect("failed to write pex source netlist");
         let mut opts = std::collections::HashMap::with_capacity(1);
         opts.insert("level".into(), pex_level.as_str().into());
 
         let gds_path = out_gds(&work_dir, "layout");
-        ctx.write_layout::<TappedColumn>(&params, &gds_path)
+        crate::layout_ctx()
+            .write_layout::<TappedColumn>(&params, &gds_path)
             .expect("failed to write layout");
 
-        ctx.run_pex(substrate::verification::pex::PexInput {
+        ctx.run_pex(crate::verification::calibre::PexInput {
             work_dir: pex_dir,
             layout_path: gds_path.clone(),
             layout_cell_name: arcstr::literal!("tapped_column"),
-            layout_format: substrate::layout::LayoutFormat::Gds,
             source_paths: vec![pex_path],
             source_cell_name: arcstr::literal!("tapped_column"),
             pex_netlist_path: pex_netlist_path.clone(),
@@ -695,23 +771,23 @@ mod tests {
             conns.get_mut(port).unwrap()[0] = AcImpedanceTbNode::Vmeas;
 
             let sim_dir = work_dir.join(format!("{port}_cap"));
-            let cap_ac = ctx
-                .write_simulation::<AcImpedanceTestbench<TappedColumn>>(
-                    &AcImpedanceTbParams {
-                        vdd: 1.8,
-                        fstart: 100.,
-                        fstop: 10e6,
-                        points: 10,
-                        dut: params.clone(),
-                        pex_netlist: Some(pex_netlist_path.clone()),
-                        vmeas_conn: AcImpedanceTbNode::Vdd,
-                        connections: HashMap::from_iter(
-                            conns.into_iter().map(|(k, v)| (ArcStr::from(k), v)),
-                        ),
-                    },
-                    &sim_dir,
-                )
-                .expect("failed to write simulation");
+            let cap_ac = crate::sim::run::<AcImpedanceTestbench<TappedColumn>>(
+                &ctx,
+                &AcImpedanceTbParams {
+                    vdd: 1.8,
+                    fstart: 100.,
+                    fstop: 10e6,
+                    points: 10,
+                    dut: params.clone(),
+                    pex_netlist: Some(pex_netlist_path.clone()),
+                    vmeas_conn: AcImpedanceTbNode::Vdd,
+                    connections: HashMap::from_iter(
+                        conns.into_iter().map(|(k, v)| (ArcStr::from(k), v)),
+                    ),
+                },
+                &sim_dir,
+            )
+            .expect("failed to write simulation");
 
             println!("C{port} = {}fF", 1e15 * cap_ac.max_freq_cap());
         }

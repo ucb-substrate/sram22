@@ -7,15 +7,15 @@ use itertools::Itertools;
 use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
 use subgeom::{Rect, Side, Span};
-use substrate::component::{Component, NoParams};
-use substrate::layout::cell::{CellPort, Port};
-use substrate::layout::context::LayoutCtx;
-use substrate::layout::elements::mos::LayoutMos;
-use substrate::layout::elements::via::{Via, ViaExpansion, ViaParams};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerBoundBox;
-use substrate::layout::placement::align::{AlignMode, AlignRect};
-use substrate::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
+use substrate1::component::{Component, NoParams};
+use substrate1::layout::cell::{CellPort, Port};
+use substrate1::layout::context::LayoutCtx;
+use substrate1::layout::elements::mos::LayoutMos;
+use substrate1::layout::elements::via::{Via, ViaExpansion, ViaParams};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::LayerBoundBox;
+use substrate1::layout::placement::align::{AlignMode, AlignRect};
+use substrate1::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
 
 use super::{DiffLatch, DiffLatchParams};
 
@@ -24,7 +24,7 @@ pub const GRID: i64 = 5;
 pub const WELL_PAD: i64 = 1_000;
 
 impl DiffLatch {
-    pub(crate) fn layout(&self, ctx: &mut LayoutCtx) -> substrate::error::Result<()> {
+    pub(crate) fn layout(&self, ctx: &mut LayoutCtx) -> substrate1::error::Result<()> {
         let db = ctx.mos_db();
         let nmos = db.default_nmos().unwrap();
         let layers = ctx.layers();
@@ -254,8 +254,8 @@ impl Component for DiffLatchCent {
     type Params = DiffLatchParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
@@ -263,8 +263,8 @@ impl Component for DiffLatchCent {
     }
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let nwell = layers.get(Selector::Name("nwell"))?;
         let nsdm = layers.get(Selector::Name("nsdm"))?;
@@ -275,7 +275,10 @@ impl Component for DiffLatchCent {
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
 
-        let pc = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        let pc = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
 
         let buf = ctx.instantiate::<DiffLatch>(&self.params)?;
         let hspan = Span::new(0, pc.tap_width);

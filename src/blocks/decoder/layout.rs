@@ -3,21 +3,21 @@ use std::iter::Extend;
 
 use itertools::Itertools;
 use serde::Serialize;
-use substrate::component::Component;
-use substrate::error::Result;
-use substrate::index::IndexOwned;
+use substrate1::component::Component;
+use substrate1::error::Result;
+use substrate1::index::IndexOwned;
 
 use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
 use subgeom::{Corner, Dir, Point, Rect, Side, Sign, Span};
-use substrate::layout::cell::{CellPort, Element, Flatten, Port, PortConflictStrategy, PortId};
-use substrate::layout::context::LayoutCtx;
-use substrate::layout::elements::via::{Via, ViaExpansion, ViaParams};
-use substrate::layout::group::elements::ElementGroup;
-use substrate::layout::DrawRef;
+use substrate1::layout::cell::{CellPort, Element, Flatten, Port, PortConflictStrategy, PortId};
+use substrate1::layout::context::LayoutCtx;
+use substrate1::layout::elements::via::{Via, ViaExpansion, ViaParams};
+use substrate1::layout::group::elements::ElementGroup;
+use substrate1::layout::DrawRef;
 
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::{LayerBoundBox, LayerKey};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::{LayerBoundBox, LayerKey};
 
 use crate::blocks::decoder::{
     base_indices, Decoder, DecoderParams, DecoderPhysicalDesign, DecoderPhysicalDesignScript,
@@ -26,11 +26,11 @@ use crate::blocks::decoder::{
 };
 use crate::blocks::gate::{Gate, GateParams};
 use crate::blocks::sram::layout::draw_via;
-use substrate::layout::placement::align::AlignMode;
-use substrate::layout::placement::array::ArrayTiler;
-use substrate::layout::placement::place_bbox::PlaceBbox;
-use substrate::layout::routing::manual::jog::OffsetJog;
-use substrate::layout::routing::tracks::UniformTracks;
+use substrate1::layout::placement::align::AlignMode;
+use substrate1::layout::placement::array::ArrayTiler;
+use substrate1::layout::placement::place_bbox::PlaceBbox;
+use substrate1::layout::routing::manual::jog::OffsetJog;
+use substrate1::layout::routing::tracks::UniformTracks;
 
 struct Metadata {
     final_stage_width: i64,
@@ -38,9 +38,10 @@ struct Metadata {
 
 impl Decoder {
     pub(crate) fn layout(&self, ctx: &mut LayoutCtx) -> Result<()> {
-        let dsn = ctx
-            .inner()
-            .run_script::<DecoderPhysicalDesignScript>(&self.params.pd)?;
+        let dsn = crate::script::run_for_layout::<DecoderPhysicalDesignScript>(
+            ctx.inner(),
+            &self.params.pd,
+        )?;
         let layers = ctx.layers();
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
@@ -71,9 +72,10 @@ impl Decoder {
             dont_connect_outputs: true,
             child_sizes,
         };
-        let stage_dsn = ctx
-            .inner()
-            .run_script::<DecoderStagePhysicalDesignScript>(&params)?;
+        let stage_dsn = crate::script::run_for_layout::<DecoderStagePhysicalDesignScript>(
+            ctx.inner(),
+            &params,
+        )?;
         ctx.set_metadata(Metadata {
             final_stage_width: stage_dsn.dsn.width,
         });
@@ -180,16 +182,17 @@ impl Decoder {
 impl DecoderStage {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let DecoderStagePhysicalDesign {
             gate_params,
             max_folding_factor,
             folding_factors,
             dsn,
-        } = &*ctx
-            .inner()
-            .run_script::<DecoderStagePhysicalDesignScript>(&self.params)?;
+        } = &*crate::script::run_for_layout::<DecoderStagePhysicalDesignScript>(
+            ctx.inner(),
+            &self.params,
+        )?;
         let mut tiler = ArrayTiler::builder();
         let num_stages = gate_params.len();
 
@@ -801,8 +804,8 @@ impl Component for DecoderGate {
     type Params = DecoderGateParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -814,8 +817,8 @@ impl Component for DecoderGate {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let dsn = &self.params.dsn;
 
         let layers = ctx.layers();
@@ -1043,8 +1046,8 @@ impl Component for DecoderTap {
     type Params = DecoderGateParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
@@ -1056,8 +1059,8 @@ impl Component for DecoderTap {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let dsn = &self.params.dsn;
 
         let layers = ctx.layers();
@@ -1151,10 +1154,10 @@ impl Component for DecoderVia {
     type Params = DecoderViaParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         if params.via_metals.len() < 2 {
-            return Err(substrate::component::error::Error::InvalidParams.into());
+            return Err(substrate1::component::error::Error::InvalidParams.into());
         }
         Ok(Self {
             params: params.clone(),

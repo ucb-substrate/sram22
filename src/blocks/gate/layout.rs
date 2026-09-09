@@ -1,11 +1,11 @@
 use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
 use subgeom::{Rect, Span};
-use substrate::layout::cell::{CellPort, MustConnect, Port};
-use substrate::layout::elements::mos::LayoutMos;
-use substrate::layout::placement::align::AlignRect;
-use substrate::layout::routing::manual::jog::OffsetJog;
-use substrate::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
+use substrate1::layout::cell::{CellPort, MustConnect, Port};
+use substrate1::layout::elements::mos::LayoutMos;
+use substrate1::layout::placement::align::AlignRect;
+use substrate1::layout::routing::manual::jog::OffsetJog;
+use substrate1::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
 
 use super::{
     And2, And3, FoldedInv, Inv, MultiFingerInv, MultiFingerInvMosParams, Nand2, Nand3, Nor2,
@@ -14,8 +14,8 @@ use super::{
 impl And2 {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let nand = ctx.instantiate::<Nand2>(&self.params.nand)?;
         let mut inv = ctx.instantiate::<FoldedInv>(&self.params.inv)?;
 
@@ -74,8 +74,8 @@ impl And2 {
 impl And3 {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let nand = ctx.instantiate::<Nand3>(&self.params.nand)?;
         let mut inv = ctx.instantiate::<FoldedInv>(&self.params.inv)?;
 
@@ -135,8 +135,8 @@ impl And3 {
 impl Inv {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let db = ctx.mos_db();
         let nmos = db.default_nmos().unwrap();
         let pmos = db.default_pmos().unwrap();
@@ -191,8 +191,8 @@ impl Inv {
 impl FoldedInv {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let db = ctx.mos_db();
         let nmos = db.default_nmos().unwrap();
         let pmos = db.default_pmos().unwrap();
@@ -251,8 +251,8 @@ impl FoldedInv {
 impl MultiFingerInv {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let db = ctx.mos_db();
         let nmos = db.default_nmos().unwrap();
         let pmos = db.default_pmos().unwrap();
@@ -335,8 +335,8 @@ impl MultiFingerInv {
 impl Nand2 {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let db = ctx.mos_db();
         let nmos = db.default_nmos().unwrap();
         let pmos = db.default_pmos().unwrap();
@@ -403,8 +403,8 @@ impl Nand2 {
 impl Nand3 {
     pub(crate) fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let db = ctx.mos_db();
         let nmos = db.default_nmos().unwrap();
         let pmos = db.default_pmos().unwrap();
@@ -474,8 +474,8 @@ impl Nand3 {
 impl Nor2 {
     pub(crate) fn layout(
         &self,
-        _ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        _ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         Ok(())
     }
 }

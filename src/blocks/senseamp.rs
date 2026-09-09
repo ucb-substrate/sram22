@@ -1,16 +1,16 @@
+use crate::sim::waveform::{DigitalTrace as Waveform, DigitalWaveform};
 use std::sync::Arc;
 
+use crate::bits::is_logical_low;
+use crate::schematic::NoParams;
+use crate::sim::blocks::Capacitor;
+use crate::sim::blocks::Vdc;
+use crate::sim::blocks::Vpwl;
+use crate::sim::run::SimulationTestbench as Testbench;
+use crate::sim::run::TranAnalysis;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use substrate::component::{Component, NoParams};
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::elements::capacitor::Capacitor;
-use substrate::schematic::elements::vdc::Vdc;
-use substrate::schematic::elements::vpwl::Vpwl;
-use substrate::units::{SiPrefix, SiValue};
-use substrate::verification::simulation::bits::is_logical_low;
-use substrate::verification::simulation::testbench::Testbench;
-use substrate::verification::simulation::waveform::{TimeWaveform, Waveform};
-use substrate::verification::simulation::TranAnalysis;
+use substrate::simulation::waveform::TimeWaveform;
 
 use super::macros::SenseAmp;
 
@@ -31,7 +31,7 @@ pub struct OffsetTbParams {
     period: f64,
     tslew: f64,
     n_incr: usize,
-    cout: SiValue,
+    cout: Decimal,
 }
 
 impl OffsetTb {
@@ -60,27 +60,75 @@ impl OffsetTb {
     }
 }
 
-impl Component for OffsetTb {
-    type Params = OffsetTbParams;
+impl OffsetTb {
+    // Float bit patterns give block identity a reflexive Eq and matching Hash, including NaNs.
+    fn cache_key(&self) -> impl std::hash::Hash + Eq + '_ {
+        let p = &self.params;
+        (
+            [
+                p.vnom.to_bits(),
+                p.vdd.to_bits(),
+                p.vincr.to_bits(),
+                p.period.to_bits(),
+                p.tslew.to_bits(),
+            ],
+            &p.n_incr,
+            &p.cout,
+        )
+    }
+}
 
-    fn new(
-        params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+impl std::hash::Hash for OffsetTb {
+    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+        std::hash::Hash::hash(&self.cache_key(), h)
+    }
+}
+impl PartialEq for OffsetTb {
+    fn eq(&self, other: &Self) -> bool {
+        self.cache_key() == other.cache_key()
+    }
+}
+impl Eq for OffsetTb {}
+impl crate::schematic::FromParams for OffsetTb {
+    type Params = OffsetTbParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
         Ok(Self {
             params: params.clone(),
         })
     }
-
+}
+impl substrate::block::Block for OffsetTb {
+    type Io = substrate::types::TestbenchIo;
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("sense_amp_offset_tb")
     }
-
+    fn io(&self) -> Self::Io {
+        Default::default()
+    }
+}
+impl substrate::schematic::Schematic for OffsetTb {
+    type Schema = crate::sim::Simulator;
+    type NestedData = ();
     fn schematic(
         &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
     ) -> substrate::error::Result<()> {
-        let vss = ctx.port("vss", Direction::InOut);
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl OffsetTb {
+    fn build_schematic(
+        &self,
+        ctx: &mut crate::schematic::CircuitBuilder<crate::sim::Simulator>,
+    ) -> anyhow::Result<()> {
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
         let [clk, inn, inp, outn, outp, vdd] =
             ctx.signals(["clk", "inn", "inp", "outn", "outp", "vdd"]);
 
@@ -94,14 +142,13 @@ impl Component for OffsetTb {
         coutn.set_name("coutn");
         ctx.add_instance(coutn);
 
-        let mut vnom =
-            ctx.instantiate::<Vdc>(&SiValue::with_precision(self.params.vnom, SiPrefix::Micro))?;
+        let mut vnom = ctx.instantiate::<Vdc>(&crate::sim::dec(self.params.vnom))?;
         vnom.connect_all([("p", inn), ("n", vss)]);
         vnom.set_name("vnom");
         ctx.add_instance(vnom);
 
         let vvdd = ctx
-            .instantiate::<Vdc>(&SiValue::with_precision(self.params.vdd, SiPrefix::Micro))?
+            .instantiate::<Vdc>(&crate::sim::dec(self.params.vdd))?
             .with_connections([("p", vdd), ("n", vss)])
             .named("vvdd");
         ctx.add_instance(vvdd);
@@ -139,10 +186,7 @@ impl Component for OffsetTb {
 impl Testbench for OffsetTb {
     type Output = Offset;
 
-    fn setup(
-        &mut self,
-        ctx: &mut substrate::verification::simulation::context::PreSimCtx,
-    ) -> substrate::error::Result<()> {
+    fn setup(&self, ctx: &mut crate::sim::run::SimulationPlan) -> anyhow::Result<()> {
         ctx.add_analysis(
             TranAnalysis::builder()
                 .start(0.0)
@@ -151,17 +195,14 @@ impl Testbench for OffsetTb {
                 .build()
                 .unwrap(),
         )
-        .save(substrate::verification::simulation::Save::All);
+        .save(crate::sim::run::Save::All);
         Ok(())
     }
 
-    fn measure(
-        &mut self,
-        ctx: &substrate::verification::simulation::context::PostSimCtx,
-    ) -> substrate::error::Result<Self::Output> {
-        let data = &ctx.output().data[0].tran();
-        let vout = &data.data["v(xdut.outp)"];
-        let vinp = &data.data["v(xdut.inp)"];
+    fn measure(&self, ctx: &crate::sim::run::SimulationResults) -> anyhow::Result<Self::Output> {
+        let data = &ctx.data[0].tran();
+        let vout = &data.data["outp"];
+        let vinp = &data.data["inp"];
         let t = &data.time;
 
         let period = self.params.period;
@@ -190,6 +231,7 @@ impl Testbench for OffsetTb {
 
 #[cfg(test)]
 mod tests {
+
     use crate::setup_ctx;
     use crate::tests::test_work_dir;
 
@@ -207,11 +249,106 @@ mod tests {
             period: 4e-9,
             tslew: 10e-12,
             n_incr: 1_000,
-            cout: SiValue::new(2, SiPrefix::Femto),
+            cout: crate::sim::dec((2) as f64 * 1e-15),
         };
-        let offset = ctx
-            .write_simulation::<OffsetTb>(&params, &work_dir)
+        let offset = crate::sim::run::<OffsetTb>(&ctx, &params, &work_dir)
             .expect("failed to run simulation");
         println!("SA offset = {:?}", offset);
+    }
+    use crate::schematic::{CircuitBuilder, FromParams, NoParams};
+    use crate::sim::blocks::Vpulse;
+    use crate::sim::run::{SimulationPlan, SimulationResults, SimulationTestbench, TranAnalysis};
+    use crate::sim::{dec, Simulator};
+    use substrate::block::Block;
+    use substrate::schematic::{CellBuilder, Schematic};
+    use substrate::types::schematic::IoNodeBundle;
+    use substrate::types::TestbenchIo;
+
+    #[derive(Clone, Copy, Hash, PartialEq, Eq, Block)]
+    #[substrate(io = "TestbenchIo")]
+    struct SenseAmpTestbench;
+    impl FromParams for SenseAmpTestbench {
+        type Params = NoParams;
+        fn from_params(_: &NoParams) -> anyhow::Result<Self> {
+            Ok(Self)
+        }
+    }
+    impl Schematic for SenseAmpTestbench {
+        type Schema = Simulator;
+        type NestedData = ();
+        fn schematic(
+            &self,
+            io: &IoNodeBundle<Self>,
+            cell: &mut CellBuilder<Simulator>,
+        ) -> substrate::error::Result<()> {
+            use crate::sim::blocks::Vdc;
+            let mut c = CircuitBuilder::new(&self.io(), io, cell);
+            let gnd = c.port("vss", crate::schematic::Direction::InOut);
+            let [vdd, inp, inn, outp, outn, clk] =
+                c.signals(["vdd", "inp", "inn", "outp", "outn", "clk"]);
+            for (name, node, value) in
+                [("supply", vdd, 1.8), ("inp", inp, 0.95), ("inn", inn, 0.85)]
+            {
+                c.instantiate::<Vdc>(&dec(value))
+                    .unwrap()
+                    .with_connections([("p", node), ("n", gnd)])
+                    .named(name)
+                    .add_to(&mut c);
+            }
+            c.instantiate::<Vpulse>(&Vpulse {
+                val0: dec(0.),
+                val1: dec(1.8),
+                delay: dec(1e-9),
+                rise: dec(20e-12),
+                fall: dec(20e-12),
+                width: dec(5e-9),
+                period: dec(10e-9),
+            })
+            .unwrap()
+            .with_connections([("p", clk), ("n", gnd)])
+            .named("clock")
+            .add_to(&mut c);
+            c.instantiate::<crate::blocks::macros::SenseAmp>(&NoParams)
+                .unwrap()
+                .with_connections([
+                    ("vdd", vdd),
+                    ("vss", gnd),
+                    ("clk", clk),
+                    ("inp", inp),
+                    ("inn", inn),
+                    ("outp", outp),
+                    ("outn", outn),
+                ])
+                .named("dut")
+                .add_to(&mut c);
+            Ok(())
+        }
+    }
+    impl SimulationTestbench for SenseAmpTestbench {
+        type Output = ();
+        fn setup(&self, plan: &mut SimulationPlan) -> anyhow::Result<()> {
+            plan.add_analysis(TranAnalysis {
+                stop: 4e-9,
+                start: 0.,
+                step: 5e-12,
+            });
+            Ok(())
+        }
+        fn measure(&self, results: &SimulationResults) -> anyhow::Result<()> {
+            let data = results.data[0].tran();
+            let p = *data.data["outp"].values.last().unwrap();
+            let n = *data.data["outn"].values.last().unwrap();
+            assert!(
+                p > 1.6 && n < 0.2,
+                "sense amp did not resolve input: outp={p}, outn={n}"
+            );
+            Ok(())
+        }
+    }
+    #[test]
+    #[ignore = "requires the selected simulator and SKY130 models"]
+    fn resolves_differential_input() {
+        let dir = tempfile::tempdir().unwrap();
+        crate::sim::run::<SenseAmpTestbench>(&crate::setup_ctx(), &NoParams, dir.path()).unwrap();
     }
 }

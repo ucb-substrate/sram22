@@ -6,29 +6,27 @@ use serde::{Deserialize, Serialize};
 use subgeom::bbox::{Bbox, BoundBox};
 use subgeom::orientation::Named;
 use subgeom::{Dir, Point, Rect, Side, Span};
-use substrate::component::{Component, NoParams};
-use substrate::index::IndexOwned;
-use substrate::into_vec;
-use substrate::layout::cell::{
+use substrate1::component::{Component, NoParams};
+use substrate1::index::IndexOwned;
+use substrate1::into_vec;
+use substrate1::layout::cell::{
     CellPort, Instance, MustConnect, Port, PortConflictStrategy, PortId,
 };
-use substrate::layout::elements::via::{Via, ViaExpansion, ViaParams};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerBoundBox;
-use substrate::layout::placement::align::{AlignMode, AlignRect};
-use substrate::layout::{Draw, DrawRef};
+use substrate1::layout::elements::via::{Via, ViaExpansion, ViaParams};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::LayerBoundBox;
+use substrate1::layout::placement::align::{AlignMode, AlignRect};
+use substrate1::layout::{Draw, DrawRef};
 
-use substrate::layout::placement::array::ArrayTiler;
-use substrate::layout::placement::grid::GridTiler;
-use substrate::layout::placement::tile::LayerBbox;
-use substrate::layout::routing::auto::grid::ExpandToGridStrategy;
-use substrate::layout::routing::auto::straps::{RoutedStraps, Target};
-use substrate::layout::routing::auto::{GreedyRouter, GreedyRouterConfig, LayerConfig};
-use substrate::layout::routing::manual::jog::{ElbowJog, SJog};
-use substrate::layout::routing::tracks::TrackLocator;
-use substrate::layout::straps::SingleSupplyNet;
-use substrate::pdk::stdcell::StdCell;
-use substrate::schematic::circuit::Direction;
+use substrate1::layout::placement::array::ArrayTiler;
+use substrate1::layout::placement::grid::GridTiler;
+use substrate1::layout::placement::tile::LayerBbox;
+use substrate1::layout::routing::auto::grid::ExpandToGridStrategy;
+use substrate1::layout::routing::auto::straps::{RoutedStraps, Target};
+use substrate1::layout::routing::auto::{GreedyRouter, GreedyRouterConfig, LayerConfig};
+use substrate1::layout::routing::manual::jog::{ElbowJog, SJog};
+use substrate1::layout::routing::tracks::TrackLocator;
+use substrate1::layout::straps::SingleSupplyNet;
 
 use super::coarse_tdc::TappedRegister;
 use super::decoder::layout::{DecoderGateParams, DecoderTap};
@@ -37,11 +35,12 @@ use super::gate::{GateParams, Inv, PrimitiveGateParams};
 
 pub mod tb;
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct Tdc {
     params: TdcParams,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 pub struct TdcParams {
     stages: usize,
     inv: PrimitiveGateParams,
@@ -58,8 +57,8 @@ impl Component for Tdc {
 
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         assert!(params.stages >= 3);
         Ok(Self { params: *params })
     }
@@ -68,175 +67,10 @@ impl Component for Tdc {
         arcstr::format!("tdc_{}", self.params.stages)
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let bits_out = self.params.bits_out();
-
-        let [vdd, vss] = ctx.ports(["vdd", "vss"], Direction::InOut);
-        let [a, b, reset_b] = ctx.ports(["a", "b", "reset_b"], Direction::Input);
-        let dout = ctx.bus_port("dout", bits_out, Direction::Output);
-
-        let inv = ctx.instantiate::<Inv>(&self.params.inv)?;
-
-        let n = self.params.stages;
-
-        let stage1 = ctx.bus("stage1", n);
-        let int1 = ctx.bus("int1", n);
-        let stage2 = ctx.bus("stage2", 2 * n - 1);
-        let stage3 = ctx.bus("stage3", 2 * n - 1);
-        let stage4 = ctx.bus("stage4", bits_out);
-        let stage5 = ctx.bus("stage5", bits_out);
-
-        for i in 0..self.params.stages {
-            let sin = if i == 0 { a } else { stage1.index(i - 1) };
-            inv.clone()
-                .with_connections([("vdd", vdd), ("vss", vss), ("a", sin), ("y", int1.index(i))])
-                .named(arcstr::format!("s1buf_{i}_0"))
-                .add_to(ctx);
-            inv.clone()
-                .with_connections([
-                    ("vdd", vdd),
-                    ("vss", vss),
-                    ("a", int1.index(i)),
-                    ("y", stage1.index(i)),
-                ])
-                .named(arcstr::format!("s1buf_{i}_1"))
-                .add_to(ctx);
-        }
-
-        for i in 0..stage2.width() {
-            let sin0 = stage1.index(i / 2);
-            let sin1 = stage1.index((i + 1) / 2);
-            inv.clone()
-                .with_connections([
-                    ("vdd", vdd),
-                    ("vss", vss),
-                    ("a", sin0),
-                    ("y", stage2.index(i)),
-                ])
-                .named(arcstr::format!("s2_{i}_0"))
-                .add_to(ctx);
-            inv.clone()
-                .with_connections([
-                    ("vdd", vdd),
-                    ("vss", vss),
-                    ("a", sin1),
-                    ("y", stage2.index(i)),
-                ])
-                .named(arcstr::format!("s2_{i}_1"))
-                .add_to(ctx);
-            inv.clone()
-                .with_connections([
-                    ("vdd", vdd),
-                    ("vss", vss),
-                    ("a", stage2.index(i)),
-                    ("y", stage3.index(i)),
-                ])
-                .named(arcstr::format!("s3_{i}"))
-                .add_to(ctx);
-        }
-
-        let tmp = ctx.bus("tmp", 6);
-
-        for i in 0..2 {
-            inv.clone()
-                .with_connections([
-                    ("vdd", vdd),
-                    ("vss", vss),
-                    (
-                        "a",
-                        if i == 0 {
-                            stage1.index(0)
-                        } else {
-                            stage1.index(stage1.width() - 1)
-                        },
-                    ),
-                    ("y", tmp.index(i)),
-                ])
-                .named(arcstr::format!("s2_dummy_{i}"))
-                .add_to(ctx);
-        }
-
-        for i in 0..4 {
-            inv.clone()
-                .with_connections([
-                    ("vdd", vdd),
-                    ("vss", vss),
-                    (
-                        "a",
-                        if i == 0 {
-                            stage3.index(0)
-                        } else {
-                            stage3.index(stage3.width() - 1)
-                        },
-                    ),
-                    ("y", tmp.index(i + 2)),
-                ])
-                .named(arcstr::format!("s4_dummy_{i}"))
-                .add_to(ctx);
-        }
-
-        let stdcells = ctx.inner().std_cell_db();
-        let lib = stdcells
-            .default_lib()
-            .expect("no default standard cell library");
-        let ff = lib.try_cell_named("sky130_fd_sc_hd__dfrtp_2")?;
-        let ff = ctx.instantiate::<StdCell>(&ff.id())?;
-
-        for i in 0..stage4.width() {
-            let sin0 = stage3.index(i / 2);
-            let sin1 = stage3.index((i + 1) / 2);
-            inv.clone()
-                .with_connections([
-                    ("vdd", vdd),
-                    ("vss", vss),
-                    ("a", sin0),
-                    ("y", stage4.index(i)),
-                ])
-                .named(arcstr::format!("s4_{i}_0"))
-                .add_to(ctx);
-            inv.clone()
-                .with_connections([
-                    ("vdd", vdd),
-                    ("vss", vss),
-                    ("a", sin1),
-                    ("y", stage4.index(i)),
-                ])
-                .named(arcstr::format!("s4_{i}_1"))
-                .add_to(ctx);
-            inv.clone()
-                .with_connections([
-                    ("vdd", vdd),
-                    ("vss", vss),
-                    ("a", stage4.index(i)),
-                    ("y", stage5.index(i)),
-                ])
-                .named(arcstr::format!("s5_{i}"))
-                .add_to(ctx);
-            ff.clone()
-                .with_connections([
-                    ("VGND", vss),
-                    ("VNB", vss),
-                    ("VPB", vdd),
-                    ("VPWR", vdd),
-                    ("CLK", b),
-                    ("RESET_B", reset_b),
-                    ("D", stage5.index(i)),
-                    ("Q", dout.index(i)),
-                ])
-                .named(arcstr::format!("ff_{i}"))
-                .add_to(ctx);
-        }
-
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let m0 = layers.get(Selector::Metal(0))?;
         let m1 = layers.get(Selector::Metal(1))?;
@@ -412,6 +246,211 @@ impl Component for Tdc {
     }
 }
 
+impl crate::schematic::FromParams for Tdc {
+    type Params = TdcParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        assert!(params.stages >= 3);
+        Ok(Self { params: *params })
+    }
+}
+impl substrate::block::Block for Tdc {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::format!("tdc_{}", self.params.stages)
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("a", 1, crate::schematic::Direction::Input),
+            ("b", 1, crate::schematic::Direction::Input),
+            ("reset_b", 1, crate::schematic::Direction::Input),
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+            (
+                "dout",
+                self.params.bits_out(),
+                crate::schematic::Direction::Output,
+            ),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for Tdc {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl Tdc {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let bits_out = self.params.bits_out();
+
+        let [vdd, vss] = ctx.ports(["vdd", "vss"], crate::schematic::Direction::InOut);
+        let [a, b, reset_b] = ctx.ports(["a", "b", "reset_b"], crate::schematic::Direction::Input);
+        let dout = ctx.bus_port("dout", bits_out, crate::schematic::Direction::Output);
+
+        let inv = ctx.instantiate::<Inv>(&self.params.inv)?;
+
+        let n = self.params.stages;
+
+        let stage1 = ctx.bus("stage1", n);
+        let int1 = ctx.bus("int1", n);
+        let stage2 = ctx.bus("stage2", 2 * n - 1);
+        let stage3 = ctx.bus("stage3", 2 * n - 1);
+        let stage4 = ctx.bus("stage4", bits_out);
+        let stage5 = ctx.bus("stage5", bits_out);
+
+        for i in 0..self.params.stages {
+            let sin = if i == 0 { a } else { stage1.index(i - 1) };
+            inv.clone()
+                .with_connections([("vdd", vdd), ("vss", vss), ("a", sin), ("y", int1.index(i))])
+                .named(arcstr::format!("s1buf_{i}_0"))
+                .add_to(ctx);
+            inv.clone()
+                .with_connections([
+                    ("vdd", vdd),
+                    ("vss", vss),
+                    ("a", int1.index(i)),
+                    ("y", stage1.index(i)),
+                ])
+                .named(arcstr::format!("s1buf_{i}_1"))
+                .add_to(ctx);
+        }
+
+        for i in 0..stage2.width() {
+            let sin0 = stage1.index(i / 2);
+            let sin1 = stage1.index((i + 1) / 2);
+            inv.clone()
+                .with_connections([
+                    ("vdd", vdd),
+                    ("vss", vss),
+                    ("a", sin0),
+                    ("y", stage2.index(i)),
+                ])
+                .named(arcstr::format!("s2_{i}_0"))
+                .add_to(ctx);
+            inv.clone()
+                .with_connections([
+                    ("vdd", vdd),
+                    ("vss", vss),
+                    ("a", sin1),
+                    ("y", stage2.index(i)),
+                ])
+                .named(arcstr::format!("s2_{i}_1"))
+                .add_to(ctx);
+            inv.clone()
+                .with_connections([
+                    ("vdd", vdd),
+                    ("vss", vss),
+                    ("a", stage2.index(i)),
+                    ("y", stage3.index(i)),
+                ])
+                .named(arcstr::format!("s3_{i}"))
+                .add_to(ctx);
+        }
+
+        let tmp = ctx.bus("tmp", 6);
+
+        for i in 0..2 {
+            inv.clone()
+                .with_connections([
+                    ("vdd", vdd),
+                    ("vss", vss),
+                    (
+                        "a",
+                        if i == 0 {
+                            stage1.index(0)
+                        } else {
+                            stage1.index(stage1.width() - 1)
+                        },
+                    ),
+                    ("y", tmp.index(i)),
+                ])
+                .named(arcstr::format!("s2_dummy_{i}"))
+                .add_to(ctx);
+        }
+
+        for i in 0..4 {
+            inv.clone()
+                .with_connections([
+                    ("vdd", vdd),
+                    ("vss", vss),
+                    (
+                        "a",
+                        if i == 0 {
+                            stage3.index(0)
+                        } else {
+                            stage3.index(stage3.width() - 1)
+                        },
+                    ),
+                    ("y", tmp.index(i + 2)),
+                ])
+                .named(arcstr::format!("s4_dummy_{i}"))
+                .add_to(ctx);
+        }
+
+        let ff =
+            ctx.instantiate::<crate::blocks::stdcells::HdDfrtp>(&crate::schematic::NoParams)?;
+
+        for i in 0..stage4.width() {
+            let sin0 = stage3.index(i / 2);
+            let sin1 = stage3.index((i + 1) / 2);
+            inv.clone()
+                .with_connections([
+                    ("vdd", vdd),
+                    ("vss", vss),
+                    ("a", sin0),
+                    ("y", stage4.index(i)),
+                ])
+                .named(arcstr::format!("s4_{i}_0"))
+                .add_to(ctx);
+            inv.clone()
+                .with_connections([
+                    ("vdd", vdd),
+                    ("vss", vss),
+                    ("a", sin1),
+                    ("y", stage4.index(i)),
+                ])
+                .named(arcstr::format!("s4_{i}_1"))
+                .add_to(ctx);
+            inv.clone()
+                .with_connections([
+                    ("vdd", vdd),
+                    ("vss", vss),
+                    ("a", stage4.index(i)),
+                    ("y", stage5.index(i)),
+                ])
+                .named(arcstr::format!("s5_{i}"))
+                .add_to(ctx);
+            ff.clone()
+                .with_connections([
+                    ("vgnd", vss),
+                    ("vnb", vss),
+                    ("vpb", vdd),
+                    ("vpwr", vdd),
+                    ("CLK", b),
+                    ("RESET_B", reset_b),
+                    ("D", stage5.index(i)),
+                    ("Q", dout.index(i)),
+                ])
+                .named(arcstr::format!("ff_{i}"))
+                .add_to(ctx);
+        }
+
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(Tdc);
+
 pub struct TdcCell {
     params: TdcCellParams,
 }
@@ -433,8 +472,8 @@ impl Component for TdcCell {
     type Params = TdcCellParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
 
@@ -444,8 +483,8 @@ impl Component for TdcCell {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let m0 = layers.get(Selector::Name("li1"))?;
         let nwell = layers.get(Selector::Name("nwell"))?;
@@ -641,7 +680,7 @@ impl Component for TdcCell {
         ctx.draw_rect(m0, rect);
         ctx.add_port(CellPort::with_shape("buf_out", m0, rect))?;
 
-        let mut draw_sjog = |src: &Instance, dst: &Instance| -> substrate::error::Result<SJog> {
+        let mut draw_sjog = |src: &Instance, dst: &Instance| -> substrate1::error::Result<SJog> {
             let sjog = SJog::builder()
                 .src(src.port("y")?.largest_rect(m0)?)
                 .dst(dst.port("a")?.largest_rect(m0)?)
@@ -658,7 +697,7 @@ impl Component for TdcCell {
 
         draw_sjog(&inv0, &inv1)?;
         draw_sjog(&inv1, &s11)?;
-        let mut draw_sjog = |src: &Instance, dst: &Instance| -> substrate::error::Result<SJog> {
+        let mut draw_sjog = |src: &Instance, dst: &Instance| -> substrate1::error::Result<SJog> {
             let sjog = SJog::builder()
                 .src(src.port("y")?.largest_rect(m0)?)
                 .dst(dst.port("a")?.largest_rect(m0)?)
@@ -1006,8 +1045,8 @@ impl Component for TappedRegisterN {
 
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self(*params))
     }
 
@@ -1017,8 +1056,8 @@ impl Component for TappedRegisterN {
 
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let reg = ctx.instantiate::<TappedRegister>(&NoParams)?;
         let layers = ctx.layers();
         let outline = layers.get(Selector::Name("outline"))?;
@@ -1051,6 +1090,8 @@ impl Component for TappedRegisterN {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "commercial")]
+    use crate::verification::calibre::CalibreContext;
 
     use crate::paths::{out_gds, out_spice};
     use crate::setup_ctx;
@@ -1095,25 +1136,25 @@ mod tests {
 
     #[test]
     fn test_tdc_cell() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_tdc_cell");
-        ctx.write_layout::<TdcCell>(&TDC_CELL_PARAMS, out_gds(work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<TdcCell>(&TDC_CELL_PARAMS, out_gds(work_dir, "layout"))
             .expect("failed to write layout");
     }
 
     #[test]
     fn test_tdc_cell_end() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_tdc_cell_end");
-        ctx.write_layout::<TdcCell>(&TDC_CELL_END_PARAMS, out_gds(work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<TdcCell>(&TDC_CELL_END_PARAMS, out_gds(work_dir, "layout"))
             .expect("failed to write layout");
     }
 
     #[test]
     fn test_tdc_cell_start() {
-        let ctx = setup_ctx();
         let work_dir = test_work_dir("test_tdc_cell_start");
-        ctx.write_layout::<TdcCell>(&TDC_CELL_START_PARAMS, out_gds(work_dir, "layout"))
+        crate::layout_ctx()
+            .write_layout::<TdcCell>(&TDC_CELL_START_PARAMS, out_gds(work_dir, "layout"))
             .expect("failed to write layout");
     }
 
@@ -1121,20 +1162,26 @@ mod tests {
     fn test_tdc() {
         let ctx = setup_ctx();
         let work_dir = test_work_dir("test_tdc");
-        ctx.write_schematic_to_file::<Tdc>(&TDC_PARAMS, out_spice(&work_dir, "schematic"))
-            .expect("failed to write schematic");
+        crate::netlist::write_schematic::<Tdc>(
+            &ctx,
+            &TDC_PARAMS,
+            out_spice(&work_dir, "schematic"),
+        )
+        .expect("failed to write schematic");
         let gds_path = out_gds(&work_dir, "layout");
-        ctx.write_layout::<Tdc>(&TDC_PARAMS, &gds_path)
+        crate::layout_ctx()
+            .write_layout::<Tdc>(&TDC_PARAMS, &gds_path)
             .expect("failed to write layout");
         #[cfg(feature = "commercial")]
         {
             use crate::liberate::save_tdc_lib;
             use crate::paths::out_verilog;
+            use crate::verification::calibre::PexInput;
             use crate::verilog::save_tdc_verilog;
-            use substrate::schematic::netlist::NetlistPurpose;
-            use substrate::verification::pex::PexInput;
 
-            let tdc = ctx.instantiate_layout::<Tdc>(&TDC_PARAMS).unwrap();
+            let tdc = crate::layout_ctx()
+                .instantiate_layout::<Tdc>(&TDC_PARAMS)
+                .unwrap();
             let name = tdc.cell().name();
 
             let lib_path = crate::paths::out_lib(&work_dir, name);
@@ -1160,12 +1207,8 @@ mod tests {
             let pex_dir = work_dir.join("pex");
             let pex_source_path = out_spice(&pex_dir, "schematic");
             let pex_out_path = out_spice(&pex_dir, "schematic.pex");
-            ctx.write_schematic_to_file_for_purpose::<Tdc>(
-                &TDC_PARAMS,
-                &pex_source_path,
-                NetlistPurpose::Pex,
-            )
-            .expect("failed to write schematic for PEX");
+            crate::netlist::write_schematic::<Tdc>(&ctx, &TDC_PARAMS, &pex_source_path)
+                .expect("failed to write schematic for PEX");
 
             crate::abs::run_abstract(
                 &work_dir,
@@ -1182,7 +1225,7 @@ mod tests {
                 .expect("failed to run DRC");
             assert!(matches!(
                 output.summary,
-                substrate::verification::drc::DrcSummary::Pass
+                crate::verification::calibre::DrcSummary::Pass
             ));
             let lvs_work_dir = work_dir.join("lvs");
             let output = ctx
@@ -1190,14 +1233,13 @@ mod tests {
                 .expect("failed to run LVS");
             assert!(matches!(
                 output.summary,
-                substrate::verification::lvs::LvsSummary::Pass
+                crate::verification::calibre::LvsSummary::Pass
             ));
 
             ctx.run_pex(PexInput {
                 work_dir: pex_dir,
                 layout_path: gds_path,
                 layout_cell_name: name.clone(),
-                layout_format: substrate::layout::LayoutFormat::Gds,
                 source_paths: vec![pex_source_path],
                 source_cell_name: name.clone(),
                 pex_netlist_path: pex_out_path,
@@ -1206,7 +1248,7 @@ mod tests {
             })
             .expect("failed to run PEX");
 
-            ctx.write_simulation::<super::tb::TdcTb>(&TDC_TB_PARAMS, &work_dir)
+            crate::sim::run::<super::tb::TdcTb>(&ctx, &TDC_TB_PARAMS, &work_dir)
                 .expect("failed to run simulation");
         }
     }

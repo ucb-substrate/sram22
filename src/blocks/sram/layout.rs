@@ -1,33 +1,31 @@
 use std::collections::HashMap;
 
+use crate::script::{DesignContext, Script};
 use serde::{Deserialize, Serialize};
 use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
 use subgeom::transform::Translate;
 use subgeom::{snap_to_grid, Dir, Point, Rect, Shape, Side, Sign, Span};
-use substrate::component::{Component, NoParams};
-use substrate::error::Result;
-use substrate::index::IndexOwned;
-use substrate::layout::cell::{CellPort, Instance, Port, PortConflictStrategy, PortId};
-use substrate::layout::context::LayoutCtx;
-use substrate::layout::elements::mos::LayoutMos;
-use substrate::layout::elements::via::{Via, ViaExpansion, ViaParams};
-use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::{LayerBoundBox, LayerKey};
-use substrate::layout::placement::align::{AlignMode, AlignRect};
-use substrate::layout::placement::array::ArrayTiler;
-use substrate::layout::placement::place_bbox::PlaceBbox;
-use substrate::layout::routing::auto::straps::{RoutedStraps, Target};
-use substrate::layout::routing::auto::{GreedyRouter, GreedyRouterConfig, LayerConfig};
-use substrate::layout::routing::manual::jog::OffsetJog;
-use substrate::layout::routing::tracks::TrackLocator;
-use substrate::layout::straps::SingleSupplyNet;
-use substrate::pdk::mos::query::Query;
-use substrate::pdk::mos::spec::MosKind;
-use substrate::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
-use substrate::schematic::circuit::Direction;
-use substrate::schematic::elements::mos::SchematicMos;
-use substrate::script::Script;
+use substrate1::component::Component;
+use substrate1::error::Result;
+use substrate1::index::IndexOwned;
+use substrate1::layout::cell::{CellPort, Instance, Port, PortConflictStrategy, PortId};
+use substrate1::layout::context::LayoutCtx;
+use substrate1::layout::elements::mos::LayoutMos;
+use substrate1::layout::elements::via::{Via, ViaExpansion, ViaParams};
+use substrate1::layout::layers::selector::Selector;
+use substrate1::layout::layers::{LayerBoundBox, LayerKey};
+use substrate1::layout::placement::align::{AlignMode, AlignRect};
+use substrate1::layout::placement::array::ArrayTiler;
+use substrate1::layout::placement::place_bbox::PlaceBbox;
+use substrate1::layout::routing::auto::straps::{RoutedStraps, Target};
+use substrate1::layout::routing::auto::{GreedyRouter, GreedyRouterConfig, LayerConfig};
+use substrate1::layout::routing::manual::jog::OffsetJog;
+use substrate1::layout::routing::tracks::TrackLocator;
+use substrate1::layout::straps::SingleSupplyNet;
+use substrate1::pdk::mos::query::Query;
+use substrate1::pdk::mos::spec::MosKind;
+use substrate1::pdk::mos::{GateContactStrategy, LayoutMosParams, MosParams};
 
 use crate::blocks::bitcell_array::replica::ReplicaCellArray;
 use crate::blocks::bitcell_array::SpCellArray;
@@ -174,11 +172,12 @@ fn draw_route(
     Ok(())
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct ColumnMos {
     params: ColumnMosParams,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct ColumnMosParams {
     pub gate_width_n: i64,
     pub drain_width_n: i64,
@@ -189,17 +188,19 @@ pub struct ColumnMosParams {
     pub include_drain_p: bool,
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct ColumnMosCent {
     params: ColumnMosParams,
 }
 
 /// Column NMOS replica to match replica bitline capacitance to fraction
 /// of capacitance on main bitline.
+#[derive(Hash, PartialEq, Eq)]
 pub struct ReplicaColumnMos {
     params: ReplicaColumnMosParams,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct ReplicaColumnMosParams {
     pub max_height: i64,
     pub gate_width_n: i64,
@@ -208,11 +209,12 @@ pub struct ReplicaColumnMosParams {
     pub length: i64,
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct ReplicaMetalRouting {
     params: ReplicaMetalRoutingParams,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct ReplicaMetalRoutingParams {
     pub m1_area: i64,
     pub m0_area: i64,
@@ -223,80 +225,22 @@ impl Component for ColumnMos {
     type Params = ColumnMosParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("column_mos")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let length = self.params.length;
-
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let bl = ctx.port("bl", Direction::InOut);
-
-        let nmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Nmos).build().unwrap())?
-            .id();
-
-        let pmos_id = ctx
-            .mos_db()
-            .query(Query::builder().kind(MosKind::Pmos).build().unwrap())?
-            .id();
-
-        if self.params.include_gate_n {
-            let mut gate_nmos = ctx.instantiate::<SchematicMos>(&MosParams {
-                w: self.params.gate_width_n,
-                l: length,
-                m: 1,
-                nf: 1,
-                id: nmos_id,
-            })?;
-            gate_nmos.connect_all([("d", &vss), ("g", &bl), ("s", &vss), ("b", &vss)]);
-            gate_nmos.set_name("gate_nmos");
-            ctx.add_instance(gate_nmos);
-        }
-
-        if self.params.include_drain_n {
-            let mut drain_nmos = ctx.instantiate::<SchematicMos>(&MosParams {
-                w: self.params.drain_width_n,
-                l: length,
-                m: 1,
-                nf: 1,
-                id: nmos_id,
-            })?;
-            drain_nmos.connect_all([("d", &bl), ("g", &vss), ("s", &vss), ("b", &vss)]);
-            drain_nmos.set_name("drain_nmos");
-            ctx.add_instance(drain_nmos);
-        }
-
-        if self.params.include_drain_p {
-            let mut drain_pmos = ctx.instantiate::<SchematicMos>(&MosParams {
-                w: self.params.drain_width_p,
-                l: length,
-                m: 1,
-                nf: 1,
-                id: pmos_id,
-            })?;
-            drain_pmos.connect_all([("d", &bl), ("g", &vdd), ("s", &vdd), ("b", &vdd)]);
-            drain_pmos.set_name("drain_pmos");
-            ctx.add_instance(drain_pmos);
-        }
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
-        let dsn = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
+        let dsn = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
         let db = ctx.mos_db();
         let nmos = db
             .query(Query::builder().kind(MosKind::Nmos).build().unwrap())
@@ -498,36 +442,104 @@ impl Component for ColumnMos {
     }
 }
 
+impl crate::schematic::FromParams for ColumnMos {
+    type Params = ColumnMosParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+impl substrate::block::Block for ColumnMos {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("column_mos")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+            ("bl", 1, crate::schematic::Direction::InOut),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for ColumnMos {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl ColumnMos {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let length = self.params.length;
+
+        let vdd = ctx.port("vdd", crate::schematic::Direction::InOut);
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
+        let bl = ctx.port("bl", crate::schematic::Direction::InOut);
+
+        if self.params.include_gate_n {
+            let mut gate_nmos =
+                ctx.instantiate::<sky130::mos::Nfet01v8>(&(self.params.gate_width_n, length))?;
+            gate_nmos.connect_all([("d", &vss), ("g", &bl), ("s", &vss), ("b", &vss)]);
+            gate_nmos.set_name("gate_nmos");
+            ctx.add_instance(gate_nmos);
+        }
+
+        if self.params.include_drain_n {
+            let mut drain_nmos =
+                ctx.instantiate::<sky130::mos::Nfet01v8>(&(self.params.drain_width_n, length))?;
+            drain_nmos.connect_all([("d", &bl), ("g", &vss), ("s", &vss), ("b", &vss)]);
+            drain_nmos.set_name("drain_nmos");
+            ctx.add_instance(drain_nmos);
+        }
+
+        if self.params.include_drain_p {
+            let mut drain_pmos =
+                ctx.instantiate::<sky130::mos::Pfet01v8>(&(self.params.drain_width_p, length))?;
+            drain_pmos.connect_all([("d", &bl), ("g", &vdd), ("s", &vdd), ("b", &vdd)]);
+            drain_pmos.set_name("drain_pmos");
+            ctx.add_instance(drain_pmos);
+        }
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(ColumnMos);
+
 impl Component for ColumnMosCent {
     type Params = ColumnMosParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("column_mos_end")
     }
 
-    fn schematic(
-        &self,
-        _ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let nmos = ctx.instantiate::<ColumnMos>(&ColumnMosParams {
             include_gate_n: true,
             include_drain_n: true,
             include_drain_p: true,
             ..self.params
         })?;
-        let dsn = ctx.inner().run_script::<ColumnDesignScript>(&NoParams)?;
+        let dsn = crate::script::run_for_layout::<ColumnDesignScript>(
+            ctx.inner(),
+            &crate::schematic::NoParams,
+        )?;
         let layers = ctx.layers();
 
         let tap = layers.get(Selector::Name("tap"))?;
@@ -578,6 +590,45 @@ impl Component for ColumnMosCent {
     }
 }
 
+impl crate::schematic::FromParams for ColumnMosCent {
+    type Params = ColumnMosParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+impl substrate::block::Block for ColumnMosCent {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("column_mos_end")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::default()
+    }
+}
+impl substrate::schematic::Schematic for ColumnMosCent {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl ColumnMosCent {
+    fn build_schematic(&self, _ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(ColumnMosCent);
+
 pub struct ReplicaColumnMosPhysicalDesignScript;
 
 pub struct ReplicaColumnMosDesign {
@@ -591,8 +642,8 @@ impl Script for ReplicaColumnMosPhysicalDesignScript {
 
     fn run(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self::Output> {
+        _ctx: &substrate::context::Context,
+    ) -> anyhow::Result<Self::Output> {
         let total_height = params.gate_width_n + params.drain_width_n + params.drain_width_p;
         let num_cols = (total_height as usize).div_ceil(params.max_height as usize);
         let gate_width_n = snap_to_grid(
@@ -640,41 +691,22 @@ impl Component for ReplicaColumnMos {
     type Params = ReplicaColumnMosParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("replica_column_mos")
     }
 
-    fn schematic(
-        &self,
-        ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        let vdd = ctx.port("vdd", Direction::InOut);
-        let vss = ctx.port("vss", Direction::InOut);
-        let bl = ctx.port("bl", Direction::InOut);
-        let dsn = ctx
-            .inner()
-            .run_script::<ReplicaColumnMosPhysicalDesignScript>(&self.params)?;
-
-        for (i, unit) in dsn.units.iter().enumerate() {
-            let mut unit = ctx.instantiate::<ColumnMos>(unit)?;
-            unit.connect_all([("vdd", &vdd), ("vss", &vss), ("bl", &bl)]);
-            unit.set_name(format!("unit{i}"));
-            ctx.add_instance(unit);
-        }
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
-        let dsn = ctx
-            .inner()
-            .run_script::<ReplicaColumnMosPhysicalDesignScript>(&self.params)?;
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
+        let dsn = crate::script::run_for_layout::<ReplicaColumnMosPhysicalDesignScript>(
+            ctx.inner(),
+            &self.params,
+        )?;
         let column_mos_cent = ctx.instantiate::<ColumnMosCent>(&dsn.units[0])?;
 
         let mut tiler = ArrayTiler::builder();
@@ -705,29 +737,78 @@ impl Component for ReplicaColumnMos {
     }
 }
 
+impl crate::schematic::FromParams for ReplicaColumnMos {
+    type Params = ReplicaColumnMosParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+impl substrate::block::Block for ReplicaColumnMos {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("replica_column_mos")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::new([
+            ("vdd", 1, crate::schematic::Direction::InOut),
+            ("vss", 1, crate::schematic::Direction::InOut),
+            ("bl", 1, crate::schematic::Direction::InOut),
+        ])
+    }
+}
+impl substrate::schematic::Schematic for ReplicaColumnMos {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl ReplicaColumnMos {
+    fn build_schematic(&self, ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        let vdd = ctx.port("vdd", crate::schematic::Direction::InOut);
+        let vss = ctx.port("vss", crate::schematic::Direction::InOut);
+        let bl = ctx.port("bl", crate::schematic::Direction::InOut);
+        let dsn = ctx
+            .inner()
+            .run_script::<ReplicaColumnMosPhysicalDesignScript>(&self.params)?;
+
+        for (i, unit) in dsn.units.iter().enumerate() {
+            let mut unit = ctx.instantiate::<ColumnMos>(unit)?;
+            unit.connect_all([("vdd", &vdd), ("vss", &vss), ("bl", &bl)]);
+            unit.set_name(format!("unit{i}"));
+            ctx.add_instance(unit);
+        }
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(ReplicaColumnMos);
+
 impl Component for ReplicaMetalRouting {
     type Params = ReplicaMetalRoutingParams;
     fn new(
         params: &Self::Params,
-        _ctx: &substrate::data::SubstrateCtx,
-    ) -> substrate::error::Result<Self> {
+        _ctx: &substrate1::data::SubstrateCtx,
+    ) -> substrate1::error::Result<Self> {
         Ok(Self { params: *params })
     }
     fn name(&self) -> arcstr::ArcStr {
         arcstr::literal!("replica_metal_routing")
     }
 
-    fn schematic(
-        &self,
-        _ctx: &mut substrate::schematic::context::SchematicCtx,
-    ) -> substrate::error::Result<()> {
-        Ok(())
-    }
-
     fn layout(
         &self,
-        ctx: &mut substrate::layout::context::LayoutCtx,
-    ) -> substrate::error::Result<()> {
+        ctx: &mut substrate1::layout::context::LayoutCtx,
+    ) -> substrate1::error::Result<()> {
         let layers = ctx.layers();
         let m0 = layers.get(Selector::Metal(0))?;
         let m1 = layers.get(Selector::Metal(1))?;
@@ -772,11 +853,49 @@ impl Component for ReplicaMetalRouting {
     }
 }
 
+impl crate::schematic::FromParams for ReplicaMetalRouting {
+    type Params = ReplicaMetalRoutingParams;
+    fn from_params(params: &Self::Params) -> anyhow::Result<Self> {
+        Ok(Self { params: *params })
+    }
+}
+impl substrate::block::Block for ReplicaMetalRouting {
+    type Io = crate::schematic::NamedIo;
+    fn name(&self) -> arcstr::ArcStr {
+        arcstr::literal!("replica_metal_routing")
+    }
+    fn io(&self) -> Self::Io {
+        crate::schematic::NamedIo::default()
+    }
+}
+impl substrate::schematic::Schematic for ReplicaMetalRouting {
+    type Schema = sky130::Sky130;
+    type NestedData = ();
+    fn schematic(
+        &self,
+        io: &substrate::types::schematic::IoNodeBundle<Self>,
+        cell: &mut substrate::schematic::CellBuilder<Self::Schema>,
+    ) -> substrate::error::Result<()> {
+        let mut ctx = crate::schematic::CircuitBuilder::new(
+            &<Self as substrate::block::Block>::io(self),
+            io,
+            cell,
+        );
+        self.build_schematic(&mut ctx)
+            .map_err(|e| substrate::error::Error::Anyhow(std::sync::Arc::new(e)))
+    }
+}
+impl ReplicaMetalRouting {
+    fn build_schematic(&self, _ctx: &mut crate::schematic::CircuitBuilder) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+crate::impl_sky130_build!(ReplicaMetalRouting);
+
 impl SramInner {
     pub(crate) fn layout(&self, ctx: &mut LayoutCtx) -> Result<()> {
-        let dsn = ctx
-            .inner()
-            .run_script::<SramPhysicalDesignScript>(&self.params)?;
+        let dsn =
+            crate::script::run_for_layout::<SramPhysicalDesignScript>(ctx.inner(), &self.params)?;
         let layers = ctx.layers();
         let m0 = layers.get(Selector::Metal(0))?;
         let m1 = layers.get(Selector::Metal(1))?;
