@@ -1,0 +1,46 @@
+.steps {
+  --step-bullet: 1.55rem;
+  margin: 1.2rem 0;
+}
+.steps > ol {
+  list-style: none;
+  counter-reset: step;
+  padding: 0;
+  margin: 0;
+}
+.steps > ol > li {
+  counter-increment: step;
+  position: relative;
+  padding-inline-start: calc(var(--step-bullet) + 1rem);
+  padding-bottom: 1.1rem;
+  margin-inline-start: calc(var(--step-bullet) / 2);
+  border-inline-start: 1px solid var(--sram-border-solid);
+}
+.steps > ol > li:last-of-type {
+  border-inline-start-color: transparent;
+  padding-bottom: 0;
+}
+.steps > ol > li::before {
+  content: counter(step);
+  position: absolute;
+  inset-inline-start: calc(var(--step-bullet) / -2 - 1px);
+  top: -0.15rem;
+  width: var(--step-bullet);
+  height: var(--step-bullet);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sram-accent);
+  color: var(--sram-on-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* The first block inside a step lines up with its bullet. */
+.steps > ol > li > :first-child {
+  margin-top: 0;
+}
+.steps > ol > li > :last-child {
+  margin-bottom: 0;
+}

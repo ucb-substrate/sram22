@@ -1,0 +1,158 @@
+/* Fonts (installed via Fontsource) */
+@import "@fontsource-variable/geist/index.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
+
+/* ===========================================================================
+   SRAM22 design tokens — SINGLE SOURCE OF TRUTH for the color palette.
+
+   To re-skin the entire site, edit the five brand colors below (and, if you
+   like, the derived anchors). Every page and component references the
+   `--sram-*` semantic tokens, so changes propagate automatically.
+
+   The semantic tokens are defined twice: once on :root for the light theme and
+   once on [data-theme="dark"]. Components never branch on the theme themselves;
+   they just read the tokens.
+
+   Two things hold baked-in colors and are NOT controlled here:
+     • the logo (static/img/logo-mark.svg)
+     • the GDS layout renders (regenerate via scripts/render_gds.py, whose
+       LAYERS table is the place to change layer colors)
+   =========================================================================== */
+:root {
+  /* ---- Brand palette (edit these) ---- */
+  --sram-yale: #274060;
+  --sram-baltic: #335c81;
+  --sram-sky: #65afff;
+  --sram-indigo: #1b2845;
+  --sram-cloud: #5899e2;
+
+  /* ---- Derived anchors ---- */
+  --sram-sky-soft: #9ec9ff; /* lighter sky for gradients / accent text */
+  --sram-ink: #0b1220; /* dark-theme base background, deeper than indigo */
+  --sram-ink-2: #0d1526; /* gradient companion */
+
+  /* ---- Fonts ---- */
+  --sram-font:
+    "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  --sram-mono:
+    "JetBrains Mono Variable", ui-monospace, "SF Mono", "Cascadia Code",
+    "Source Code Pro", Menlo, Consolas, monospace;
+
+  /* ---- Semantic tokens: LIGHT theme ---- */
+  --sram-bg: #ffffff;
+  --sram-bg-elev: #f4f8fd;
+  --sram-surface: rgba(39, 64, 96, 0.045);
+  --sram-surface-solid: #eef3fa;
+  --sram-panel: #f7fafe;
+  --sram-border: rgba(39, 64, 96, 0.18);
+  --sram-border-solid: #d3dfee;
+  --sram-text: #17243b;
+  --sram-text-dim: #33475f;
+  --sram-text-muted: #556782;
+  --sram-accent: var(--sram-baltic);
+  --sram-accent-2: var(--sram-yale);
+  --sram-on-accent: #ffffff;
+  /* "Pale sky" is a near-white tint in dark mode; in light mode the same role
+     (secondary text inside the inline SVG diagrams) has to be dark to read. */
+  --sram-sky-pale: #234a72;
+  /* Categorical accent, intentionally outside the blue palette so it stays
+     distinguishable — timing-diagram annotations. */
+  --sram-signal: #8a5b00;
+
+  /* ---- Infima mappings (light) ---- */
+  --ifm-color-primary: #335c81;
+  --ifm-color-primary-dark: #2e5374;
+  --ifm-color-primary-darker: #2b4e6e;
+  --ifm-color-primary-darkest: #24405a;
+  --ifm-color-primary-light: #38658e;
+  --ifm-color-primary-lighter: #3b6a94;
+  --ifm-color-primary-lightest: #4278a8;
+
+  --ifm-font-family-base: var(--sram-font);
+  --ifm-font-family-monospace: var(--sram-mono);
+  --ifm-heading-font-weight: 650;
+  --ifm-code-font-size: 90%;
+  --ifm-background-color: var(--sram-bg);
+  --ifm-background-surface-color: var(--sram-panel);
+  --ifm-toc-border-color: var(--sram-border-solid);
+  --ifm-hr-border-color: var(--sram-border-solid);
+  --ifm-table-border-color: var(--sram-border-solid);
+  --ifm-table-head-background: var(--sram-surface-solid);
+  --ifm-table-stripe-background: var(--sram-surface);
+  --docusaurus-highlighted-code-line-bg: rgba(39, 64, 96, 0.1);
+}
+
+[data-theme="dark"] {
+  /* ---- Semantic tokens: DARK theme ---- */
+  --sram-bg: var(--sram-ink);
+  --sram-bg-elev: var(--sram-ink-2);
+  --sram-surface: rgba(255, 255, 255, 0.035);
+  --sram-surface-solid: #0e1626;
+  --sram-panel: #0b1220;
+  --sram-border: rgba(101, 175, 255, 0.16);
+  --sram-border-solid: #2a3a55;
+  --sram-text: #e7eefb;
+  --sram-text-dim: #b9c8e2;
+  --sram-text-muted: #8a9bbb;
+  --sram-accent: var(--sram-sky);
+  --sram-accent-2: var(--sram-cloud);
+  --sram-on-accent: #07101f;
+  --sram-sky-pale: #cfe6ff;
+  --sram-signal: #ffd35c;
+
+  /* ---- Infima mappings (dark) ---- */
+  --ifm-color-primary: #65afff;
+  --ifm-color-primary-dark: #419dff;
+  --ifm-color-primary-darker: #3093ff;
+  --ifm-color-primary-darkest: #0078f9;
+  --ifm-color-primary-light: #89c1ff;
+  --ifm-color-primary-lighter: #9acbff;
+  --ifm-color-primary-lightest: #d0e6ff;
+
+  --ifm-background-color: var(--sram-bg-elev);
+  --ifm-background-surface-color: var(--sram-panel);
+  --ifm-navbar-background-color: var(--sram-panel);
+  --ifm-footer-background-color: var(--sram-ink);
+  --docusaurus-highlighted-code-line-bg: rgba(101, 175, 255, 0.16);
+}
+
+/* ===========================================================================
+   Base chrome
+   =========================================================================== */
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  letter-spacing: -0.012em;
+}
+
+/* Tables in the docs stretch to the column and scroll on narrow screens. */
+.markdown table {
+  display: table;
+  width: 100%;
+}
+
+.navbar__logo img,
+.navbar__logo svg {
+  height: 1.65rem;
+  width: auto;
+}
+
+.navbar {
+  border-bottom: 1px solid var(--sram-border-solid);
+}
+
+[data-theme="dark"] .footer {
+  --ifm-footer-background-color: var(--sram-ink);
+  border-top: 1px solid var(--sram-border-solid);
+}
+
+/* The search-local modal inherits Infima tokens; only the hit border needs
+   nudging so it reads against the panel color in dark mode. */
+[data-theme="dark"] .DocSearch-Hit a {
+  background: var(--sram-surface-solid);
+}

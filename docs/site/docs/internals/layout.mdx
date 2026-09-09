@@ -1,0 +1,50 @@
+---
+title: Layout
+description: Browse the real SRAM22 macro layout in your browser, layer by layer, with pan and zoom.
+---
+
+import LayoutBrowser from "@site/src/components/LayoutBrowser";
+
+Browse the actual `sram22_64x32m4w8` layout below, rendered directly from its
+GDS. Toggle individual mask layers, then scroll to zoom and drag to pan.
+
+<LayoutBrowser />
+
+:::tip[Try this]
+
+Turn everything off, then enable just **Poly** to see the regular wordline
+pattern of the bitcell array, or just **Met2** to see the top-level power and
+signal routing. Enabling **Diff** + **Poly** reveals the transistors.
+
+:::
+
+## Floorplan
+
+The macro is organized into a few recognizable regions (positions below refer to
+the default view):
+
+- **Bitcell array** — the large, highly regular block on the upper right. Each
+  row is a wordline; each column a bitline pair. This is where the data lives,
+  and it dominates the area.
+- **Predecoders & row decoder** — the striped blocks along the top left. They
+  decode the row address bits and drive the wordlines into the array.
+- **Timing control logic** — the irregular block in the middle left. This is the
+  self-timed controller that sequences precharge, the wordline pulse, the
+  replica bitline, and the sense-amp enable.
+- **Column circuitry** — the horizontal bands directly below the array:
+  precharge, the column mux, sense amplifiers, and write drivers, shared between
+  the top and bottom banks.
+- **Input/output flip-flops** — the regular cell rows at the bottom that latch
+  `addr`, `din`, `wmask`, and the control signals, and register `dout`.
+
+:::note[About this view]
+
+Layers are drawn with representative colors (nwell, diff, poly, li1, met1,
+met2); contacts and vias are omitted for clarity. The view is rendered from
+the macro's GDS. Pin shapes for the same macro are in
+<a href="/docs/interface/pin-positions/">Pin positions</a>.
+
+:::
+
+The block measures **360.32 × 191.00 µm**. Recall that it is meant to be
+[placed rotated 90°](/docs/orientations/) in a floorplan.

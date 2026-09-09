@@ -2,8 +2,9 @@
 
 The SRAM22 website will be hosted at `https://sram22.com`.
 
-It should be a site written using the latest version of the [Astro](https://astro.build/) framework.
-Follow idiomatic Astro conventions.
+It should be a site written using the latest version of the
+[Docusaurus](https://docusaurus.io/) framework.
+Follow idiomatic Docusaurus conventions.
 
 ## Landing Page
 
@@ -39,7 +40,7 @@ Use the following color palette:
 [{"name":"Yale Blue","hex":"274060","rgb":[39,64,96],"cmyk":[59,33,0,62],"hsb":[214,59,38],"hsl":[214,42,26],"lab":[27,1,-22]},{"name":"Baltic Blue","hex":"335c81","rgb":[51,92,129],"cmyk":[60,29,0,49],"hsb":[208,60,51],"hsl":[208,43,35],"lab":[38,-2,-25]},{"name":"Cool Sky","hex":"65afff","rgb":[101,175,255],"cmyk":[60,31,0,0],"hsb":[211,60,100],"hsl":[211,100,70],"lab":[70,0,-47]},{"name":"Space Indigo","hex":"1b2845","rgb":[27,40,69],"cmyk":[61,42,0,73],"hsb":[221,61,27],"hsl":[221,44,19],"lab":[16,5,-20]},{"name":"Cloudy Sky","hex":"5899e2","rgb":[88,153,226],"cmyk":[61,32,0,11],"hsb":[212,61,89],"hsl":[212,70,62],"lab":[62,1,-43]}]
 ```
 
-Use Fontsource to install fonts into the Astro project.
+Use Fontsource to install fonts into the Docusaurus project.
 Use [Geist](https://fontsource.org/fonts/geist) for the main font for headings and prose.
 Use [JetBrains Mono](https://fontsource.org/fonts/jetbrains-mono) for code and CLI commands.
 

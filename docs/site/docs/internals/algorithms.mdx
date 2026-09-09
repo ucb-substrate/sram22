@@ -1,0 +1,147 @@
+---
+title: Algorithms
+description: How SRAM22 sizes and assembles a memory — the generation pipeline, decoder sizing, self-timed control, array banking, and column circuitry.
+---
+
+import DecoderDiagram from "@site/src/components/DecoderDiagram";
+
+SRAM22 computes block sizing from the configuration rather than tiling fixed
+layouts. This page describes the main algorithms, organized by the subsystem
+they size.
+
+## The generation pipeline
+
+For a given configuration, SRAM22 runs roughly the following stages:
+
+1. **Plan** — derive the array geometry from the config: rows
+   `R = num_words / mux_ratio`, columns `C = data_width · mux_ratio`, the
+   address split, and the write-mask grouping.
+2. **Size** — pick transistor sizes for the decoders, wordline drivers, sense
+   amplifiers, and write drivers from the resulting capacitive loads (below).
+3. **Schematic** — assemble the transistor-level netlist from the sized blocks.
+4. **Layout** — place and (mostly hand-)route the blocks into the final GDS.
+5. **Abstract & verify** — emit LEF/Liberty/Verilog and, on a full install, run
+   DRC, LVS, and PEX.
+
+## Decoder sizing
+
+The row decoder must turn an address into exactly one asserted wordline, quickly
+and without overbuilding. SRAM22 uses a **hierarchical decode**: the row-address
+bits are split across **predecoders** whose one-hot outputs are combined in a
+final NAND stage to select a single row. The selected row is gated by `wlen`
+(so the wordline only fires once decoding has settled and the self-timed enable
+arrives) and then driven into the array by a buffer chain.
+
+<DecoderDiagram />
+
+The driver chain is sized with **logical effort**. Each wordline presents a
+capacitance that grows with the number of columns:
+
+```
+C_wordline ≈ C_per_cell × (number of columns)
+```
+
+SRAM22 sizes the stages to drive that load with near-minimum delay, adding
+stages and increasing drive strength toward the array. Crucially, scaling stops
+being worthwhile once the wordline capacitance is large enough that **wire RC**,
+not gate drive, dominates the delay. The generator caps the effective target at
+this point:
+
+```rust
+/// The threshold at which further decoder scaling does not help,
+/// since delay is dominated by routing resistance/capacitance.
+pub const WORDLINE_CAP_MAX: f64 = 500e-15; // 500 fF
+```
+
+Above `WORDLINE_CAP_MAX`, adding more drive yields diminishing returns, so the
+sizing is clamped rather than chasing an unreachable load.
+
+:::note[Predecode partitioning]
+
+How the address bits are partitioned among predecoders, and how the predecoder
+gates themselves are sized, trades decoder area against speed. SRAM22 chooses
+a partition that keeps the final NAND fan-in modest (a NAND3-style stage is
+modeled directly) while minimizing the number of predecode wires routed into
+the array.
+
+:::
+
+## Self-timed control
+
+SRAM22 does not rely on an external strobe to time the internal phases. Instead,
+a **replica bitline** — loaded to mimic a real column — discharges at a rate
+that tracks the array across PVT, and a small set of SR latches turn that into
+the precharge, wordline, sense-amp, and write-driver pulses.
+
+The control logic, sketched in behavioral form, is:
+
+```verilog
+// edge-detected clock (qualified by chip enable)
+edge_detector clk_edge(.clk(clk & ce), .clkp(clkp));
+
+// precharge: set when a read's sense fires (or on reset), reset on clk edge
+sr_latch pc_latch(.s(sae_delayed | reset), .r(clkp), .q(pc_b));
+
+// sense-amp enable: set when wlen falls during a read, reset on clk edge
+sr_latch sae_latch(.s(we_b & wlen_decoder), .r(clkp | reset), .q(sae));
+
+// wordline enable: set on clk edge; for a read, reset when the replica
+// bitline (rbl) trips; for a write, reset after a fixed inverter-chain delay
+assign wlen_rst = we ? clkp_delayed : rbl_b;
+sr_latch wlen_latch(.s(clkp), .r(wlen_rst | reset), .q(wlen));
+
+// write-driver enable
+sr_latch wrdrven_latch(.s(clkp & we), .r(wlen_decoder | reset), .q(wrdrven));
+```
+
+The key idea is the `wlen` reset:
+
+- On a **read**, `wlen` turns off when the **replica bitline** (`rbl`) trips at
+  ≈ VDD/2 — so the wordline pulse is exactly long enough to develop sense
+  margin. See the measured behavior in [Waveforms](/docs/internals/waveforms/).
+- On a **write**, `wlen` (and `wrdrven`) turn off after a fixed inverter-chain
+  delay, long enough to drive the cell full-rail.
+
+A **decoder replica** reproduces the decoder delay so the controller knows when
+decoding has actually finished before enabling the wordline.
+
+## Array organization
+
+To keep wordlines and bitlines short (and therefore fast and low-power), SRAM22
+uses a **divided wordline / divided bitline** architecture with **four-way
+banking** and the control logic placed in the middle:
+
+- The array is split into four banks (upper/lower × left/right).
+- Words are split across the **left and right** banks, and both halves are
+  always accessed together.
+- Only the **top or bottom** bank is activated on a given access, selected by an
+  address MSB — halving the bitline length each access sees.
+- Column circuitry is **shared** between the top and bottom banks.
+
+## Column circuitry and the mux ratio
+
+The **column-mux ratio** `M` (`mux_ratio`, 4 or 8) sets how many physical
+columns share one sense amplifier and write driver. With `M` columns per data
+bit:
+
+- The array is `C = data_width · M` columns wide and `R = num_words / M` rows
+  tall — closer to square than a `1×` design, which shortens both wordlines and
+  bitlines.
+- A `log₂M`-bit column-select decodes which of the `M` columns connects to the
+  shared sense amp / write driver via transmission-gate muxes.
+- **Writes** use inverter-based write drivers (full pull-up and pull-down)
+  through the same transmission-gate mux, and are masked at `write_size`
+  granularity by `wmask`.
+
+Choosing `M` trades array aspect ratio and per-access bitline length against the
+column-mux and sense-amp overhead — which is why valid configurations restrict
+`mux_ratio` to 4 or 8 and require at least 16 rows and 16 columns.
+
+:::note
+
+These algorithms live in <code>src/blocks/</code> of the
+<a href="https://github.com/rahulk29/sram22">SRAM22 repository</a> — see
+<code>decoder/</code>, <code>control/</code>, <code>bitcell_array/</code>,
+<code>columns/</code>, <code>tgatemux/</code>, and <code>wrdriver/</code>.
+
+:::

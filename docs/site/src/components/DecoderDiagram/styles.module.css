@@ -1,0 +1,87 @@
+.dd {
+  margin: 1.3rem 0;
+  border: 1px solid var(--sram-border-solid);
+  border-radius: 12px;
+  padding: 14px 16px 6px;
+  background: var(--sram-panel);
+}
+.dd svg {
+  width: 100%;
+  height: auto;
+  font-family: var(--sram-mono);
+  font-size: 11px;
+}
+.bus {
+  stroke: var(--sram-cloud);
+  stroke-width: 3;
+}
+.wire {
+  stroke: var(--sram-sky);
+  stroke-width: 1.6;
+  fill: none;
+}
+.wl {
+  stroke: var(--sram-signal);
+  stroke-width: 2.4;
+}
+.block rect {
+  fill: color-mix(in srgb, var(--sram-sky) 10%, transparent);
+  stroke: var(--sram-cloud);
+  stroke-width: 1.6;
+}
+.block text {
+  fill: var(--sram-text);
+  text-anchor: middle;
+}
+.gate path {
+  fill: color-mix(in srgb, var(--sram-sky) 12%, transparent);
+  stroke: var(--sram-cloud);
+  stroke-width: 1.6;
+}
+.gate circle {
+  fill: none;
+  stroke: var(--sram-cloud);
+  stroke-width: 1.6;
+}
+.gate text {
+  fill: var(--sram-text);
+  text-anchor: middle;
+  font-size: 9.5px;
+}
+.inv polygon {
+  fill: color-mix(in srgb, var(--sram-sky) 16%, transparent);
+  stroke: var(--sram-sky);
+  stroke-width: 1.6;
+}
+.inv circle {
+  fill: none;
+  stroke: var(--sram-sky);
+  stroke-width: 1.6;
+}
+.lbl {
+  fill: var(--sram-text);
+  font-weight: 600;
+}
+.tick {
+  fill: var(--sram-text-muted);
+  text-anchor: middle;
+  font-size: 9px;
+}
+.arrow {
+  stroke: var(--sram-text-muted);
+  stroke-width: 1;
+  fill: none;
+  marker-end: url(#dd-ah);
+  stroke-dasharray: 4 3;
+}
+.note {
+  fill: var(--sram-text-muted);
+  text-anchor: middle;
+  font-size: 9.5px;
+}
+.dd figcaption {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--sram-text-muted);
+  line-height: 1.5;
+}

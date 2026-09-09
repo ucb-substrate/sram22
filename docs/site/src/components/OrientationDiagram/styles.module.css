@@ -1,0 +1,79 @@
+.orient {
+  margin: 1.3rem 0;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+}
+.tile {
+  margin: 0;
+  border: 1px solid var(--sram-border-solid);
+  border-radius: 12px;
+  padding: 8px;
+  background: var(--sram-panel);
+  text-align: center;
+}
+.tile svg {
+  width: 100%;
+  height: auto;
+  max-width: 170px;
+}
+.body {
+  fill: color-mix(in srgb, var(--sram-sky) 10%, transparent);
+  stroke: var(--sram-cloud);
+  stroke-width: 2;
+}
+.array line {
+  stroke: color-mix(in srgb, var(--sram-sky) 35%, transparent);
+  stroke-width: 1.4;
+}
+.pins rect {
+  fill: var(--sram-sky);
+}
+.origin {
+  fill: var(--sram-signal);
+}
+.f rect {
+  fill: var(--sram-sky-pale);
+}
+.tile figcaption {
+  margin-top: 6px;
+  font-size: 0.84rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.def {
+  font-family: var(--sram-mono);
+  font-size: 0.74rem;
+  color: var(--sram-text-muted);
+}
+.key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 12px;
+  font-size: 0.82rem;
+  color: var(--sram-text-muted);
+}
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sw {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.swPin {
+  background: var(--sram-sky);
+}
+.swOrigin {
+  background: var(--sram-signal);
+}
+.swF {
+  background: var(--sram-sky-pale);
+}

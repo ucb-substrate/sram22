@@ -1,0 +1,131 @@
+---
+title: Quickstart
+description: Install SRAM22 and generate your first SKY130 SRAM macro in a few minutes.
+---
+
+import ConfigTable from "@site/src/components/ConfigTable";
+
+Install SRAM22 and generate a macro. To integrate the result into a
+place-and-route flow, see the [OpenROAD](/docs/tutorial/openroad/) or
+[Cadence](/docs/tutorial/cadence/) tutorials.
+
+## Prerequisites
+
+- **Rust** (SRAM22 is tested with version 1.81.0)
+- **Make**
+- A local clone of the
+  [modified SKY130 PDK](https://github.com/ucb-substrate/skywater-pdk), with the
+  `SKY130_OPEN_PDK_ROOT` environment variable set to its absolute path.
+
+Substrate uses standard cells from the `sky130_fd_sc_hs` library, so from the
+PDK root run:
+
+```bash
+git submodule update --init libraries/sky130_fd_sc_hs/latest
+```
+
+:::tip[Just need a macro?]
+
+If you only want a ready-made SRAM and not the generator, skip installation
+and download a pre-built macro from the
+[macro catalog](/docs/macros/) — many are silicon-validated.
+
+:::
+
+## Install
+
+<Tabs>
+  <TabItem value="external" label="External">
+    Without BWRC access you can still install and run SRAM22, but proprietary
+    tools for DRC, LVS, PEX, and simulation are unavailable.
+
+    ```bash
+    git clone https://github.com/rahulk29/sram22.git
+    cd sram22 && make install && cd -
+    ```
+  </TabItem>
+  <TabItem value="bwrc-full" label="BWRC (full)">
+    With BWRC access you get all features. Ensure you have SSH access to
+    `bwrcrepo.eecs.berkeley.edu` and add the following to `~/.cargo/config.toml`:
+
+    ```toml
+    [net]
+    git-fetch-with-cli = true
+    ```
+
+    Then install using the commercial manifest:
+
+    ```bash
+    git clone https://github.com/rahulk29/sram22.git
+    cd sram22 && mv Cargo.bwrc.toml Cargo.toml && make install && cd -
+    ```
+  </TabItem>
+</Tabs>
+
+## Generate an SRAM
+
+<Steps>
+
+1. **Create a working directory and a config file.** This describes a 64-word ×
+   32-bit SRAM with a column-mux ratio of 4 and a write granularity of 8 bits:
+
+   ```bash
+   mkdir sram22_64x32m4w8 && cd sram22_64x32m4w8
+   cat > sram22.toml <<'TOML'
+   num_words  = 64
+   data_width = 32
+   mux_ratio  = 4
+   write_size = 8
+   TOML
+   ```
+
+2. **Run the generator:**
+
+   ```bash
+   sram22
+   ```
+
+   By default this reads `sram22.toml` and writes the output views to the
+   current directory.
+
+3. **Add views and verification as needed.** Flags control which views are
+   produced and which checks run (most require a full BWRC install):
+
+   ```bash
+   sram22 --lef --lib      # generate the LEF abstract and Liberate timing
+   sram22 --all            # run every available step
+   ```
+
+</Steps>
+
+## Command-line options
+
+```
+Usage: sram22 [OPTIONS]
+
+Options:
+  -c, --config <CONFIG>          Path to TOML configuration file [default: sram22.toml]
+  -o, --output-dir <OUTPUT_DIR>  Directory to which output files should be saved
+      --lef                      Generate LEF (used in place and route)
+      --lib                      Generate LIB (setup, hold, and delay timing information)
+      --drc                      Run DRC using Calibre
+      --lvs                      Run LVS using Calibre
+      --pex                      Run PEX using Calibre
+  -a, --all                      Run all available steps
+  -h, --help                     Print help information
+  -V, --version                  Print version information
+```
+
+## Configuration reference
+
+A valid configuration sets the following options:
+
+<ConfigTable />
+
+:::warning[Placement orientation]
+
+SRAM22 macros are designed to be **placed rotated by 90°**. There are four
+legal orientations (R90, R270, and their mirrored variants). See
+[Orientations](/docs/orientations/) before you place a macro in a floorplan.
+
+:::

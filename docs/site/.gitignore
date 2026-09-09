@@ -1,7 +1,8 @@
 # build output
-dist/
-# generated types
-.astro/
+build/
+# Docusaurus generated files
+.docusaurus/
+.cache-loader/
 # dependencies
 node_modules/
 # logs
@@ -12,5 +13,6 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+.env.local
 # macOS
 .DS_Store

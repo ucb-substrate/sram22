@@ -1,0 +1,36 @@
+---
+title: Pin positions
+description: Interactive viewer for the physical location of every pin on an SRAM22 macro, overlaid on the real layout.
+---
+
+import PinExplorer from "@site/src/components/PinExplorer";
+
+Every pin has a physical location on the macro boundary, taken straight from the
+LEF abstract. Use the explorer below to find any pin on the real
+`sram22_64x32m4w8` layout.
+
+- **Click a pin group** (e.g. `addr`, `din`) to highlight all of its bits and
+  zoom to fit them.
+- **Click an individual bit** (e.g. `dout[5]`) to locate exactly that pin.
+- **Scroll** to zoom and **drag** to pan; **Reset view** returns to the full
+  macro. You can also filter the list with the search box.
+- Tick **Show power grid** to overlay the `vdd`/`vss` met2 straps.
+
+<PinExplorer />
+
+:::note[What you're looking at]
+
+Signal pins (`clk`, `rstb`, `ce`, `we`, `wmask`, `addr`, `din`, `dout`) are
+small **met1** rectangles along the **bottom edge** of the macro — those are
+the discrete landing pads a router connects to, and their coordinates and
+shapes come straight from the macro's `.lef`. `vdd` and `vss` are not point
+pins but a **met2 power grid** of hundreds of straps spanning the whole block,
+so they are kept off the pin list and shown only via the **Show power grid**
+toggle.
+
+:::
+
+This macro measures **360.32 × 191.00 µm**. Remember that it is
+[placed rotated 90°](/docs/orientations/), so in a real floorplan the pin edge
+runs vertically, and you connect your power distribution network to the `vdd`/`vss`
+met2 straps.

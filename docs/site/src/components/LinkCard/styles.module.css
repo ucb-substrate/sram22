@@ -1,0 +1,39 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border: 1px solid var(--sram-border-solid);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--sram-panel);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.card:hover {
+  border-color: var(--sram-accent);
+  background: var(--sram-surface-solid);
+  text-decoration: none;
+  color: inherit;
+}
+.title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 650;
+  font-size: 1rem;
+  color: var(--sram-accent);
+}
+.arrow {
+  transition: transform 0.15s ease;
+}
+.card:hover .arrow {
+  transform: translateX(3px);
+}
+.desc {
+  font-size: 0.86rem;
+  color: var(--sram-text-muted);
+  line-height: 1.5;
+}

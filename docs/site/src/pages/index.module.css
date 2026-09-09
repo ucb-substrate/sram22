@@ -1,0 +1,320 @@
+/* Landing page. Colors come from the --sram-* tokens in src/css/custom.css, so
+   the page follows the light/dark toggle; only the hero backdrop needs a
+   per-theme rule, since its gradient wash differs in kind between the two. */
+
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-inline: 24px;
+}
+
+/* ---------- hero ---------- */
+.hero {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  padding-block: 64px 56px;
+  border-bottom: 1px solid var(--sram-border);
+  background:
+    radial-gradient(
+      1200px 600px at 80% -10%,
+      color-mix(in srgb, var(--sram-sky) 22%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at 0% 0%,
+      color-mix(in srgb, var(--sram-baltic) 14%, transparent),
+      transparent 55%
+    ),
+    linear-gradient(180deg, var(--sram-bg-elev) 0%, var(--sram-bg) 100%);
+}
+:global([data-theme="dark"]) .hero {
+  background:
+    radial-gradient(
+      1200px 600px at 80% -10%,
+      color-mix(in srgb, var(--sram-sky) 18%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at 0% 0%,
+      color-mix(in srgb, var(--sram-baltic) 35%, transparent),
+      transparent 55%
+    ),
+    linear-gradient(180deg, var(--sram-ink-2) 0%, var(--sram-ink) 100%);
+}
+/* faint bitcell-array grid backdrop */
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--sram-sky) 8%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--sram-sky) 8%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 38px 38px;
+  mask-image: radial-gradient(
+    ellipse 80% 60% at 50% 0%,
+    #000 0%,
+    transparent 75%
+  );
+  pointer-events: none;
+}
+.hero > .container {
+  position: relative;
+}
+.heroMark {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 18px;
+}
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--sram-accent-2);
+  margin: 0 0 18px;
+}
+.title {
+  font-size: clamp(2.4rem, 6vw, 4.1rem);
+  line-height: 1.04;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 0 auto 22px;
+  max-width: 14ch;
+  color: var(--sram-text);
+}
+.grad {
+  background: linear-gradient(
+    100deg,
+    var(--sram-baltic),
+    var(--sram-cloud) 60%,
+    var(--sram-sky)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:global([data-theme="dark"]) .grad {
+  background: linear-gradient(
+    100deg,
+    var(--sram-sky),
+    var(--sram-cloud) 60%,
+    var(--sram-sky-soft)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.lede {
+  font-size: clamp(1.05rem, 2.2vw, 1.28rem);
+  line-height: 1.6;
+  color: var(--sram-text-dim);
+  max-width: 60ch;
+  margin: 0 auto 34px;
+}
+
+/* ---------- buttons ---------- */
+.cta {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1.02rem;
+  border: 1px solid transparent;
+  transition:
+    transform 0.12s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.btn:hover {
+  transform: translateY(-2px);
+  text-decoration: none;
+}
+.btn svg {
+  width: 18px;
+  height: 18px;
+}
+.btnPrimary {
+  background: linear-gradient(
+    180deg,
+    var(--sram-accent),
+    color-mix(in srgb, var(--sram-accent-2) 90%, #000)
+  );
+  color: var(--sram-on-accent);
+  box-shadow: 0 10px 30px -10px
+    color-mix(in srgb, var(--sram-accent) 60%, transparent);
+}
+.btnPrimary:hover {
+  color: var(--sram-on-accent);
+}
+.btnGhost {
+  background: color-mix(in srgb, var(--sram-sky) 5%, transparent);
+  border-color: color-mix(in srgb, var(--sram-sky) 22%, transparent);
+  color: var(--sram-text);
+}
+.btnGhost:hover {
+  border-color: var(--sram-accent);
+  background: color-mix(in srgb, var(--sram-sky) 12%, transparent);
+  color: var(--sram-text);
+}
+
+/* ---------- stats ---------- */
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px 48px;
+  margin: 52px auto 0;
+  padding: 0;
+}
+.stats div {
+  text-align: center;
+}
+.stats dt {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--sram-text);
+  letter-spacing: -0.02em;
+}
+.stats dd {
+  margin: 2px 0 0;
+  font-size: 0.86rem;
+  color: var(--sram-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ---------- features ---------- */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  padding-block: 48px 8px;
+}
+.card {
+  background: var(--sram-surface);
+  border: 1px solid var(--sram-border);
+  border-radius: 16px;
+  padding: 22px 22px 24px;
+}
+.card h3 {
+  margin: 0 0 8px;
+  font-size: 1.12rem;
+  color: var(--sram-text);
+}
+.card p {
+  margin: 0;
+  color: var(--sram-text-dim);
+  line-height: 1.55;
+  font-size: 0.96rem;
+}
+
+/* ---------- showcase ---------- */
+.showcase {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 34px;
+  align-items: center;
+  padding-block: 64px;
+}
+.showcase h2 {
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  margin: 0 0 14px;
+  color: var(--sram-text);
+  letter-spacing: -0.02em;
+}
+.showcase p {
+  color: var(--sram-text-dim);
+  line-height: 1.6;
+  margin: 0 0 18px;
+}
+.showcase code {
+  font-family: var(--sram-mono);
+  font-size: 0.85em;
+  color: var(--sram-accent);
+  background: color-mix(in srgb, var(--sram-sky) 12%, transparent);
+  padding: 0.1em 0.4em;
+  border-radius: 5px;
+  border: none;
+}
+.showcaseLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 600;
+}
+.showcaseFigure {
+  display: block;
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--sram-sky) 22%, transparent);
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.45);
+  line-height: 0;
+}
+.showcaseFigure img {
+  width: 100%;
+  height: auto;
+  display: block;
+  transition: transform 0.4s ease;
+}
+.showcaseFigure:hover img {
+  transform: scale(1.03);
+}
+.showcaseCap {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  font-family: var(--sram-mono);
+  font-size: 0.74rem;
+  color: var(--sram-sky-pale);
+  background: color-mix(in srgb, var(--sram-ink) 70%, transparent);
+  padding: 4px 9px;
+  border-radius: 6px;
+  line-height: 1.2;
+}
+:global([data-theme="light"]) .showcaseCap,
+:global(html:not([data-theme="dark"])) .showcaseCap {
+  color: #eaf2ff;
+}
+
+/* ---------- get started ---------- */
+.getStarted {
+  text-align: center;
+  padding-block: 24px 80px;
+}
+.getStarted h2 {
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  margin: 0 0 10px;
+  color: var(--sram-text);
+  letter-spacing: -0.02em;
+}
+.getStarted > p {
+  color: var(--sram-text-dim);
+  margin: 0 0 22px;
+}
+.code {
+  text-align: left;
+  max-width: 640px;
+  margin: 0 auto 28px;
+}
+
+@media (max-width: 760px) {
+  .showcase {
+    grid-template-columns: 1fr;
+  }
+}

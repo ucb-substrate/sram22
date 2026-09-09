@@ -1,8 +1,8 @@
 name: Docs
 
-# Builds the Astro site, checks that the docs stay consistent with the SRAM22
-# source and that no internal links are broken, and deploys to GitHub Pages
-# (https://sram22.com) on pushes to master.
+# Builds the Docusaurus site, checks that the docs stay consistent with the
+# SRAM22 source and that no internal links are broken, and deploys to GitHub
+# Pages (https://sram22.com) on pushes to master.
 
 on:
   push:
@@ -41,6 +41,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Typecheck
+        run: npm run check
+
       - name: Check docs are consistent with the SRAM22 source
         run: npm run check:docs
 
@@ -54,7 +57,7 @@ jobs:
         if: github.ref == 'refs/heads/master' && github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/site/dist
+          path: docs/site/build
 
   deploy:
     name: Deploy to GitHub Pages

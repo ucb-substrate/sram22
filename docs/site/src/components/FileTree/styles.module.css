@@ -1,0 +1,44 @@
+.tree {
+  border: 1px solid var(--sram-border-solid);
+  border-radius: 12px;
+  padding: 12px 16px;
+  background: var(--sram-panel);
+  margin: 1.2rem 0;
+  font-family: var(--sram-mono);
+  font-size: 0.82rem;
+  line-height: 1.75;
+  overflow-x: auto;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* Nested levels are indented and get a guide rule. */
+.list .list {
+  margin-inline-start: 0.45rem;
+  padding-inline-start: 0.9rem;
+  border-inline-start: 1px solid var(--sram-border-solid);
+}
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  white-space: nowrap;
+}
+.icon {
+  color: var(--sram-text-muted);
+  font-size: 0.7em;
+}
+.dir > .row > .name {
+  color: var(--sram-accent);
+  font-weight: 650;
+}
+.file > .row > .name {
+  color: var(--sram-text);
+}
+.comment {
+  color: var(--sram-text-muted);
+  font-family: var(--sram-font);
+  font-size: 0.88em;
+}

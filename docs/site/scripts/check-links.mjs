@@ -2,19 +2,19 @@
 /**
  * Internal link & asset checker.
  *
- * Crawls the built site in dist/ and verifies that every internal href/src
+ * Crawls the built site in build/ and verifies that every internal href/src
  * resolves to a real file (page or asset). External links, mailto:, tel:, and
- * pure #fragment links are ignored. Run after `astro build`.
+ * pure #fragment links are ignored. Run after `docusaurus build`.
  */
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join, posix } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const dist = resolve(here, "..", "dist");
+const buildDir = resolve(here, "..", "build");
 
-if (!existsSync(dist)) {
-  console.error("✗ dist/ not found — run `npm run build` first.");
+if (!existsSync(buildDir)) {
+  console.error("✗ build/ not found — run `npm run build` first.");
   process.exit(1);
 }
 
@@ -29,10 +29,10 @@ function walk(dir, acc = []) {
   return acc;
 }
 
-const htmlFiles = walk(dist);
+const htmlFiles = walk(buildDir);
 const attrRe = /(?:href|src)\s*=\s*"([^"]*)"/g;
 
-// resolve a URL path (site-absolute, base "/") to a dist filesystem path
+// resolve a URL path (site-absolute, base "/") to a build/ filesystem path
 function targetExists(urlPath) {
   const p = urlPath.split("#")[0].split("?")[0];
   if (p === "") return true;
@@ -42,9 +42,9 @@ function targetExists(urlPath) {
   } catch {
     dec = p; // malformed percent-encoding: check the raw path, don't crash
   }
-  const fsPath = join(dist, dec);
+  const fsPath = join(buildDir, dec);
   if (p.endsWith("/")) {
-    // The site uses trailingSlash: "always", so page URLs end in "/".
+    // The site sets trailingSlash: true, so page URLs end in "/".
     return existsSync(join(fsPath, "index.html"));
   }
   // No trailing slash → must be a real file (an asset). A directory here means
@@ -59,7 +59,7 @@ for (const file of htmlFiles) {
   const html = readFileSync(file, "utf8");
   // the page's URL path (for resolving relative links)
   const pageUrl =
-    "/" + posix.relative(dist.replaceAll("\\", "/"), file.replaceAll("\\", "/"));
+    "/" + posix.relative(buildDir.replaceAll("\\", "/"), file.replaceAll("\\", "/"));
   const pageDir = posix.dirname(pageUrl).replace(/\/index\.html$/, "/");
 
   const seen = new Set();

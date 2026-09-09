@@ -1,0 +1,18 @@
+.figure {
+  margin: 1rem 0;
+}
+.img {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--sram-border-solid);
+  display: block;
+}
+.plate {
+  background: #fff;
+}
+.caption {
+  font-size: 0.82rem;
+  color: var(--sram-text-muted);
+  line-height: 1.5;
+  margin-top: 0.5rem;
+}
