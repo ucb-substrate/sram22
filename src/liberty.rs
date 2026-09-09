@@ -1043,7 +1043,7 @@ fn write_liberty(p: &SramParams, pvt: &PvtCorner, m: &dyn TimingModel) -> String
         w.attr("default_inout_pin_cap", "0.005");
         w.attr("default_input_pin_cap", "0.005");
         w.attr("default_leakage_power_density", "0");
-        w.attr("default_max_transition", "0.04");
+        w.attr("default_max_transition", "0.351");
         w.attr("default_output_pin_cap", "0");
         w.attr("in_place_swap_mode", "match_footprint");
         w.attr("input_threshold_pct_fall", "50");
