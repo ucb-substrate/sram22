@@ -1,0 +1,34 @@
+---
+title: Macro catalog
+description: Pre-built SRAM22 SKY130 macros available for download, including the silicon-validated set.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import MacroTable from "../../../components/MacroTable.astro";
+
+A library of pre-generated SRAM22 macros for SKY130 is published in the
+[**sram22_sky130_macros**](https://github.com/ucb-substrate/sram22_sky130_macros)
+repository. Each macro includes its `.gds`, `.lef`, `.spice`, `.v`, and
+multi-corner `.lib` files — the views consumed by the
+[OpenROAD](/docs/tutorial/openroad/) and [Cadence](/docs/tutorial/cadence/) flows.
+
+<MacroTable />
+
+<Aside type="tip" title="Naming">
+  A macro named <code>sram22_<b>D</b>x<b>W</b>m<b>M</b>w<b>G</b></code> has depth
+  <code>D</code> (words), word width <code>W</code> (bits), column-mux ratio
+  <code>M</code>, and write granularity <code>G</code> (bits). For example,
+  <code>sram22_64x32m4w8</code> is 64 words × 32 bits, mux ratio 4, byte-masked.
+</Aside>
+
+<Aside type="caution" title="Use at your own risk">
+  The silicon-validated macros were taped out via Cadence's shuttle program and
+  measured working at <strong>VDD = 1.8 V</strong> and a 25 MHz clock.
+  Characterization is ongoing; all macros are provided without warranty.
+</Aside>
+
+## Generating a macro not listed here
+
+Any valid configuration can be generated locally — see the
+[Quickstart](/docs/quickstart/). The published library is just a convenient set of
+common sizes.

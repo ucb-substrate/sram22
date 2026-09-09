@@ -1,0 +1,195 @@
+---
+const base = import.meta.env.BASE_URL;
+
+// Draw order (bottom first) + style per layer.
+const layers = [
+  { key: "nwell", label: "Nwell", color: "#d8c8a0", alpha: 0.4, on: true },
+  { key: "diff", label: "Diff", color: "#5aa14f", alpha: 0.7, on: true },
+  { key: "poly", label: "Poly", color: "#c0392b", alpha: 0.72, on: true },
+  { key: "li1", label: "Li1", color: "#8e7cc3", alpha: 0.5, on: true },
+  { key: "met1", label: "Met1", color: "#4f7ab0", alpha: 0.62, on: true },
+  { key: "met2", label: "Met2", color: "#65afff", alpha: 0.34, on: false },
+];
+
+const layerStyles = Object.fromEntries(
+  layers.map((l) => [l.key, { fill: l.color, alpha: l.alpha }]),
+);
+
+const clientData = {
+  geomUrl: `${base}layout/layout-geom.bin`,
+  bg: "#0a0f1a",
+  layerStyles,
+  defaultOff: layers.filter((l) => !l.on).map((l) => l.key),
+};
+---
+
+<div class="lyb">
+  <div class="lyb-tools">
+    <div class="lyb-layers">
+      {
+        layers.map((l) => (
+          <label class="lyb-layer">
+            <input type="checkbox" data-layer={l.key} checked={l.on} />
+            <span class="lyb-swatch" style={`background:${l.color}`} />
+            {l.label}
+          </label>
+        ))
+      }
+    </div>
+    <div class="lyb-actions">
+      <button type="button" class="lyb-btn" data-act="all">All</button>
+      <button type="button" class="lyb-btn" data-act="none">None</button>
+      <button type="button" class="lyb-btn" data-act="reset">Reset view</button>
+    </div>
+  </div>
+
+  <div class="lyb-viewport">
+    <canvas class="lyb-canvas"></canvas>
+    <div class="lyb-loading">Loading layout geometry…</div>
+  </div>
+  <p class="lyb-hint">
+    Scroll to zoom · drag to pan · toggle layers above. Vector geometry from the
+    <code>sram22_64x32m4w8</code> GDS (360.32 × 191.00 µm).
+  </p>
+
+  <script
+    type="application/json"
+    class="lyb-data"
+    set:html={JSON.stringify(clientData)}
+  ></script>
+</div>
+
+<script>
+  import { loadGeom, createViewer } from "./layout-renderer";
+
+  document.querySelectorAll<HTMLElement>(".lyb").forEach(async (root) => {
+    const data = JSON.parse(root.querySelector(".lyb-data")!.textContent || "{}");
+    const canvas = root.querySelector<HTMLCanvasElement>(".lyb-canvas")!;
+    const loading = root.querySelector<HTMLElement>(".lyb-loading")!;
+
+    let geom;
+    try {
+      geom = await loadGeom(data.geomUrl);
+    } catch (err) {
+      loading.textContent =
+        "Could not load the layout geometry in this browser.";
+      return;
+    }
+    const viewer = createViewer({
+      canvas,
+      geom,
+      pins: [],
+      styles: data.layerStyles,
+      bg: data.bg,
+      hidden: data.defaultOff,
+    });
+    loading.style.display = "none";
+
+    const setLayer = (key: string, on: boolean) => viewer.setLayerVisible(key, on);
+    root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((cb) =>
+      cb.addEventListener("change", () => setLayer(cb.dataset.layer!, cb.checked)),
+    );
+    root.querySelectorAll<HTMLElement>(".lyb-btn").forEach((b) =>
+      b.addEventListener("click", () => {
+        const act = b.dataset.act;
+        if (act === "reset") {
+          viewer.reset();
+          return;
+        }
+        const on = act === "all";
+        root
+          .querySelectorAll<HTMLInputElement>('input[type="checkbox"]')
+          .forEach((cb) => {
+            cb.checked = on;
+            setLayer(cb.dataset.layer!, on);
+          });
+      }),
+    );
+  });
+</script>
+
+<style>
+  .lyb {
+    border: 1px solid var(--sl-color-hairline-shade, #2a3a55);
+    border-radius: 12px;
+    padding: 12px;
+    background: var(--sl-color-bg-sidebar, #0b1220);
+    margin: 1.2rem 0;
+  }
+  .lyb-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .lyb-layers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .lyb-layer {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.84rem;
+    font-family: var(--sram-mono);
+    cursor: pointer;
+    user-select: none;
+  }
+  .lyb-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+  .lyb-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .lyb-btn {
+    background: var(--sl-color-bg, #0e1626);
+    border: 1px solid var(--sl-color-hairline-shade, #2a3a55);
+    color: inherit;
+    border-radius: 8px;
+    padding: 5px 11px;
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+  .lyb-btn:hover {
+    border-color: var(--sram-sky);
+  }
+  .lyb-viewport {
+    position: relative;
+    height: 500px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0a0f1a;
+  }
+  .lyb-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+    touch-action: none;
+  }
+  .lyb-canvas.is-grabbing {
+    cursor: grabbing;
+  }
+  .lyb-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--sl-color-gray-3, #8a9bbb);
+    font-size: 0.85rem;
+    pointer-events: none;
+  }
+  .lyb-hint {
+    margin: 8px 2px 0;
+    font-size: 0.78rem;
+    color: var(--sl-color-gray-3, #8a9bbb);
+  }
+</style>

@@ -1,0 +1,116 @@
+---
+title: "Tutorial: OpenROAD flow"
+description: Generate an SRAM22 macro and integrate it into an open-source OpenROAD place-and-route flow.
+---
+
+import { Steps, FileTree, Aside } from "@astrojs/starlight/components";
+
+This tutorial walks through dropping an SRAM22 macro into an
+[OpenROAD](https://theopenroadproject.org/) flow (for example
+[OpenROAD-flow-scripts](https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts),
+"ORFS") as a hard macro. The SRAM is treated as a black box: the synthesizer and
+placer see its timing (`.lib`) and footprint (`.lef`), and the final GDS is
+merged in at the end.
+
+## 1. Generate the macro views
+
+From a working directory containing your `sram22.toml`, generate the views a P&R
+flow needs — the LEF abstract and the Liberate timing — alongside the GDS and
+Verilog model:
+
+```bash
+sram22 --lef --lib
+```
+
+You should end up with the following (using the `sram22_64x32m4w8` example):
+
+<FileTree>
+- sram22_64x32m4w8/
+  - sram22_64x32m4w8.gds       full layout, merged at the end
+  - sram22_64x32m4w8.lef       abstract: outline + pin positions
+  - sram22_64x32m4w8.v         behavioral model for simulation
+  - sram22_64x32m4w8.lib       timing for synthesis & STA
+</FileTree>
+
+<Aside type="tip">
+  Don't have a full install? Download the same files for any catalog entry from
+  the [macro catalog](/docs/macros/) and start at step&nbsp;2.
+</Aside>
+
+## 2. Instantiate the SRAM in RTL
+
+Reference the generated module from your design. The port list matches the
+[pin list](/docs/interface/pin-list/) exactly:
+
+```verilog
+sram22_64x32m4w8 u_mem (
+  .clk(clk), .rstb(rstb),
+  .ce(ce), .we(we),
+  .wmask(wmask),        // [3:0]
+  .addr(addr),          // [5:0]
+  .din(din),            // [31:0]
+  .dout(dout)           // [31:0]
+);
+```
+
+Add `sram22_64x32m4w8.v` to your simulation file list so the testbench can model
+reads and writes.
+
+## 3. Point the flow at the macro
+
+In an ORFS design `config.mk`, add the macro's LEF, Liberty, and GDS to the
+flow's existing PDK lists:
+
+```makefile
+export ADDITIONAL_LEFS  += $(DESIGN_HOME)/macros/sram22_64x32m4w8.lef
+export ADDITIONAL_LIBS  += $(DESIGN_HOME)/macros/sram22_64x32m4w8.lib
+export ADDITIONAL_GDS   += $(DESIGN_HOME)/macros/sram22_64x32m4w8.gds
+```
+
+If you drive OpenROAD with your own Tcl instead, read them in directly:
+
+```tcl
+read_lef $::env(PLATFORM_DIR)/lef/sky130_fd_sc_hs.tlef
+read_lef ./macros/sram22_64x32m4w8.lef
+read_liberty ./macros/sram22_64x32m4w8.lib
+read_verilog ./results/synth.v
+link_design top
+```
+
+## 4. Place the macro (mind the orientation)
+
+SRAM22 macros are meant to be **placed rotated by 90°**. Constrain placement to
+one of the four legal orientations — R90, R270, or their mirrors — rather than
+letting the macro placer pick R0/R180. With manual placement:
+
+```tcl
+# x/y in microns; R90 is one of the legal orientations
+place_cell -inst_name u_mem -origin {120.0 80.0} -orientation R90 -status FIXED
+```
+
+<Aside type="caution" title="Legal orientations">
+  Placing the macro at R0 or R180 is **not** supported. See
+  [Orientations](/docs/orientations/) for the four legal placements and what R90 /
+  R270 / mirrored mean in DEF terms.
+</Aside>
+
+After fixing the macro, build the power grid over and around it (its `vdd` /
+`vss` straps are on **met2**), then run global/detailed placement of the
+standard cells, CTS, and routing as usual.
+
+## 5. Finish and verify
+
+<Steps>
+
+1. Route the design (`global_route`, `detailed_route`).
+2. Run STA — the SRAM's arcs come from its `.lib`, so setup/hold against `clk`
+   are checked automatically.
+3. Merge the macro GDS into the top-level stream
+   (`ADDITIONAL_GDS` does this in ORFS; otherwise stream out and merge with
+   KLayout).
+4. Run DRC/LVS on the merged layout.
+
+</Steps>
+
+You now have a hardened block containing an SRAM22 macro. For the electrical
+meaning of the timing arcs used in STA, see [Timing diagrams](/docs/interface/timing/).

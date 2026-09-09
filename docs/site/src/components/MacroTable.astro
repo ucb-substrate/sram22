@@ -1,0 +1,105 @@
+---
+import macros from "../data/macros.json";
+
+const sorted = [...macros.macros].sort(
+  (a, b) => a.num_words - b.num_words || a.data_width - b.data_width,
+);
+const validated = sorted.filter((m) => m.silicon_validated).length;
+---
+
+<div class="mt">
+  <div class="mt-bar">
+    <span class="mt-count">
+      {sorted.length} macros · {validated} silicon-validated
+    </span>
+    <label class="mt-filter">
+      <input type="checkbox" class="mt-only" /> Silicon-validated only
+    </label>
+  </div>
+  <div class="mt-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Macro</th>
+          <th>Words</th>
+          <th>Width</th>
+          <th>Mux</th>
+          <th>Write&nbsp;size</th>
+          <th>Capacity</th>
+          <th>Silicon</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          sorted.map((m) => (
+            <tr data-validated={m.silicon_validated ? "1" : "0"}>
+              <td><code>{m.name}</code></td>
+              <td>{m.num_words}</td>
+              <td>{m.data_width}</td>
+              <td>{m.mux_ratio}</td>
+              <td>{m.write_size}</td>
+              <td>{m.capacity_kib} KiB</td>
+              <td>{m.silicon_validated ? <span class="mt-yes">✓</span> : "—"}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>(".mt").forEach((root) => {
+    const only = root.querySelector<HTMLInputElement>(".mt-only")!;
+    only.addEventListener("change", () => {
+      root.querySelectorAll<HTMLElement>("tbody tr").forEach((tr) => {
+        tr.style.display =
+          only.checked && tr.dataset.validated !== "1" ? "none" : "";
+      });
+    });
+  });
+</script>
+
+<style>
+  .mt-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .mt-count {
+    font-size: 0.85rem;
+    color: var(--sl-color-gray-3, var(--sram-text-muted));
+  }
+  .mt-filter {
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .mt-wrap {
+    overflow-x: auto;
+  }
+  .mt table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  .mt th,
+  .mt td {
+    text-align: left;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--sl-color-hairline-shade, var(--sram-border-solid));
+    white-space: nowrap;
+  }
+  .mt th {
+    font-weight: 650;
+  }
+  .mt-yes {
+    color: var(--sram-accent);
+    font-weight: 700;
+  }
+</style>

@@ -1,0 +1,480 @@
+---
+import pins from "../data/pins.json";
+
+const base = import.meta.env.BASE_URL;
+
+// Categorical color per pin group — a functional palette chosen for maximum
+// distinguishability between pin nets, independent of the brand palette.
+const COLORS: Record<string, string> = {
+  clk: "#65afff",
+  rstb: "#9b8cff",
+  ce: "#5cd6b0",
+  we: "#ffd35c",
+  wmask: "#ff9d5c",
+  addr: "#ff6b9d",
+  din: "#7ce0ff",
+  dout: "#9dff8a",
+  vdd: "#ff6b6b",
+  vss: "#aab6cc",
+};
+
+// Per-layer draw style for the vector geometry.
+const layerStyles = {
+  nwell: { fill: "#d8c8a0", alpha: 0.32 },
+  diff: { fill: "#5aa14f", alpha: 0.55 },
+  poly: { fill: "#c0392b", alpha: 0.6 },
+  li1: { fill: "#8e7cc3", alpha: 0.42 },
+  met1: { fill: "#335c81", alpha: 0.6 },
+  met2: { fill: "#65afff", alpha: 0.3 },
+};
+
+// Pins with a precomputed µm bounding box, for the renderer.
+const clientPins = pins.pins.map((p) => {
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
+  for (const [x, y, w, h] of p.rects) {
+    x0 = Math.min(x0, x);
+    y0 = Math.min(y0, y);
+    x1 = Math.max(x1, x + w);
+    y1 = Math.max(y1, y + h);
+  }
+  return {
+    name: p.name,
+    base: p.base,
+    direction: p.direction,
+    layer: p.layer,
+    color: COLORS[p.base] ?? "#65afff",
+    rects: p.rects,
+    bx: x0,
+    by: y0,
+    bw: x1 - x0,
+    bh: y1 - y0,
+    power: p.base === "vdd" || p.base === "vss",
+  };
+});
+
+// vdd/vss are distributed met2 power grids, not point pins — keep them out of
+// the locatable list and expose them via the "Show power grid" toggle instead.
+const listGroups = pins.groups.filter(
+  (g) => g.base !== "vdd" && g.base !== "vss",
+);
+
+const clientData = {
+  geomUrl: `${base}layout/layout-geom.bin`,
+  bg: "#0a0f1a",
+  layerStyles,
+  pins: clientPins,
+};
+---
+
+<div class="pinx">
+  <aside class="pinx-side">
+    <input
+      class="pinx-search"
+      type="search"
+      placeholder="Filter pins…"
+      aria-label="Filter pins"
+    />
+    <div class="pinx-groups">
+      {
+        listGroups.map((g) => (
+          <details class="pinx-grp" data-grp={g.base}>
+            <summary>
+              <span
+                class="pinx-swatch"
+                style={`background:${COLORS[g.base] ?? "#65afff"}`}
+              />
+              <button class="pinx-grpbtn" type="button" data-grp={g.base}>
+                {g.base}
+              </button>
+              <span class="pinx-grpmeta">
+                {g.width > 1 ? `[${g.width - 1}:0]` : ""} · {g.direction}
+              </span>
+            </summary>
+            <ul>
+              {pins.pins
+                .filter((p) => p.base === g.base)
+                .map((p) => (
+                  <li>
+                    <button class="pinx-pin" type="button" data-pin={p.name}>
+                      {p.name}
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </details>
+        ))
+      }
+    </div>
+    <div class="pinx-panel">
+      <div class="pinx-info-body">
+        <span class="pinx-dim">
+          Click a pin — in the list or on the layout — to identify it.
+        </span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="pinx-stage">
+    <div class="pinx-viewport">
+      <canvas class="pinx-canvas"></canvas>
+      <div class="pinx-loading">Loading layout geometry…</div>
+    </div>
+    <div class="pinx-bar">
+      <button class="pinx-reset" type="button">Reset view</button>
+      <label class="pinx-power">
+        <input type="checkbox" class="pinx-power-cb" /> Show power grid (vdd/vss)
+      </label>
+      <span class="pinx-hint">Scroll to zoom · drag to pan · click a pin to identify it</span>
+    </div>
+  </div>
+
+  <script
+    type="application/json"
+    class="pinx-data"
+    set:html={JSON.stringify(clientData)}
+  ></script>
+</div>
+
+<script>
+  import { loadGeom, createViewer } from "./layout-renderer";
+  import type { Pin } from "./layout-renderer";
+
+  const dirLabel: Record<string, string> = {
+    input: "input",
+    output: "output",
+    inout: "inout",
+  };
+
+  document.querySelectorAll<HTMLElement>(".pinx").forEach(async (root) => {
+    const data = JSON.parse(
+      root.querySelector(".pinx-data")!.textContent || "{}",
+    );
+    const canvas = root.querySelector<HTMLCanvasElement>(".pinx-canvas")!;
+    const loading = root.querySelector<HTMLElement>(".pinx-loading")!;
+    const infoBody = root.querySelector<HTMLElement>(".pinx-info-body")!;
+
+    let geom;
+    try {
+      geom = await loadGeom(data.geomUrl);
+    } catch (err) {
+      loading.textContent =
+        "Could not load the layout geometry in this browser.";
+      return;
+    }
+    const num = (v: number, d = 2) => v.toFixed(d);
+    const clearActive = () =>
+      root
+        .querySelectorAll(".pinx-pin.is-active, .pinx-grpbtn.is-active")
+        .forEach((n) => n.classList.remove("is-active"));
+
+    const showPin = (pin: Pin | null) => {
+      if (!pin) {
+        infoBody.innerHTML =
+          '<span class="pinx-dim">Click a pin — in the list or on the layout — to identify it.</span>';
+        return;
+      }
+      infoBody.innerHTML = `
+        <div class="pinx-info-name"><span class="pinx-dot" style="background:${pin.color}"></span>${pin.name}</div>
+        <dl class="pinx-kv">
+          <dt>Direction</dt><dd>${dirLabel[pin.direction] || pin.direction}</dd>
+          <dt>Layer</dt><dd>${pin.layer}</dd>
+          <dt>Position</dt><dd>(${num(pin.bx)}, ${num(pin.by)}) µm</dd>
+          <dt>Size</dt><dd>${num(pin.bw)} × ${num(pin.bh)} µm</dd>
+        </dl>`;
+    };
+
+    const showGroup = (base: string, count: number, dir: string) => {
+      infoBody.innerHTML = `
+        <div class="pinx-info-name">${base}${count > 1 ? ` [${count - 1}:0]` : ""}</div>
+        <dl class="pinx-kv">
+          <dt>Bits</dt><dd>${count}</dd>
+          <dt>Direction</dt><dd>${dirLabel[dir] || dir}</dd>
+        </dl>
+        <span class="pinx-dim">Click an individual bit to identify it.</span>`;
+    };
+
+    const viewer = createViewer({
+      canvas,
+      geom,
+      pins: data.pins,
+      styles: data.layerStyles,
+      bg: data.bg,
+      onSelect(pin) {
+        clearActive();
+        showPin(pin);
+        if (pin) {
+          root
+            .querySelector(`.pinx-pin[data-pin="${pin.name}"]`)
+            ?.classList.add("is-active");
+        }
+      },
+    });
+    loading.style.display = "none";
+
+    root.querySelectorAll<HTMLElement>(".pinx-pin").forEach((b) =>
+      b.addEventListener("click", () => viewer.selectPin(b.dataset.pin!, true)),
+    );
+
+    root.querySelectorAll<HTMLButtonElement>(".pinx-grpbtn").forEach((b) =>
+      b.addEventListener("click", (e) => {
+        e.preventDefault();
+        const grp = b.dataset.grp!;
+        const members = data.pins.filter((p: Pin) => p.base === grp);
+        viewer.highlight(
+          members.map((p: Pin) => p.name),
+          true,
+        );
+        clearActive();
+        b.classList.add("is-active");
+        showGroup(grp, members.length, members[0]?.direction ?? "");
+      }),
+    );
+
+    root.querySelector(".pinx-reset")?.addEventListener("click", () => {
+      viewer.selectPin(null, false);
+      viewer.highlight(null, false);
+      viewer.reset();
+      clearActive();
+      showPin(null);
+    });
+
+    root
+      .querySelector<HTMLInputElement>(".pinx-power-cb")
+      ?.addEventListener("change", (e) =>
+        viewer.setPowerVisible((e.target as HTMLInputElement).checked),
+      );
+
+    const search = root.querySelector<HTMLInputElement>(".pinx-search")!;
+    search.addEventListener("input", () => {
+      const q = search.value.trim().toLowerCase();
+      root.querySelectorAll<HTMLElement>(".pinx-grp").forEach((det) => {
+        const grp = det.dataset.grp!.toLowerCase();
+        let any = false;
+        det.querySelectorAll<HTMLElement>(".pinx-pin").forEach((p) => {
+          const match = !q || p.dataset.pin!.toLowerCase().includes(q);
+          (p.parentElement as HTMLElement).style.display = match ? "" : "none";
+          if (match) any = true;
+        });
+        det.style.display = !q || grp.includes(q) || any ? "" : "none";
+        if (q && any) (det as HTMLDetailsElement).open = true;
+      });
+    });
+  });
+</script>
+
+<style>
+  .pinx {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 14px;
+    border: 1px solid var(--sl-color-hairline-shade, #2a3a55);
+    border-radius: 12px;
+    padding: 12px;
+    background: var(--sl-color-bg-sidebar, #0b1220);
+    margin: 1.2rem 0;
+  }
+  .pinx-side {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  .pinx-search {
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--sl-color-hairline-shade, #2a3a55);
+    background: var(--sl-color-bg, #0e1626);
+    color: inherit;
+    font-family: var(--sram-mono);
+    font-size: 0.82rem;
+  }
+  .pinx-groups {
+    overflow-y: auto;
+    max-height: 330px;
+    padding-right: 2px;
+  }
+  .pinx-grp {
+    border-bottom: 1px solid var(--sl-color-hairline-shade, #22324c);
+  }
+  .pinx-grp summary {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 2px;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.9rem;
+  }
+  .pinx-grp summary::-webkit-details-marker {
+    display: none;
+  }
+  .pinx-swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    flex: none;
+  }
+  .pinx-grpbtn {
+    background: none;
+    border: none;
+    color: inherit;
+    font-family: var(--sram-mono);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.88rem;
+  }
+  .pinx-grpbtn.is-active {
+    color: var(--sram-sky);
+  }
+  .pinx-grpmeta {
+    margin-left: auto;
+    font-size: 0.72rem;
+    color: var(--sl-color-gray-3, #8a9bbb);
+    font-family: var(--sram-mono);
+  }
+  .pinx-grp ul {
+    list-style: none;
+    margin: 0 0 6px;
+    padding: 0 0 0 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .pinx-pin {
+    background: var(--sl-color-bg, #0e1626);
+    border: 1px solid var(--sl-color-hairline-shade, #2a3a55);
+    color: inherit;
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-family: var(--sram-mono);
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+  .pinx-pin:hover {
+    border-color: var(--sram-sky);
+  }
+  .pinx-pin.is-active {
+    background: var(--sram-sky);
+    color: #07101f;
+    border-color: var(--sram-sky);
+  }
+
+  .pinx-panel {
+    margin-top: auto;
+    border-top: 1px solid var(--sl-color-hairline-shade, #22324c);
+    padding-top: 10px;
+  }
+  .pinx-info-body {
+    font-size: 0.8rem;
+  }
+  .pinx-dim {
+    color: var(--sl-color-gray-3, #8a9bbb);
+    line-height: 1.5;
+  }
+  .pinx-info-name {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--sram-mono);
+    font-weight: 650;
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+  }
+  .pinx-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+  }
+  .pinx-kv {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 10px;
+    margin: 0 0 4px;
+  }
+  .pinx-kv dt {
+    color: var(--sl-color-gray-3, #8a9bbb);
+  }
+  .pinx-kv dd {
+    margin: 0;
+    font-family: var(--sram-mono);
+    font-size: 0.78rem;
+  }
+
+  .pinx-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  .pinx-viewport {
+    position: relative;
+    height: 500px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0a0f1a;
+  }
+  .pinx-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+    touch-action: none;
+  }
+  .pinx-canvas.is-grabbing {
+    cursor: grabbing;
+  }
+  .pinx-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--sl-color-gray-3, #8a9bbb);
+    font-size: 0.85rem;
+    pointer-events: none;
+  }
+  .pinx-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .pinx-reset {
+    background: var(--sl-color-bg, #0e1626);
+    border: 1px solid var(--sl-color-hairline-shade, #2a3a55);
+    color: inherit;
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 0.82rem;
+  }
+  .pinx-reset:hover {
+    border-color: var(--sram-sky);
+  }
+  .pinx-power {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .pinx-hint {
+    font-size: 0.78rem;
+    color: var(--sl-color-gray-3, #8a9bbb);
+  }
+
+  @media (max-width: 720px) {
+    .pinx {
+      grid-template-columns: 1fr;
+    }
+    .pinx-groups {
+      max-height: 180px;
+    }
+  }
+</style>

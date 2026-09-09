@@ -1,0 +1,75 @@
+{
+  "comment": "Canonical SRAM22 pin interface. The pin-list table renders from this file, and scripts/check-docs.mjs verifies it against the LEF pin emitter in src/abs.rs. Keep widths as expression names so they stay parametric.",
+  "pins": [
+    {
+      "name": "clk",
+      "direction": "input",
+      "width": "1",
+      "layer": "met1",
+      "purpose": "Clock. All inputs are sampled on the rising edge; dout updates after the rising edge."
+    },
+    {
+      "name": "rstb",
+      "direction": "input",
+      "width": "1",
+      "layer": "met1",
+      "purpose": "Active-low reset (reset bar). While low, reads and writes are inhibited and internal control state is reset."
+    },
+    {
+      "name": "ce",
+      "direction": "input",
+      "width": "1",
+      "layer": "met1",
+      "purpose": "Chip enable. When high, a read or write occurs on the rising clock edge; when low, the array is idle and retains data."
+    },
+    {
+      "name": "we",
+      "direction": "input",
+      "width": "1",
+      "layer": "met1",
+      "purpose": "Write enable. With ce high, we=1 performs a write and we=0 performs a read."
+    },
+    {
+      "name": "wmask",
+      "direction": "input",
+      "width": "wmask_width",
+      "layer": "met1",
+      "purpose": "Per-group write mask. Bit i enables writing data bits [i·write_size +: write_size]. Present only when wmask_width > 1."
+    },
+    {
+      "name": "addr",
+      "direction": "input",
+      "width": "addr_width",
+      "layer": "met1",
+      "purpose": "Word address, where addr_width = log2(num_words)."
+    },
+    {
+      "name": "din",
+      "direction": "input",
+      "width": "data_width",
+      "layer": "met1",
+      "purpose": "Write data input, sampled on the rising edge during a write."
+    },
+    {
+      "name": "dout",
+      "direction": "output",
+      "width": "data_width",
+      "layer": "met1",
+      "purpose": "Read data output. Valid after the clk-to-Q delay following a read; holds until the next read."
+    },
+    {
+      "name": "vdd",
+      "direction": "inout",
+      "width": "1",
+      "layer": "met2",
+      "purpose": "Power supply (1.8 V nominal)."
+    },
+    {
+      "name": "vss",
+      "direction": "inout",
+      "width": "1",
+      "layer": "met2",
+      "purpose": "Ground."
+    }
+  ]
+}

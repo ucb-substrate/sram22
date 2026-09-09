@@ -1,0 +1,62 @@
+---
+import iface from "../data/interface.json";
+
+const dirLabel: Record<string, string> = {
+  input: "input",
+  output: "output",
+  inout: "inout",
+};
+---
+
+<div class="pin-table">
+  <table>
+    <thead>
+      <tr>
+        <th>Pin</th>
+        <th>Direction</th>
+        <th>Width</th>
+        <th>Layer</th>
+        <th>Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        iface.pins.map((p) => (
+          <tr>
+            <td><code>{p.name}</code></td>
+            <td>{dirLabel[p.direction]}</td>
+            <td><code>{p.width}</code></td>
+            <td>{p.layer}</td>
+            <td>{p.purpose}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .pin-table {
+    overflow-x: auto;
+  }
+  .pin-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  .pin-table th,
+  .pin-table td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--sl-color-hairline-shade, #2a3a55);
+    vertical-align: top;
+  }
+  .pin-table th {
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  .pin-table td:nth-child(2),
+  .pin-table td:nth-child(4) {
+    white-space: nowrap;
+  }
+</style>

@@ -1,0 +1,148 @@
+---
+// The SRAM22 macro is drawn in a landscape "as-generated" frame with its pin
+// row along one long edge and an origin marker at one corner. Because the macro
+// is meant to be placed rotated 90°, the four legal orientations are R90 / R270
+// and their mirror images. Each tile applies the corresponding transform to the
+// same glyph so the rotation and mirroring are visually unambiguous.
+const tiles = [
+  { name: "R90", def: "W", rot: -90, mirror: false },
+  { name: "R270", def: "E", rot: 90, mirror: false },
+  { name: "R90 + mirror", def: "FW", rot: -90, mirror: true },
+  { name: "R270 + mirror", def: "FE", rot: 90, mirror: true },
+];
+const cx = 75;
+const cy = 75;
+---
+
+<div class="orient">
+  <div class="orient-grid">
+    {
+      tiles.map((t) => (
+        <figure class="orient-tile">
+          <svg viewBox="0 0 150 150" role="img" aria-label={`${t.name} orientation`}>
+            <g
+              transform={`translate(${cx} ${cy}) rotate(${t.rot}) scale(${
+                t.mirror ? -1 : 1
+              } 1)`}
+            >
+              {/* macro body (landscape in local space) */}
+              <rect class="o-body" x="-58" y="-34" width="116" height="68" rx="7" />
+              {/* array column hints */}
+              <g class="o-array">
+                <line x1="-30" y1="-30" x2="-30" y2="30" />
+                <line x1="-10" y1="-30" x2="-10" y2="30" />
+                <line x1="10" y1="-30" x2="10" y2="30" />
+                <line x1="30" y1="-30" x2="30" y2="30" />
+              </g>
+              {/* pin row along the bottom edge */}
+              <g class="o-pins">
+                {[-40, -24, -8, 8, 24, 40].map((x) => (
+                  <rect x={x - 3} y="27" width="6" height="6" rx="1" />
+                ))}
+              </g>
+              {/* origin marker (bottom-left corner) */}
+              <path class="o-origin" d="M -58 34 L -48 34 L -58 24 Z" />
+              {/* asymmetric "F" so rotation + mirroring read clearly */}
+              <g class="o-f">
+                <rect x="-8" y="-18" width="6" height="34" />
+                <rect x="-8" y="-18" width="20" height="6" />
+                <rect x="-8" y="-3" width="14" height="5" />
+              </g>
+            </g>
+          </svg>
+          <figcaption>
+            <strong>{t.name}</strong>
+            <span class="o-def">DEF&nbsp;{t.def}</span>
+          </figcaption>
+        </figure>
+      ))
+    }
+  </div>
+  <p class="orient-key">
+    <span class="o-legend"><span class="sw sw-pin"></span> pin edge</span>
+    <span class="o-legend"><span class="sw sw-origin"></span> origin corner</span>
+    <span class="o-legend"><span class="sw sw-f"></span> orientation marker</span>
+  </p>
+</div>
+
+<style>
+  .orient {
+    margin: 1.3rem 0;
+  }
+  .orient-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+  }
+  .orient-tile {
+    margin: 0;
+    border: 1px solid var(--sl-color-hairline-shade, var(--sram-border-solid));
+    border-radius: 12px;
+    padding: 8px;
+    background: var(--sl-color-bg-sidebar, var(--sram-panel));
+    text-align: center;
+  }
+  .orient-tile svg {
+    width: 100%;
+    height: auto;
+    max-width: 170px;
+  }
+  .o-body {
+    fill: color-mix(in srgb, var(--sram-sky) 10%, transparent);
+    stroke: var(--sram-cloud);
+    stroke-width: 2;
+  }
+  .o-array line {
+    stroke: color-mix(in srgb, var(--sram-sky) 35%, transparent);
+    stroke-width: 1.4;
+  }
+  .o-pins rect {
+    fill: var(--sram-sky);
+  }
+  .o-origin {
+    fill: var(--sram-signal);
+  }
+  .o-f rect {
+    fill: var(--sram-sky-pale);
+  }
+  figcaption {
+    margin-top: 6px;
+    font-size: 0.84rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .o-def {
+    font-family: var(--sram-mono);
+    font-size: 0.74rem;
+    color: var(--sl-color-gray-3, var(--sram-text-muted));
+  }
+  .orient-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-top: 12px;
+    font-size: 0.82rem;
+    color: var(--sl-color-gray-3, var(--sram-text-muted));
+  }
+  .o-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .sw {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+  .sw-pin {
+    background: var(--sram-sky);
+  }
+  .sw-origin {
+    background: var(--sram-signal);
+  }
+  .sw-f {
+    background: var(--sram-sky-pale);
+  }
+</style>

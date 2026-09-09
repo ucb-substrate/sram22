@@ -1,0 +1,68 @@
+---
+import config from "../data/config.json";
+---
+
+<div class="cfg">
+  <div class="cfg-tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Option</th>
+          <th>Type</th>
+          <th>Required</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          config.options.map((o) => (
+            <tr>
+              <td><code>{o.name}</code></td>
+              <td><code>{o.type}</code></td>
+              <td>{o.required ? "yes" : "no"}</td>
+              <td>{o.purpose}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Validity constraints</h4>
+  <ul>
+    {config.constraints.map((c) => <li>{c}</li>)}
+  </ul>
+
+  <h4>Derived quantities</h4>
+  <ul>
+    {config.derived.map((d) => <li>{d}</li>)}
+  </ul>
+</div>
+
+<style>
+  .cfg-tablewrap {
+    overflow-x: auto;
+  }
+  .cfg table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  .cfg th,
+  .cfg td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--sl-color-hairline-shade, var(--sram-border-solid));
+    vertical-align: top;
+  }
+  .cfg th {
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  .cfg td:nth-child(3) {
+    white-space: nowrap;
+  }
+  .cfg h4 {
+    margin: 1.4rem 0 0.5rem;
+  }
+</style>

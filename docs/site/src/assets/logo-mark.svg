@@ -1,0 +1,39 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SRAM22 logo">
+  <defs>
+    <linearGradient id="sram-die" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1b2845"/>
+      <stop offset="0.55" stop-color="#274060"/>
+      <stop offset="1" stop-color="#335c81"/>
+    </linearGradient>
+  </defs>
+
+  <!-- chip die -->
+  <rect x="6" y="6" width="52" height="52" rx="13" fill="url(#sram-die)"/>
+  <rect x="6.75" y="6.75" width="50.5" height="50.5" rx="12.25" fill="none" stroke="#65afff" stroke-opacity="0.35" stroke-width="1.5"/>
+
+  <!-- bitlines (vertical) + wordlines (horizontal), faint -->
+  <g stroke="#65afff" stroke-opacity="0.18" stroke-width="1">
+    <line x1="32" y1="12" x2="32" y2="52"/>
+    <line x1="12" y1="32" x2="52" y2="32"/>
+  </g>
+
+  <!-- 4x4 bitcell array; one wordline (row) driven bright -->
+  <g>
+    <!-- dim cells -->
+    <g fill="#65afff" fill-opacity="0.30">
+      <rect x="15" y="15" width="8" height="8" rx="2.2"/>
+      <rect x="27" y="15" width="8" height="8" rx="2.2"/>
+      <rect x="39" y="15" width="8" height="8" rx="2.2"/>
+      <rect x="15" y="39" width="8" height="8" rx="2.2"/>
+      <rect x="27" y="39" width="8" height="8" rx="2.2"/>
+      <rect x="39" y="39" width="8" height="8" rx="2.2"/>
+    </g>
+    <!-- active wordline row -->
+    <g fill="#65afff">
+      <rect x="15" y="27" width="8" height="8" rx="2.2"/>
+      <rect x="39" y="27" width="8" height="8" rx="2.2"/>
+    </g>
+    <!-- addressed / accessed cell -->
+    <rect x="27" y="27" width="8" height="8" rx="2.2" fill="#cfe6ff"/>
+  </g>
+</svg>
