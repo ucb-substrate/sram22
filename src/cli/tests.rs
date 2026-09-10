@@ -34,11 +34,13 @@ fn check_gds(bytes: &[u8]) {
 #[test]
 fn generated_outputs_are_portable_for_both_mux_ratios() {
     let run = tempfile::tempdir().unwrap();
-    for (words, mux, write_size, corner) in [(64, 4, 8, "tt"), (128, 8, 4, "ss")] {
+    for (words, width, mux, write_size, corner) in [(64, 8, 4, 8, "tt"), (128, 16, 8, 8, "ss")] {
         let config = run.path().join("sram22.toml");
         fs::write(
             &config,
-            format!("num_words={words}\ndata_width=8\nmux_ratio={mux}\nwrite_size={write_size}\n"),
+            format!(
+                "num_words={words}\ndata_width={width}\nmux_ratio={mux}\nwrite_size={write_size}\n"
+            ),
         )
         .unwrap();
         let output = run.path().join(format!("m{mux}"));
@@ -60,7 +62,8 @@ fn generated_outputs_are_portable_for_both_mux_ratios() {
             "{}",
             String::from_utf8_lossy(&result.stderr)
         );
-        let name = format!("sram22_{words}x8m{mux}w{write_size}");
+        let name = format!("sram22_{words}x{width}m{mux}w{write_size}");
+        let output = output.join(&name);
         let spice = fs::read_to_string(output.join(format!("{name}.spice"))).unwrap();
         for line in spice.lines() {
             let token = line
@@ -81,7 +84,11 @@ fn generated_outputs_are_portable_for_both_mux_ratios() {
         check_gds(&fs::read(isolated).unwrap());
         let verilog = fs::read_to_string(output.join(format!("{name}.v"))).unwrap();
         let lef = fs::read_to_string(output.join(format!("{name}.lef"))).unwrap();
-        if write_size == 8 {
+        for suffix in ["tt_025C_1v80", "ss_100C_1v60", "ff_n40C_1v95"] {
+            let liberty = fs::read_to_string(output.join(format!("{name}_{suffix}.lib"))).unwrap();
+            assert!(liberty.contains(&format!("cell ({name})")));
+        }
+        if write_size == width {
             assert!(verilog.contains("input wmask;") && verilog.contains("if (wmask)"));
             assert!(lef.contains("PIN wmask "));
         } else {

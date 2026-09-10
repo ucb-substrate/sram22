@@ -39,14 +39,14 @@
 }
 .tile figcaption {
   margin-top: 6px;
-  font-size: 0.84rem;
+  font-size: 0.875rem;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 .def {
   font-family: var(--sram-mono);
-  font-size: 0.74rem;
+  font-size: 0.875rem;
   color: var(--sram-text-muted);
 }
 .key {

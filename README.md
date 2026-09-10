@@ -16,6 +16,7 @@ cargo install --git https://github.com/ucb-substrate/sram22 --locked sram22
 Save this as `sram22.toml`:
 
 ```toml
+[[sram]]
 num_words = 64
 data_width = 32
 mux_ratio = 4
@@ -29,21 +30,36 @@ Then run:
 sram22
 ```
 
-SRAM22 writes GDS, LEF, SPICE, and behavioral Verilog to `./sram22_64x32m4w8/`.
-Use `--output-dir <path>` to select a different output directory.
+SRAM22 writes GDS, LEF, SPICE, behavioral Verilog, and Liberty timing files to
+`build/sram22_64x32m4w8/` beside the configuration file. Add more `[[sram]]` blocks
+to generate a batch. Each macro gets its own directory under `build/`, or under
+the directory selected with `--output-dir <path>`. A single configuration without
+the `[[sram]]` header is also accepted.
 
 ```text
 -c, --config <CONFIG>          TOML file (default: sram22.toml)
 -o, --output-dir <OUTPUT_DIR>  Output directory
+-p, --parallel <PARALLEL>      Maximum concurrent macros (default: no limit)
     --spice-corner <CORNER>    SPICE model corner: tt, ss, ff (default: tt)
 -h, --help                     Show available options
 -V, --version                  Show version
 ```
 
-With the BWRC manifest, additional options are `--lib` (Liberate
-characterization), `--drc`, `--lvs`, `--pex` (Calibre), and `--all` (all available
-steps). `pex_level` accepts `r`, `c`, `rc`, or `rcc`; it is ignored without commercial
-features. An ordinary generation run does not establish DRC/LVS correctness.
+With the BWRC manifest, `--liberate` selects Liberate MX characterization;
+`--drc` and `--lvs` run Calibre verification. Setting `pex_level` to `r`, `c`, `rc`,
+or `rcc` runs extraction for that macro; it is ignored without commercial features.
+`--all` enables DRC and LVS but retains interpolated timing unless `--liberate`
+is also supplied. Liberate uses the extracted netlist when `pex_level` is set.
+An ordinary generation run does not establish DRC/LVS correctness.
+
+### Liberty timing
+
+By default, SRAM22 generates TT, SS, and FF Liberty files from an interpolation
+model. Its timing data supports `write_size = 8`, word widths from 8 to 128 bits,
+and depths of 64, 128, 256, 512, 1024, or 2048 words. Both mux ratios are supported
+except 64 words with mux ratio 8, which has too few rows. Other configurations
+require additional timing data or a BWRC build with `--liberate`.
+See [the interpolation model](timingdata/INTERPOLATION.md) for its assumptions.
 Liberty filenames include a corner suffix, such as
 `sram22_64x32m4w8_tt_025C_1v80.lib`, with SS `ss_100C_1v60` and FF `ff_n40C_1v95`.
 

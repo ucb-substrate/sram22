@@ -25,10 +25,10 @@ pub struct Args {
     #[arg(long, default_value = "tt", value_parser = ["tt", "ss", "ff"])]
     pub spice_corner: String,
 
-    /// Generate LIB (setup, hold, and delay timing information).
+    /// Generate LIB timing with Liberate MX instead of interpolation.
     #[cfg(feature = "commercial")]
     #[arg(long)]
-    pub lib: bool,
+    pub liberate: bool,
 
     /// Run DRC using Calibre.
     #[cfg(feature = "commercial")]
@@ -40,13 +40,13 @@ pub struct Args {
     #[arg(long)]
     pub lvs: bool,
 
-    /// Run PEX using Calibre.
     #[cfg(feature = "commercial")]
-    #[arg(long)]
-    pub pex: bool,
-
-    #[cfg(feature = "commercial")]
-    /// Run all available steps.
+    /// Run DRC and LVS as well as generation. Use --liberate for characterization.
     #[arg(short, long)]
     pub all: bool,
+
+    /// Maximum number of SRAMs to generate concurrently. Defaults to no limit
+    /// (all at once). This limit also applies when PEX or Liberate MX is selected.
+    #[arg(short = 'p', long)]
+    pub parallel: Option<usize>,
 }

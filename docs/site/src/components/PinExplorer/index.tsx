@@ -320,7 +320,8 @@ export default function PinExplorer(): JSX.Element {
 
       <div className={styles.stage}>
         <div className={styles.viewport}>
-          <canvas className={styles.canvas} ref={canvasRef} />
+          <canvas className={styles.canvas} ref={canvasRef} role="img"
+            aria-label="SRAM22 pin locations on the macro layout. Select a named pin from the list to inspect its position." />
           {status && <div className={styles.loading}>{status}</div>}
         </div>
         <div className={styles.bar}>

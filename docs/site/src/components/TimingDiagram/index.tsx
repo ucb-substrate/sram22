@@ -81,7 +81,7 @@ const addrSegs = [
 ];
 const addrPolys = busPolys("addr", addrSegs);
 const addrLabels = [
-  { x: (x0 + (E1 - 90)) / 2, y: mid("addr"), t: "A0 (read)" },
+  { x: (E0 + 38 + E1 - 90) / 2, y: mid("addr"), t: "A0 (read)" },
   { x: (E1 - 90 + xEnd) / 2, y: mid("addr"), t: "A1 (write)" },
 ];
 
@@ -100,145 +100,148 @@ const doutLabel = { x: (doutChange + xEnd) / 2, y: mid("dout"), t: "Q(A0)" };
 export default function TimingDiagram(): JSX.Element {
   return (
     <figure className={styles.td}>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className={styles.svg}
-        role="img"
-        aria-label="SRAM read and write timing diagram"
-      >
-        {/* clock-edge guides */}
-        {[E0, E1].map((e) => (
-          <line
-            className={styles.guide}
-            key={e}
-            x1={e}
-            y1={top0 - 6}
-            x2={e}
-            y2={H - 24}
-          />
-        ))}
-        <text className={styles.region} x={E0} y={14}>
-          READ
-        </text>
-        <text className={styles.region} x={E1} y={14}>
-          WRITE
-        </text>
-
-        {/* row labels */}
-        {rows.map((r) => (
-          <text className={styles.label} key={r} x={L} y={mid(r) + 4}>
-            {r}
-          </text>
-        ))}
-
-        {/* bit signals */}
-        <path className={styles.wave} d={clkPath} />
-        <path className={styles.wave} d={cePath} />
-        <path className={styles.wave} d={wePath} />
-
-        {/* addr bus */}
-        {addrPolys.map((p) => (
-          <polygon className={styles.bus} key={p} points={p} />
-        ))}
-        {addrLabels.map((s) => (
-          <text className={styles.busLabel} key={s.t} x={s.x} y={s.y + 4}>
-            {s.t}
-          </text>
-        ))}
-
-        {/* din: low line before write, bus during write */}
-        <line
-          className={styles.wave}
-          x1={x0}
-          y1={dinPre}
-          x2={E1 - 90}
-          y2={dinPre}
-        />
-        {dinPolys.map((p) => (
-          <polygon className={styles.bus} key={p} points={p} />
-        ))}
-        <text className={styles.busLabel} x={dinLabel.x} y={dinLabel.y + 4}>
-          {dinLabel.t}
-        </text>
-
-        {/* dout: invalid (hatched) then valid bus */}
-        <rect
-          className={styles.invalid}
-          x={x0}
-          y={hi("dout")}
-          width={doutChange - x0}
-          height={lo("dout") - hi("dout")}
-        />
-        <text
-          className={styles.invLabel}
-          x={(x0 + doutChange) / 2}
-          y={mid("dout") + 4}
+      <div className={styles.viewport} tabIndex={0} role="region" aria-label="Read and write timing">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className={styles.svg}
+          role="img"
+          aria-label="SRAM read and write timing diagram"
         >
-          invalid
-        </text>
-        {doutPolys.map((p) => (
-          <polygon className={styles.bus} key={p} points={p} />
-        ))}
-        <text className={styles.busLabel} x={doutLabel.x} y={doutLabel.y + 4}>
-          {doutLabel.t}
-        </text>
-
-        {/* annotations: tSU, tH on addr@E0 ; tCQ on dout */}
-        {/* setup/hold are drawn exaggerated; labels carry the real values */}
-        <g className={styles.ann}>
-          <line
-            x1={E0 - 60}
-            y1={rowTop["addr"] - 4}
-            x2={E0 - 60}
-            y2={lo("addr") + 6}
-          />
-          <line x1={E0} y1={rowTop["addr"] - 4} x2={E0} y2={lo("addr") + 6} />
-          <line
-            className={styles.dim}
-            x1={E0 - 60}
-            y1={rowTop["addr"] - 2}
-            x2={E0}
-            y2={rowTop["addr"] - 2}
-          />
-          <text className={styles.annText} x={E0 - 30} y={rowTop["addr"] - 6}>
-            tSU≈{tSU}ns
+          {/* clock-edge guides */}
+          {[E0, E1].map((e) => (
+            <line
+              className={styles.guide}
+              key={e}
+              x1={e}
+              y1={top0 - 6}
+              x2={e}
+              y2={H - 24}
+            />
+          ))}
+          <text className={styles.region} x={E0} y={14}>
+            READ
+          </text>
+          <text className={styles.region} x={E1} y={14}>
+            WRITE
           </text>
 
+          {/* row labels */}
+          {rows.map((r) => (
+            <text className={styles.label} key={r} x={L} y={mid(r) + 4}>
+              {r}
+            </text>
+          ))}
+
+          {/* bit signals */}
+          <path className={styles.wave} d={clkPath} />
+          <path className={styles.wave} d={cePath} />
+          <path className={styles.wave} d={wePath} />
+
+          {/* addr bus */}
+          {addrPolys.map((p) => (
+            <polygon className={styles.bus} key={p} points={p} />
+          ))}
+          {addrLabels.map((s) => (
+            <text className={styles.busLabel} key={s.t} x={s.x} y={s.y + 4}>
+              {s.t}
+            </text>
+          ))}
+
+          {/* din: low line before write, bus during write */}
           <line
-            x1={E0 + 38}
-            y1={rowTop["addr"] - 4}
-            x2={E0 + 38}
-            y2={lo("addr") + 6}
+            className={styles.wave}
+            x1={x0}
+            y1={dinPre}
+            x2={E1 - 90}
+            y2={dinPre}
           />
-          <line
-            className={styles.dim}
-            x1={E0}
-            y1={lo("addr") + 10}
-            x2={E0 + 38}
-            y2={lo("addr") + 10}
-          />
-          <text className={styles.annText} x={E0 + 19} y={lo("addr") + 22}>
-            tH≈{tH}ns
+          {dinPolys.map((p) => (
+            <polygon className={styles.bus} key={p} points={p} />
+          ))}
+          <text className={styles.busLabel} x={dinLabel.x} y={dinLabel.y + 4}>
+            {dinLabel.t}
           </text>
 
-          <line
-            className={styles.dim}
-            x1={E0}
-            y1={mid("dout") - 14}
-            x2={doutChange}
-            y2={mid("dout") - 14}
+          {/* dout: invalid (hatched) then valid bus */}
+          <rect
+            className={styles.invalid}
+            x={x0}
+            y={hi("dout")}
+            width={doutChange - x0}
+            height={lo("dout") - hi("dout")}
           />
           <text
-            className={styles.annText}
-            x={(E0 + doutChange) / 2}
-            y={mid("dout") - 18}
+            className={styles.invLabel}
+            x={(x0 + doutChange) / 2}
+            y={mid("dout") + 4}
           >
-            t(clk→Q)≈{tCQ}ns
+            invalid
           </text>
-        </g>
-      </svg>
+          {doutPolys.map((p) => (
+            <polygon className={styles.bus} key={p} points={p} />
+          ))}
+          <text className={styles.busLabel} x={doutLabel.x} y={doutLabel.y + 4}>
+            {doutLabel.t}
+          </text>
+
+          {/* annotations: tSU, tH on addr@E0 ; tCQ on dout */}
+          {/* setup/hold are drawn exaggerated; labels carry the real values */}
+          <g className={styles.ann}>
+            <line
+              x1={E0 - 60}
+              y1={rowTop["addr"] - 4}
+              x2={E0 - 60}
+              y2={lo("addr") + 6}
+            />
+            <line x1={E0} y1={rowTop["addr"] - 4} x2={E0} y2={lo("addr") + 6} />
+            <line
+              className={styles.dim}
+              x1={E0 - 60}
+              y1={rowTop["addr"] - 2}
+              x2={E0}
+              y2={rowTop["addr"] - 2}
+            />
+            <text className={styles.annText} x={E0 - 30} y={rowTop["addr"] - 6}>
+              tSU≈{tSU}ns
+            </text>
+
+            <line
+              x1={E0 + 38}
+              y1={rowTop["addr"] - 4}
+              x2={E0 + 38}
+              y2={lo("addr") + 6}
+            />
+            <line
+              className={styles.dim}
+              x1={E0}
+              y1={lo("addr") + 10}
+              x2={E0 + 38}
+              y2={lo("addr") + 10}
+            />
+            <text className={styles.annText} x={E0 + 19} y={lo("addr") + 22}>
+              tH≈{tH}ns
+            </text>
+
+            <line
+              className={styles.dim}
+              x1={E0}
+              y1={mid("dout") - 14}
+              x2={doutChange}
+              y2={mid("dout") - 14}
+            />
+            <text
+              className={styles.annText}
+              x={(E0 + doutChange) / 2}
+              y={mid("dout") - 18}
+            >
+              t(clk→Q)≈{tCQ}ns
+            </text>
+          </g>
+        </svg>
+      </div>
       <figcaption>
-        Synchronous read then write (schematic — setup/hold shown exaggerated).
+        Synchronous read then write, with <code>rstb</code> and all <code>wmask</code>
+        {" "}bits high (schematic — setup/hold shown exaggerated).
         Illustrative rising-transition table entries at {corner}. Clock and input slew
         are {timing.example_conditions.clock_slew_ns} ns; output load is {timing.example_conditions.output_load_pf} pF. Full rise/fall constraints are in the{" "}
         <code>.lib</code>; see{" "}

@@ -15,9 +15,11 @@ Use matching GDS, LEF, and corner-specific Liberty from the
 with a BWRC installation. Decompress published `.gds.gz` files before stream merge.
 For example, use `sram22_64x32m4w8_tt_025C_1v80.lib` with TT standard-cell timing,
 and the matching `ss_100C_1v60` and `ff_n40C_1v95` libraries for SS and FF.
-The BWRC build supports `sram22 --lib` for Liberate and `--drc`,
-`--lvs`, `--pex`, or `--all` for the corresponding licensed tasks. LEF generation
-is automatic. See [Quickstart](/docs/quickstart/).
+The BWRC build supports `sram22 --liberate` for Liberate MX and `--drc` and
+`--lvs` for Calibre verification. Set `pex_level` in each macro's configuration to
+run extraction. `--all` enables DRC/LVS but uses interpolated timing unless
+`--liberate` is also supplied. LEF generation is automatic. See
+[Quickstart](/docs/quickstart/).
 
 ## 2. Bind the SRAM as a library cell in Genus
 

@@ -93,6 +93,21 @@ Those interactive canvases retain a dark backdrop. The homepage thumbnails use
 separate light and dark palettes in `scripts/render_gds.py`, rendered from the
 same GDS geometry.
 
+## Figures
+
+| Figure | Source | Display |
+| --- | --- | --- |
+| Architecture | `../figures/block_diagram.ai`, exported to `static/figures/block_diagram.png` | White backing, inset border, and enlarge control |
+| Internal read waveforms | `static/figures/read_sim.png`; the originating simulation run is not recorded | White backing and enlarge control; illustrative only |
+| Decoder and interface timing | `src/components/DecoderDiagram/` and `TimingDiagram/` | Theme colors and scrollable diagrams that retain readable label sizes |
+| Orientations | `src/components/OrientationDiagram/` | Theme-aware vectors with explicit orientation labels |
+| Layout and pins | `static/layout/layout-geom.bin` and `src/data/pins.json` | Pan/zoom canvases with a fixed dark background for GDS layer colors |
+
+Use `Figure`'s `plate` option for dark ink on a transparent background. Its frame
+keeps borders away from image content, and the enlarge control exposes fine detail
+without shrinking labels on narrow screens. The homepage layout thumbnails use
+the same framing in both themes; do not override `ThemedImage`'s display rules.
+
 ## Data and reproducibility
 
 The site renders interface, configuration, pin geometry, timing, and catalog data

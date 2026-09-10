@@ -7,8 +7,13 @@
 }
 .svg {
   width: 100%;
+  min-width: 51.25rem;
   height: auto;
+  display: block;
   font-family: var(--sram-mono);
+}
+.viewport {
+  overflow-x: auto;
 }
 .label {
   fill: var(--sram-text);
@@ -31,7 +36,7 @@
 }
 .busLabel {
   fill: var(--sram-sky-pale);
-  font-size: 12px;
+  font-size: 13px;
   text-anchor: middle;
 }
 .invalid {
@@ -42,7 +47,7 @@
 }
 .invLabel {
   fill: var(--sram-text-muted);
-  font-size: 11px;
+  font-size: 13px;
   text-anchor: middle;
 }
 .guide {
@@ -53,7 +58,7 @@
 }
 .region {
   fill: var(--sram-text-muted);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-anchor: middle;
@@ -68,12 +73,12 @@
 }
 .annText {
   fill: var(--sram-signal);
-  font-size: 11px;
+  font-size: 13px;
   text-anchor: middle;
 }
 .td figcaption {
   margin-top: 8px;
-  font-size: 0.82rem;
+  font-size: 0.875rem;
   color: var(--sram-text-muted);
   line-height: 1.5;
 }

@@ -133,7 +133,8 @@ export default function LayoutBrowser(): JSX.Element {
       </div>
 
       <div className={styles.viewport}>
-        <canvas className={styles.canvas} ref={canvasRef} />
+        <canvas className={styles.canvas} ref={canvasRef} role="img"
+          aria-label="SRAM22 macro layout. Use the layer controls above to inspect the geometry." />
         {status && <div className={styles.loading}>{status}</div>}
       </div>
       <p className={styles.hint}>

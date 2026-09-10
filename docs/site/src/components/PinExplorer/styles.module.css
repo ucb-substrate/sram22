@@ -49,6 +49,7 @@
   height: 11px;
   border-radius: 3px;
   flex: none;
+  border: 1px solid var(--sram-text-muted);
 }
 .grpBtn {
   background: none;
@@ -175,6 +176,7 @@
 }
 .bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }

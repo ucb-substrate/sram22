@@ -500,7 +500,7 @@ export function createViewer(opts: ViewerOpts): Viewer {
       let lx = cx - tw / 2 - 6;
       let ly = Math.max(0, t) - 24;
       lx = Math.max(2, Math.min(cssW - tw - 14, lx));
-      ly = Math.max(2, ly);
+      ly = Math.max(2, Math.min(cssH - 21, ly));
       ctx.fillStyle = "rgba(8,14,26,0.92)";
       ctx.strokeStyle = selected.color;
       ctx.lineWidth = 1;

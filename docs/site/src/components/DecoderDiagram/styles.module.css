@@ -7,9 +7,14 @@
 }
 .dd svg {
   width: 100%;
+  min-width: 51.25rem;
   height: auto;
   font-family: var(--sram-mono);
-  font-size: 11px;
+  font-size: 13px;
+  display: block;
+}
+.viewport {
+  overflow-x: auto;
 }
 .bus {
   stroke: var(--sram-cloud);
@@ -33,55 +38,13 @@
   fill: var(--sram-text);
   text-anchor: middle;
 }
-.gate path {
-  fill: color-mix(in srgb, var(--sram-sky) 12%, transparent);
-  stroke: var(--sram-cloud);
-  stroke-width: 1.6;
-}
-.gate circle {
-  fill: none;
-  stroke: var(--sram-cloud);
-  stroke-width: 1.6;
-}
-.gate text {
-  fill: var(--sram-text);
-  text-anchor: middle;
-  font-size: 9.5px;
-}
-.inv polygon {
-  fill: color-mix(in srgb, var(--sram-sky) 16%, transparent);
-  stroke: var(--sram-sky);
-  stroke-width: 1.6;
-}
-.inv circle {
-  fill: none;
-  stroke: var(--sram-sky);
-  stroke-width: 1.6;
-}
 .lbl {
   fill: var(--sram-text);
   font-weight: 600;
 }
-.tick {
-  fill: var(--sram-text-muted);
-  text-anchor: middle;
-  font-size: 9px;
-}
-.arrow {
-  stroke: var(--sram-text-muted);
-  stroke-width: 1;
-  fill: none;
-  marker-end: url(#dd-ah);
-  stroke-dasharray: 4 3;
-}
-.note {
-  fill: var(--sram-text-muted);
-  text-anchor: middle;
-  font-size: 9.5px;
-}
 .dd figcaption {
   margin-top: 8px;
-  font-size: 0.82rem;
+  font-size: 0.875rem;
   color: var(--sram-text-muted);
   line-height: 1.5;
 }

@@ -27,8 +27,9 @@ The relevant files at the TT corner are:
 ]} />
 
 Alternatively, [generate the macro](/docs/quickstart/). SRAM22 emits
-GDS/LEF/SPICE/Verilog, and its BWRC `--lib` option runs Liberate for TT/SS/FF timing.
-Use timing libraries characterized for the generated macro's geometry.
+GDS/LEF/SPICE/Verilog and interpolated TT/SS/FF Liberty files. Its BWRC `--liberate`
+option runs Liberate MX characterization instead. Use timing libraries appropriate
+for the generated macro's geometry and your flow's verification requirements.
 
 ## 2. Instantiate a library macro
 

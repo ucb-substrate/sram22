@@ -14,6 +14,7 @@ The generator emits these views:
 - **LEF** abstract (for place-and-route)
 - **SPICE** netlist
 - **Verilog** behavioral model
+- **Liberty** timing at TT, SS, and FF (interpolated by default)
 
 :::note[Process support]
 
@@ -22,8 +23,8 @@ project; use generated macros at your own risk.
 
 :::
 
-Liberty timing is available from the published catalog or optional commercial
-characterization.
+The [quickstart](/docs/quickstart/#liberty-timing) describes the interpolation
+model's supported configurations and optional commercial characterization.
 Run DRC/LVS and timing checks for your generated configuration and integration.
 
 ## Architecture at a glance
@@ -36,11 +37,13 @@ precharge. The output uses a differential latch.
 
 <Figure
   src="/figures/block_diagram.png"
-  alt="SRAM22 block diagram: address/data flip-flops feed predecoders, a row decoder drives the bitcell array, and timing control logic sequences precharge, wordline, sense-amp enable, and write-driver enable into the column circuitry."
+  alt="SRAM22 block diagram: registered row addresses feed predecoders and the row decoder; column addresses select column muxes. Timing control sequences the array and column circuitry, which receives registered data and write masks."
+  plate
   caption={
     <>
       Top-level organization. <code>M</code> = mux ratio, <code>D</code> =
-      depth, <code>W</code> = word width. Number of rows <code>R = D / M</code>;
+      depth, <code>W</code> = word width, <code>G</code> = write-mask granularity.
+      Number of rows <code>R = D / M</code>;
       number of columns <code>C = W · M</code>.
     </>
   }

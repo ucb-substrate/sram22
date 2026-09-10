@@ -228,10 +228,10 @@ export default function Home(): JSX.Element {
             <div>
               <h3>Physical-design views</h3>
               <p>
-                GDS layout, LEF abstracts, SPICE netlists, and Verilog models for
-                simulation and place-and-route. BWRC builds also support Liberty
-                characterization and DRC, LVS, and parasitic extraction through
-                commercial tools.
+                GDS layout, LEF abstracts, SPICE netlists, Verilog models, and
+                interpolated Liberty timing for simulation and place-and-route.
+                BWRC builds also support Liberate characterization and DRC, LVS,
+                and parasitic extraction through commercial tools.
               </p>
             </div>
             <div>
