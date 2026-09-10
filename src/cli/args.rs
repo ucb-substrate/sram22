@@ -21,6 +21,10 @@ pub struct Args {
     #[arg(short, long)]
     pub output_dir: Option<PathBuf>,
 
+    /// Open SKY130 model corner embedded in the portable SPICE output.
+    #[arg(long, default_value = "tt", value_parser = ["tt", "ss", "ff"])]
+    pub spice_corner: String,
+
     /// Generate LIB (setup, hold, and delay timing information).
     #[cfg(feature = "commercial")]
     #[arg(long)]

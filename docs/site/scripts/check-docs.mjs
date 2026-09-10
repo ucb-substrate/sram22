@@ -5,7 +5,7 @@
  * The docs render their pin and configuration tables from data files
  * (src/data/interface.json and src/data/config.json). This script verifies
  * those data files still agree with the source of truth in the SRAM22 Rust
- * crate, so the documentation cannot silently drift from the generator:
+ * crate, for these structural attributes (not prose, timing, constraints, or behavior):
  *
  *   • interface.json  ⟷  the LEF pin emitter in src/abs.rs
  *   • config.json     ⟷  the SramConfig struct in src/blocks/sram/mod.rs
@@ -131,4 +131,4 @@ if (failures) {
   );
   process.exit(1);
 }
-console.log("✓ docs consistency check passed — docs match the SRAM22 source.");
+console.log("✓ pin attributes and configuration field names match the SRAM22 source.");

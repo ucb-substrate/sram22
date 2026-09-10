@@ -1,111 +1,72 @@
 ---
-title: "Tutorial: Cadence flow"
-description: Generate an SRAM22 macro and integrate it into a Cadence Genus / Innovus place-and-route flow.
+title: "Integration: Cadence"
+description: Macro views and binding, placement, and signoff checks for an existing Genus/Innovus flow.
 ---
 
-This tutorial integrates an SRAM22 macro into a commercial Cadence flow:
-synthesis with **Genus** and place-and-route with **Innovus**. As in the
-[OpenROAD flow](/docs/tutorial/openroad/), the SRAM is a hard macro represented to the tools by
-its `.lib` (timing) and `.lef` (abstract), with the `.gds` merged at the end.
+Use an established SKY130 Genus/Innovus flow with its licensed technology setup.
+This outline describes the SRAM-specific integration points. It has not been
+qualified end-to-end against a particular Cadence release; command names and
+initialization differ between legacy and common UIs.
 
-## 1. Generate the macro views
+## 1. Obtain consistent views
 
-```bash
-sram22 --lef --lib
-```
+Use matching GDS, LEF, and corner-specific Liberty from the
+[macro catalog](/docs/macros/), or generate and characterize the same configuration
+with a BWRC installation. Decompress published `.gds.gz` files before stream merge.
+For example, use `sram22_64x32m4w8_tt_025C_1v80.lib` with TT standard-cell timing,
+and the matching `ss_100C_1v60` and `ff_n40C_1v95` libraries for SS and FF.
+The BWRC build supports `sram22 --lib` for Liberate and `--drc`,
+`--lvs`, `--pex`, or `--all` for the corresponding licensed tasks. LEF generation
+is automatic. See [Quickstart](/docs/quickstart/).
 
-For a full (BWRC) install you can additionally run DRC/LVS/PEX on the macro
-itself:
+## 2. Bind the SRAM as a library cell in Genus
 
-```bash
-sram22 --all     # views + Calibre DRC, LVS, PEX
-```
+Add the SRAM Liberty to the standard-cell library setup and the SRAM LEF to the
+physical library setup. Register matching PVT corners in the flow's timing views.
+Instantiate the macro in your design as in the
+[OpenROAD RTL example](/docs/tutorial/openroad/#2-instantiate-a-library-macro).
 
-This produces `sram22_64x32m4w8.{gds,lef,lib,v}` (and, with `--lib`, timing for
-multiple PVT corners such as `tt_025C_1v80`, `ff_n40C_1v95`, `ss_100C_1v60`).
-
-## 2. Synthesis with Genus
-
-Treat the macro as a leaf cell with timing. Read its Liberty alongside the
-standard-cell libraries, and its LEF as physical information:
+Keep the generated behavioral SRAM `.v` in the **simulation file list**. For
+synthesis, use your flow's library-cell/black-box binding; do not elaborate that
+behavioral memory as synthesizable RTL. With libraries already configured, the
+synthesis command sequence uses separate Tcl commands:
 
 ```tcl
-# libraries
-set_db library { sky130_fd_sc_hs__tt_025C_1v80.lib \
-                 sram22_64x32m4w8.lib }
-# physical (LEF) for physically-aware synthesis
-read_physical -lef { sky130_fd_sc_hs.tlef \
-                     sky130_fd_sc_hs.lef \
-                     sram22_64x32m4w8.lef }
-
-read_hdl   { top.v sram22_64x32m4w8.v }
-elaborate  top
-read_sdc   constraints.sdc
-syn_generic && syn_map && syn_opt
-write_hdl  > top_netlist.v
-write_sdc  > top.sdc
+read_hdl top.v
+elaborate top
+read_sdc constraints.sdc
+syn_generic
+syn_map
+syn_opt
 ```
 
-:::note[Multi-corner timing]
+Inspect the mapped netlist: `u_mem` must remain an instance of the intended SRAM
+library cell, with the expected port widths and no synthesized replacement memory.
+Export the mapped netlist and constraints using the commands for your Genus UI.
+See [Pin list](/docs/interface/pin-list/) for signal widths and behavior.
 
-SRAM22 emits Liberty for several corners. Register all of them in your MMMC
-setup so Genus and Innovus check the SRAM under the same corners as the rest
-of the design.
+## 3. Initialize and place in Innovus
 
-:::
+Initialize the mapped design with the technology and standard-cell LEFs, SRAM LEF,
+and matching library corners in the flow's MMMC configuration. Define the floorplan,
+clock constraints, and global power-net connections.
 
-## 3. Place-and-route with Innovus
+Use the placement command or GUI documented for your Innovus version to place and
+fix `u_mem` at **R90, R270, or one of their mirrored variants**. Check the resulting
+transform and coordinates in the database. The LEF's `SYMMETRY X Y R90` alone does
+not enforce the project's placement restriction. See [Orientations](/docs/orientations/).
 
-<Steps>
+Build the power connections to the rotated `vdd`/`vss` met2 shapes, inspect signal
+pin access, then continue through the flow's standard-cell placement, CTS, and
+routing stages. This outline deliberately leaves version-specific placement and
+power commands to the established flow.
 
-1. **Initialize** the design with the macro LEF/LIB referenced in your MMMC and
-   `init_design` view files.
+## 4. Check timing and physical integration
 
-   ```tcl
-   set init_lef_file { sky130_fd_sc_hs.tlef sky130_fd_sc_hs.lef \
-                       sram22_64x32m4w8.lef }
-   set init_verilog  top_netlist.v
-   set init_mmmc_file viewDefinition.tcl
-   init_design
-   ```
+Run STA with the selected macro corners, checking the full rise/fall constraints,
+including reset. Merge the SRAM GDS into the top-level stream and verify power
+connectivity, DRC, and LVS with the intended decks.
 
-2. **Place and orient the macro.** SRAM22 macros must be placed **rotated by
-   90°**. Use a legal orientation (R90, R270, or a mirror) and fix it:
-
-   ```tcl
-   place_inst u_mem 120.0 80.0 R90 -fixed
-   ```
-
-3. **Add power.** Connect `vdd`/`vss` (on **met2**) into the power grid with
-   `add_rings` / `add_stripes`, then `route_special` over the macro.
-
-4. **Place standard cells, run CTS, and route** (`place_opt_design`,
-   `ccopt_design`, `route_design`).
-
-</Steps>
-
-:::warning[Legal orientations]
-
-Only the four 90°-rotated orientations are supported. Placing at R0/R180 will
-not match how the macro was designed and routed — see
-[Orientations](/docs/orientations/).
-
-:::
-
-## 4. Signoff
-
-<Tabs>
-  <TabItem value="timing" label="Timing">
-    Run `timeDesign` / Tempus STA. The SRAM's setup, hold, and clk-to-Q arcs are
-    taken from its `.lib`; see [Timing diagrams](/docs/interface/timing/) for what
-    they represent physically.
-  </TabItem>
-  <TabItem value="physical" label="Physical">
-    Stream out the top-level GDS and merge the macro GDS
-    (`sram22_64x32m4w8.gds`). Run Calibre DRC and LVS on the merged database. The
-    macro is a `CLASS BLOCK` with `SYMMETRY X Y R90`.
-  </TabItem>
-</Tabs>
-
-Your block now contains a placed, powered, and timed SRAM22 macro ready for
-top-level integration.
+A placed instance or a successful generation run is not evidence that these checks
+have passed. Record the tool version, corners, and verification results for the
+integrated block.

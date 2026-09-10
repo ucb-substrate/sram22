@@ -1,15 +1,14 @@
 #!/usr/bin/env python
-"""Render a SKY130 SRAM22 GDS into the landing-page thumbnail.
+"""Render a SKY130 SRAM22 GDS into a themed landing-page thumbnail.
 
-The interactive viewers draw vector geometry (see export_geom.py); the only
-raster asset the site consumes is the decorative homepage thumbnail. This
-script renders the composited layers and writes that WebP directly to the exact
-path the landing page loads.
+The interactive viewers draw vector geometry (see export_geom.py). This script
+renders the homepage thumbnails by compositing the layers into a WebP using
+the selected theme.
 
 Usage:
-    python render_gds.py <macro.gds> <out.webp> [px_width]
-e.g. python render_gds.py macro.gds ../public/layout/composite_preview.webp
+    python render_gds.py <macro.gds> <out.webp> [px_width] [--theme light|dark]
 """
+import argparse
 import sys, io, time
 import gdstk
 import matplotlib
@@ -18,19 +17,32 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 from PIL import Image
 
-GDS = sys.argv[1]
-OUT = sys.argv[2]  # exact output path, e.g. .../composite_preview.webp
-PX_W = int(sys.argv[3]) if len(sys.argv) > 3 else 2200
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("gds")
+parser.add_argument("output")
+parser.add_argument("px_width", nargs="?", type=int, default=2200)
+parser.add_argument("--theme", choices=("light", "dark"), default="dark")
+args = parser.parse_args()
+GDS, OUT, PX_W = args.gds, args.output, args.px_width
 
 # (layer, datatype) -> fill, composite_alpha, z  (draw order)
-LAYERS = [
+LAYER_PALETTES = {"dark": [
     ((64, 20), "#d8c8a0", 0.40, 1),
     ((65, 20), "#5aa14f", 0.70, 2),
     ((66, 20), "#c0392b", 0.72, 3),
     ((67, 20), "#8e7cc3", 0.45, 4),
     ((68, 20), "#274060", 0.45, 5),
     ((69, 20), "#65afff", 0.28, 6),
-]
+], "light": [
+    ((64, 20), "#a58b42", 0.32, 1),
+    ((65, 20), "#387c34", 0.60, 2),
+    ((66, 20), "#aa392d", 0.68, 3),
+    ((67, 20), "#7564a4", 0.40, 4),
+    ((68, 20), "#63748b", 0.36, 5),
+    ((69, 20), "#2455b8", 0.32, 6),
+]}
+LAYERS = LAYER_PALETTES[args.theme]
+BACKGROUND = {"light": "#f8fafc", "dark": "#0d1526"}[args.theme]
 
 t0 = time.time()
 lib = gdstk.read_gds(GDS)
@@ -51,13 +63,13 @@ for p in top.get_polygons():
 
 PX_H = round(PX_W * H / W)
 dpi = 100
-fig = plt.figure(figsize=(PX_W / dpi, PX_H / dpi), dpi=dpi)
+fig = plt.figure(figsize=(PX_W / dpi, PX_H / dpi), dpi=dpi, facecolor=BACKGROUND)
 ax = fig.add_axes([0, 0, 1, 1])
 ax.set_xlim(0, W)
 ax.set_ylim(0, H)
 ax.set_axis_off()
 ax.set_aspect("equal")
-ax.add_patch(plt.Rectangle((0, 0), W, H, facecolor="#0d1526", edgecolor="none"))
+ax.add_patch(plt.Rectangle((0, 0), W, H, facecolor=BACKGROUND, edgecolor="none"))
 for ld, fill, alpha, z in sorted(LAYERS, key=lambda r: r[-1]):
     polys = buckets[ld]
     if polys:

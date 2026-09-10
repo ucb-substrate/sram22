@@ -1,4 +1,10 @@
-# SRAM22 Website Specification
+# SRAM22 website requirements
+
+The styling requirements below are historical. The current site follows Argon's
+layout and type scale in blue and uses a transparent `[S22]` logo.
+Current implementation and maintenance instructions are in
+[the site README](site/README.md). The quarter-turn placement requirement remains
+applicable; the LEF symmetry declaration does not enforce it.
 
 The SRAM22 website will be hosted at `https://sram22.com`.
 
@@ -8,7 +14,7 @@ Follow idiomatic Docusaurus conventions.
 
 ## Landing Page
 
-The root/landing page should have a nice icon and large, clearly visible links to the
+The root/landing page uses the SRAM22 name and has clearly visible links to the
 SRAM22 [GitHub repo](https://github.com/rahulk29/sram22) and to the documentation pages.
 
 ## Documentation Pages

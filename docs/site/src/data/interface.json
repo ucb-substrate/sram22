@@ -6,14 +6,14 @@
       "direction": "input",
       "width": "1",
       "layer": "met1",
-      "purpose": "Clock. All inputs are sampled on the rising edge; dout updates after the rising edge."
+      "purpose": "Clock. Address, data, and access controls are captured on the rising edge; dout updates after a read. Physical reset is asynchronous."
     },
     {
       "name": "rstb",
       "direction": "input",
       "width": "1",
       "layer": "met1",
-      "purpose": "Active-low reset (reset bar). While low, reads and writes are inhibited and internal control state is reset."
+      "purpose": "Asynchronous active-low physical reset of control state and input flops. Inhibits accesses; does not initialize stored memory or dout."
     },
     {
       "name": "ce",
@@ -34,7 +34,7 @@
       "direction": "input",
       "width": "wmask_width",
       "layer": "met1",
-      "purpose": "Per-group write mask. Bit i enables writing data bits [i·write_size +: write_size]. Present only when wmask_width > 1."
+      "purpose": "Bit i enables writing data bits [i\u00b7write_size +: write_size]. Always present; scalar when write_size equals data_width."
     },
     {
       "name": "addr",

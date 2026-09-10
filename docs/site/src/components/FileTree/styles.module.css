@@ -1,11 +1,11 @@
 .tree {
   border: 1px solid var(--sram-border-solid);
-  border-radius: 12px;
+  border-radius: var(--ifm-global-radius);
   padding: 12px 16px;
   background: var(--sram-panel);
   margin: 1.2rem 0;
   font-family: var(--sram-mono);
-  font-size: 0.82rem;
+  font-size: 0.875rem;
   line-height: 1.75;
   overflow-x: auto;
 }

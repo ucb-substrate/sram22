@@ -83,83 +83,13 @@ with open(f"{OUT}/pins.json", "w") as fh:
 print(f"pins: {len(pins)} individual, groups={[ (g['base'],g['width'],g['direction'],g['layer']) for g in groups ]}")
 print(f"size: {size_w} x {size_h} um")
 
-# ---------------- LIB: representative timing ----------------
-txt = open(LIB).read()
+# ---------------- LIB: full rise/fall table ranges ----------------
+from liberty_data import extract_timing
+import hashlib
 
-def first_values(after_idx):
-    """Return floats of the first `values(` row after position after_idx."""
-    if after_idx < 0:
-        return []
-    vi = txt.find("values", after_idx)
-    if vi < 0:
-        return []
-    # numbers are inside the first quoted string after values(
-    q = txt.find('"', vi)
-    q2 = txt.find('"', q + 1)
-    if q < 0 or q2 < 0:
-        return []
-    return [float(x) for x in re.findall(r"[-\d.]+", txt[q:q2])]
-
-def find_constraint(pin, ttype):
-    """Find a setup_rising/hold_rising value for a given pin/bus base name.
-
-    The arcs live under `pin (<name>)` (scalars) or `pin (<name>[0])` (buses).
-    Search from that declaration to the *next* pin/bus declaration so large
-    buses (e.g. din[31:0]) are fully covered.
-    """
-    decl = re.search(rf"\bpin \({re.escape(pin)}(?:\[0\])?\)", txt) \
-        or re.search(rf"\b(?:bus|pin) \({re.escape(pin)}(?:\[\d+\])?\)", txt)
-    if not decl:
-        return None
-    nxt = re.search(r"\n\s+(?:bus|pin) \(", txt[decl.end():])
-    end = decl.end() + (nxt.start() if nxt else 14000)
-    seg = txt[decl.start():end]
-    ti = seg.find(f"timing_type : {ttype}")
-    if ti < 0:
-        return None
-    vals = first_values(decl.start() + ti)
-    return vals
-
-def arc_repr(vals):
-    return round(sum(vals) / len(vals), 4) if vals else None
-
-timing = {"corner": "tt_025C_1v80", "corner_label": "TT, 1.8 V, 25 °C",
-          "setup": {}, "hold": {}}
-for pin in ["addr", "din", "we", "ce", "wmask", "rstb"]:
-    su = find_constraint(pin, "setup_rising")
-    ho = find_constraint(pin, "hold_rising")
-    if su:
-        timing["setup"][pin] = {"repr": arc_repr(su), "min": round(min(su), 4), "max": round(max(su), 4)}
-    if ho:
-        timing["hold"][pin] = {"repr": arc_repr(ho), "min": round(min(ho), 4), "max": round(max(ho), 4)}
-
-# min pulse width / min period (clk pin)
-clk = re.search(r"pin \(clk\)", txt)
-if not clk:
-    sys.exit("could not find 'pin (clk)' in the .lib")
-seg = txt[clk.start():clk.start() + 4000]
-mpw_i = seg.find("min_pulse_width")
-per_i = seg.find("minimum_period")
-mpw = first_values(clk.start() + mpw_i) if mpw_i >= 0 else []
-per = first_values(clk.start() + per_i) if per_i >= 0 else []
-if not mpw or not per:
-    sys.exit("could not find min_pulse_width / minimum_period for clk in the .lib")
-timing["min_pulse_width_high"] = round(min(mpw), 4)
-timing["minimum_period"] = round(sum(per) / len(per), 4)
-timing["fmax_mhz"] = round(1000.0 / (sum(per) / len(per)), 1)
-
-# clk -> q (dout cell_rise): find first rising_edge cell_rise table, take min & max
-re_i = txt.find("timing_type : rising_edge")
-cr_i = txt.find("cell_rise", re_i) if re_i >= 0 else -1
-nums = []
-if cr_i >= 0:
-    end = txt.find("rise_transition", cr_i)
-    blk = txt[cr_i:end if end >= 0 else cr_i + 4000]
-    nums = [float(x) for x in re.findall(r"[\d.]+", blk) if "." in x and float(x) > 1]
-if not nums:
-    sys.exit("could not extract clk->Q (rising_edge cell_rise) from the .lib")
-timing["clk_q"] = {"min": round(min(nums), 4), "max": round(max(nums), 4)}
-
+timing = extract_timing(open(LIB).read(), MACRO)
+timing["source_sha256"] = hashlib.sha256(open(LIB, "rb").read()).hexdigest()
 with open(f"{OUT}/timing.json", "w") as fh:
-    json.dump(timing, fh, indent=2)
-print("timing:", json.dumps(timing))
+    json.dump(timing, fh, indent=2, ensure_ascii=False)
+    fh.write("\n")
+print("timing: complete rise/fall tables extracted for", MACRO)

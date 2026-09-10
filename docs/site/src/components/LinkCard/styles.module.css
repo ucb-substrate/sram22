@@ -3,7 +3,7 @@
   flex-direction: column;
   gap: 5px;
   border: 1px solid var(--sram-border-solid);
-  border-radius: 12px;
+  border-radius: var(--ifm-global-radius);
   padding: 14px 16px;
   background: var(--sram-panel);
   text-decoration: none;
@@ -22,7 +22,8 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-weight: 650;
+  font-family: var(--sram-display);
+  font-weight: 600;
   font-size: 1rem;
   color: var(--sram-accent);
 }
@@ -33,7 +34,7 @@
   transform: translateX(3px);
 }
 .desc {
-  font-size: 0.86rem;
+  font-size: 0.9375rem;
   color: var(--sram-text-muted);
   line-height: 1.5;
 }

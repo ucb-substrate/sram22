@@ -1,75 +1,199 @@
 {
-  "corner": "tt_025C_1v80",
-  "corner_label": "TT, 1.8\u00a0V, 25\u00a0\u00b0C",
+  "macro": "sram22_64x32m4w8",
+  "corner_label": "1.8 V, 25 °C (PVT_1P8V_25C)",
+  "voltage": 1.8,
+  "temperature": 25.0,
+  "operating_conditions": "PVT_1P8V_25C",
+  "time_unit": "ns",
   "setup": {
     "addr": {
-      "repr": 0.1387,
-      "min": 0.1334,
-      "max": 0.145
-    },
-    "din": {
-      "repr": 0.1296,
-      "min": 0.1243,
-      "max": 0.1352
-    },
-    "we": {
-      "repr": 0.1388,
-      "min": 0.1334,
-      "max": 0.1451
+      "rise": {
+        "min": 0.133405,
+        "max": 0.208384,
+        "example": 0.14504
+      },
+      "fall": {
+        "min": 0.207558,
+        "max": 0.329397,
+        "example": 0.218027
+      }
     },
     "ce": {
-      "repr": 0.1387,
-      "min": 0.1334,
-      "max": 0.145
+      "rise": {
+        "min": 0.133358,
+        "max": 0.208193,
+        "example": 0.144991
+      },
+      "fall": {
+        "min": 0.207383,
+        "max": 0.329083,
+        "example": 0.217839
+      }
     },
-    "wmask": {
-      "repr": 0.133,
-      "min": 0.1276,
-      "max": 0.1391
+    "din": {
+      "rise": {
+        "min": 0.124262,
+        "max": 0.196817,
+        "example": 0.135179
+      },
+      "fall": {
+        "min": 0.193348,
+        "max": 0.314333,
+        "example": 0.203323
+      }
     },
     "rstb": {
-      "repr": 0.1465,
-      "min": 0.1411,
-      "max": 0.1525
+      "rise": {
+        "min": 0.141098,
+        "max": 0.202378,
+        "example": 0.152483
+      },
+      "fall": {
+        "min": 0.190367,
+        "max": 0.29512,
+        "example": 0.201135
+      }
+    },
+    "we": {
+      "rise": {
+        "min": 0.133421,
+        "max": 0.20825,
+        "example": 0.14505
+      },
+      "fall": {
+        "min": 0.207496,
+        "max": 0.329164,
+        "example": 0.217953
+      }
+    },
+    "wmask": {
+      "rise": {
+        "min": 0.127616,
+        "max": 0.200923,
+        "example": 0.139062
+      },
+      "fall": {
+        "min": 0.196956,
+        "max": 0.318445,
+        "example": 0.207377
+      }
     }
   },
   "hold": {
     "addr": {
-      "repr": 0.0923,
-      "min": 0.0738,
-      "max": 0.1173
-    },
-    "din": {
-      "repr": 0.1047,
-      "min": 0.0881,
-      "max": 0.1299
-    },
-    "we": {
-      "repr": 0.0921,
-      "min": 0.0735,
-      "max": 0.1171
+      "rise": {
+        "min": 0.0737622,
+        "max": 0.117278,
+        "example": 0.0737668
+      },
+      "fall": {
+        "min": 0.0732214,
+        "max": 0.117832,
+        "example": 0.0732248
+      }
     },
     "ce": {
-      "repr": 0.0919,
-      "min": 0.0733,
-      "max": 0.1169
+      "rise": {
+        "min": 0.0733395,
+        "max": 0.116906,
+        "example": 0.0733441
+      },
+      "fall": {
+        "min": 0.0728036,
+        "max": 0.117395,
+        "example": 0.0728074
+      }
     },
-    "wmask": {
-      "repr": 0.0968,
-      "min": 0.0792,
-      "max": 0.1218
+    "din": {
+      "rise": {
+        "min": 0.0880453,
+        "max": 0.129869,
+        "example": 0.0880503
+      },
+      "fall": {
+        "min": 0.0881879,
+        "max": 0.130361,
+        "example": 0.0881879
+      }
     },
     "rstb": {
-      "repr": 0.0989,
-      "min": 0.0819,
-      "max": 0.124
+      "rise": {
+        "min": 0.08188,
+        "max": 0.123989,
+        "example": 0.0818842
+      },
+      "fall": {
+        "min": 4.30089,
+        "max": 4.36489,
+        "example": 4.34016
+      }
+    },
+    "we": {
+      "rise": {
+        "min": 0.0734886,
+        "max": 0.117073,
+        "example": 0.0734948
+      },
+      "fall": {
+        "min": 0.0729463,
+        "max": 0.117546,
+        "example": 0.0729499
+      }
+    },
+    "wmask": {
+      "rise": {
+        "min": 0.0791615,
+        "max": 0.121835,
+        "example": 0.0791637
+      },
+      "fall": {
+        "min": 0.0784821,
+        "max": 0.122147,
+        "example": 0.0784884
+      }
     }
   },
-  "min_pulse_width_high": 0.1897,
-  "minimum_period": 2.7496,
-  "fmax_mhz": 363.7,
+  "min_pulse_width": {
+    "rise": {
+      "min": 0.18971,
+      "max": 0.23945,
+      "example": 0.239124
+    },
+    "fall": {
+      "min": 0.262406,
+      "max": 0.311951,
+      "example": 0.262541
+    }
+  },
+  "minimum_period": {
+    "rise": {
+      "min": 2.74951,
+      "max": 2.74969,
+      "example": 2.74953
+    },
+    "fall": {
+      "min": 2.74951,
+      "max": 2.74969,
+      "example": 2.74953
+    }
+  },
   "clk_q": {
-    "min": 3.0116,
-    "max": 4.3918
-  }
+    "rise": {
+      "min": 3.01164,
+      "max": 4.3918,
+      "example": 3.01164
+    },
+    "fall": {
+      "min": 3.04414,
+      "max": 3.92247,
+      "example": 3.04414
+    }
+  },
+  "example_conditions": {
+    "setup_index_1_ns": 0.002,
+    "setup_index_2_ns": 0.002,
+    "clock_slew_ns": 0.002,
+    "output_load_pf": 0.007
+  },
+  "source_sha256": "29d6495bf5c320b6159e5e6efe080f287bbbf7090aa261a0e890f01e39fa1e1a"
 }

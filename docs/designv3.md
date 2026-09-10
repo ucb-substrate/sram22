@@ -1,3 +1,10 @@
+# Historical design proposal
+
+This is an unimplemented/partially implemented planning note, not a description
+of the current generator. In particular, the four-bank organization and control
+pseudocode below do not describe the current circuit. See
+[the maintained algorithms documentation](site/docs/internals/algorithms.mdx).
+
 Changes:
 Separate wen/ren (should have defined behavior if both are high)
 All SR latches, FFs, etc should have a reset signal

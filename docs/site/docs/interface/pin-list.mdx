@@ -1,6 +1,6 @@
 ---
 title: Pin list
-description: The SRAM22 macro interface — a single-port synchronous SRAM with byte-maskable writes. Full pin table with direction, width, and purpose.
+description: The SRAM22 macro interface — a single-port synchronous SRAM with configurable write masks. Full pin table with direction, width, and purpose.
 ---
 
 import PinTable from "@site/src/components/PinTable";
@@ -15,8 +15,11 @@ to one word:
   the per-group `wmask`.
 - With `ce = 0` → **idle**: the array holds its state and `dout` is unchanged.
 
-All inputs are sampled on the rising edge of `clk`; `rstb` is an active-low
-reset that inhibits accesses and clears internal control state.
+Address, input data, and access controls are sampled on the rising edge of `clk`.
+Physical `rstb` is an asynchronous active-low reset of control state and input
+flip-flops. It inhibits accesses but does not initialize the memory contents or
+read output. The behavioral model checks reset at the clock edge and does not
+model asynchronous internal transitions or analog timing.
 
 ## Pins
 
@@ -30,7 +33,8 @@ The widths below are parametric. For a macro named
 
 :::note[Write mask]
 
-`wmask` exists only when `wmask_width > 1` (i.e. `write_size < data_width`).
+`wmask` is always present. When `write_size == data_width`, it is a scalar
+whole-word write mask; drive it high to allow writes.
 Bit `i` of `wmask` enables writing data bits
 `[i·write_size +: write_size]`, so a macro with `data_width = 32` and
 `write_size = 8` has a 4-bit mask, one bit per byte.

@@ -80,6 +80,7 @@ pub fn run() -> Result<()> {
     let res = execute_plan(ExecutePlanParams {
         work_dir: &work_dir,
         plan: &plan,
+        spice_corner: &args.spice_corner,
         tasks: &tasks,
         ctx: Some(&mut ctx),
         #[cfg(feature = "commercial")]

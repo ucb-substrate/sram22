@@ -1,113 +1,126 @@
-# SRAM 22
+# SRAM22
 
-## A Configurable SRAM Generator
+SRAM22 is a configurable single-port SRAM generator for SKY130, developed at UC
+Berkeley. It is a research tool; validate generated macros in your integration flow.
 
-SRAM22 parametrically generates SRAM blocks. At the moment, we only support the SKY130 process.
-SRAM22 is still a work in progress.
+## Installation
 
-### Dependencies
-
-In order to use SRAM22, your system will need to have the following components:
-
-- Rust (SRAM22 is tested with version 1.81.0)
-- Make
-- A local clone of our [slightly modified version of the SKY 130 PDK](https://github.com/ucb-substrate/skywater-pdk). 
-You will also need to set the environment variable `SKY130_OPEN_PDK_ROOT` to the absolute path of the local PDK's root directory.
-Substrate uses standard cells from the `sky130_fd_sc_hs` library, so you will also need to run the following from the PDK root directory:
-    ```
-    git submodule update --init libraries/sky130_fd_sc_hs/latest
-    ```
-
-### Installation
-
-#### BWRC
-
-If you have BWRC access, you can install all features of SRAM22. Make sure that you have SSH access to [bwrcrepo.eecs.berkeley.edu](https://bwrcrepo.eecs.berkeley.edu) from a BWRC machine by [adding your SSH key to your GitLab account](https://docs.gitlab.com/ee/user/ssh.html#add-an-ssh-key-to-your-gitlab-account). You will then need to add the following lines to your `~/.cargo/config.toml` file:
-
-```
-[net]
-git-fetch-with-cli = true
-```
-
-You can then install SRAM22 using the following commands:
+Install with a current stable Rust toolchain and Cargo:
 
 ```bash
-git clone https://github.com/rahulk29/sram22.git
-cd sram22 && mv Cargo.bwrc.toml Cargo.toml && make install && cd -
+cargo install --git https://github.com/ucb-substrate/sram22 --locked sram22
 ```
 
-#### External
+## Generate a macro
 
-If you do not have BWRC access, you can still install SRAM22, albeit without
-the ability to invoke proprietary tools for DRC, LVS, PEX, and simulation.
-
-Use the following commands:
-
-```bash
-git clone https://github.com/rahulk29/sram22.git
-cd sram22 && make install && cd -
-```
-
-### Usage
-
-```
-sram22 0.2.0
-Rahul Kumar <rahulkumar@berkeley.edu>, Rohan Kumar <rohankumar@berkeley.edu>
-A configurable SRAM generator
-
-Usage: sram22 [OPTIONS]
-
-Options:
-  -c, --config <CONFIG>          Path to TOML configuration file [default: sram22.toml]
-  -o, --output-dir <OUTPUT_DIR>  Directory to which output files should be saved
-      --lef                      Generate LEF (used in place and route)
-      --lib                      Generate LIB (setup, hold, and delay timing information)
-      --drc                      Run DRC using Calibre
-      --lvs                      Run LVS using Calibre
-      --pex                      Run PEX using Calibre
-  -a, --all                      Run all available steps
-  -h, --help                     Print help information
-  -V, --version                  Print version information
-```
-
-### Configuration
-
-SRAM22 generates memory blocks based on a TOML configuration file. An example configuration, showing all the available options, is shown below:
+Save this as `sram22.toml`:
 
 ```toml
 num_words = 64
 data_width = 32
 mux_ratio = 4
 write_size = 8
-# The `pex_level` flag is only available with a full installation.
-pex_level = "rcc"
+# Optional, with commercial features: pex_level = "rcc"
 ```
 
-To generate an SRAM using this configuration, put the above text into a file called
-`sram22_64x32m4w8/sram22.toml`, then run:
+Then run:
 
-```
-cd sram22_64x32m4w8
+```bash
 sram22
 ```
 
-Add additional flags depending on what views you want to generate and what verification you want to run.
-If you do not have access to BWRC servers, most flags will not be available.
+SRAM22 writes GDS, LEF, SPICE, and behavioral Verilog to `./sram22_64x32m4w8/`.
+Use `--output-dir <path>` to select a different output directory.
 
-The number of rows in the SRAM bitcell array is `num_words / mux_ratio`.
-The number of columns in the array is `data_width * mux_ratio`.
+```text
+-c, --config <CONFIG>          TOML file (default: sram22.toml)
+-o, --output-dir <OUTPUT_DIR>  Output directory
+    --spice-corner <CORNER>    SPICE model corner: tt, ss, ff (default: tt)
+-h, --help                     Show available options
+-V, --version                  Show version
+```
 
-A valid configuration must have:
-* A `mux_ratio` of 4 or 8
-* A `data_width` that is an integer multiple of the `write_size`
-* A power-of-two number of rows
-* At least 16 rows
-* At least 16 columns
-* `pex_level`: Must be `"r"`, `"c"`, `"rc"`, or `"rcc"`. If you do not have commercial plugins enabled, this option will be ignored.
+With the BWRC manifest, additional options are `--lib` (Liberate
+characterization), `--drc`, `--lvs`, `--pex` (Calibre), and `--all` (all available
+steps). `pex_level` accepts `r`, `c`, `rc`, or `rcc`; it is ignored without commercial
+features. An ordinary generation run does not establish DRC/LVS correctness.
+Liberty filenames include a corner suffix, such as
+`sram22_64x32m4w8_tt_025C_1v80.lib`, with SS `ss_100C_1v60` and FF `ff_n40C_1v95`.
 
-### Contribution
+### SPICE simulation
+
+Include the generated `.spice` file in an ngspice testbench and provide power
+supplies, stimuli, and a simulation temperature. Use `--spice-corner tt`, `ss`, or
+`ff` to select the device models. When combining several macros in one testbench,
+keep one copy of their shared model definitions.
+
+## Configuration
+
+Rows = `num_words / mux_ratio`; columns = `data_width * mux_ratio`.
+Valid configurations require positive `num_words`, `data_width`, and `write_size`,
+a power-of-two `num_words`, a mux ratio of 4 or 8, data width divisible by write
+size, at least 16 rows, and at least 16 columns. Address width is `log2(num_words)`;
+write-mask width is `data_width / write_size`. Supported geometry is not a guarantee
+of successful signoff or a particular operating frequency.
+
+With `write_size == data_width`, `wmask` is a scalar whole-word write mask. Drive
+it high to allow writes.
+
+See the [documentation](https://sram22.com/docs/) for the interface and integration
+outlines, and the [published macro catalog](https://github.com/ucb-substrate/sram22_sky130_macros)
+for existing layouts and timing libraries. Published GDS files are compressed;
+run the catalog's `unzip.sh` or decompress individual `.gds.gz` files.
+
+## Advanced setup
+
+### Local checkout or custom fork
+
+Use a checkout to modify SRAM22 or install a fork. Substitute your fork's URL:
+
+```bash
+git clone https://github.com/ucb-substrate/sram22.git
+cd sram22
+cargo install --path . --locked
+```
+
+### BWRC installation
+
+Commercial characterization and Calibre verification require the licensed tools,
+commercial PDK, and access to the BWRC Git repositories. Configure SSH access and
+add this to `~/.cargo/config.toml`:
+
+```toml
+[net]
+git-fetch-with-cli = true
+```
+
+Set `SKY130_COMMERCIAL_PDK_ROOT` to the commercial PDK root before building, then
+select the commercial manifest:
+
+```bash
+git clone https://github.com/ucb-substrate/sram22.git
+cd sram22
+cp Cargo.bwrc.toml Cargo.toml
+make install
+```
+
+### External open PDK override
+
+To use a custom version of the [open SKY130 PDK](https://github.com/ucb-substrate/skywater-pdk),
+set `SKY130_OPEN_PDK_ROOT` when running SRAM22:
+
+```bash
+SKY130_OPEN_PDK_ROOT=/absolute/path/to/skywater-pdk sram22
+```
+
+Use the linked repository's layout, with the `sky130_fd_sc_hs` and `sky130_fd_pr`
+submodules initialized under `libraries/`. The override selects standard-cell views
+and device models; SRAM22's custom cells retain their definitions. Missing files
+produce an error.
+
+## Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you shall be licensed under the BSD 3-Clause license,
-without any additional terms or conditions.
-
+without any additional terms or conditions. Vendored third-party files retain their
+own notices and licenses; see [tech/sky130/pdk](tech/sky130/pdk/README.md) for provenance.

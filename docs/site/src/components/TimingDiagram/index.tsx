@@ -3,16 +3,11 @@ import Link from "@docusaurus/Link";
 import timing from "@site/src/data/timing.json";
 import styles from "./styles.module.css";
 
-// Representative values (rounded for display) pulled from the real .lib.
-// Prefer the address arc, but fall back to any available arc so a regenerated
-// timing.json that omits `addr` (extract_data emits arcs conditionally) still
-// builds.
-const fmt = (v: number) => (v < 1 ? v.toFixed(2) : v.toFixed(1));
-const anyArc = (m: Record<string, { repr: number }>) =>
-  m.addr ?? Object.values(m)[0] ?? { repr: 0 };
-const tSU = fmt(anyArc(timing.setup).repr);
-const tH = fmt(anyArc(timing.hold).repr);
-const tCQ = fmt(timing.clk_q.min);
+// One explicit table point, not averages or guaranteed interface limits.
+const fmt = (v: number) => (v < 1 ? v.toFixed(3) : v.toFixed(2));
+const tSU = fmt(timing.setup.addr.rise.example);
+const tH = fmt(timing.hold.addr.rise.example);
+const tCQ = fmt(timing.clk_q.rise.example);
 const corner = timing.corner_label;
 
 // ---- geometry (schematic; not to time-scale) ----
@@ -244,7 +239,8 @@ export default function TimingDiagram(): JSX.Element {
       </svg>
       <figcaption>
         Synchronous read then write (schematic — setup/hold shown exaggerated).
-        Representative values at the {corner} corner from the macro's Liberate{" "}
+        Illustrative rising-transition table entries at {corner}. Clock and input slew
+        are {timing.example_conditions.clock_slew_ns} ns; output load is {timing.example_conditions.output_load_pf} pF. Full rise/fall constraints are in the{" "}
         <code>.lib</code>; see{" "}
         <Link to="/docs/internals/waveforms/">Waveforms</Link> for the physical
         bitline behavior.

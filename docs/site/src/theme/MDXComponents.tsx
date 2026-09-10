@@ -1,7 +1,4 @@
 import MDXComponents from "@theme-original/MDXComponents";
-import Tabs from "@theme/Tabs";
-import TabItem from "@theme/TabItem";
-import Steps from "@site/src/components/Steps";
 import FileTree from "@site/src/components/FileTree";
 import CardGrid from "@site/src/components/CardGrid";
 import LinkCard from "@site/src/components/LinkCard";
@@ -17,9 +14,6 @@ import Figure from "@site/src/components/Figure";
 // each.
 export default {
   ...MDXComponents,
-  Tabs,
-  TabItem,
-  Steps,
   FileTree,
   CardGrid,
   LinkCard,

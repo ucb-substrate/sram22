@@ -15,7 +15,7 @@ const config: Config = {
   // existing links to sram22.com stay valid.
   trailingSlash: true,
 
-  organizationName: "rahulk29",
+  organizationName: "ucb-substrate",
   projectName: "sram22",
 
   // Broken links are a build error: the docs cross-reference each other
@@ -38,7 +38,7 @@ const config: Config = {
           routeBasePath: "/docs",
           path: "docs",
           sidebarPath: "./sidebars.ts",
-          editUrl: "https://github.com/rahulk29/sram22/edit/master/docs/site/",
+          editUrl: "https://github.com/ucb-substrate/sram22/edit/master/docs/site/",
           showLastUpdateTime: true,
         },
         blog: false,
@@ -67,14 +67,14 @@ const config: Config = {
   themeConfig: {
     image: "layout/composite_preview.webp",
     colorMode: {
-      defaultMode: "dark",
+      defaultMode: "light",
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: "SRAM22",
       logo: {
         alt: "SRAM22",
         src: "img/logo-mark.svg",
+        srcDark: "img/logo-mark-dark.svg",
       },
       items: [
         {
@@ -84,54 +84,32 @@ const config: Config = {
           label: "Documentation",
         },
         {
-          href: "https://github.com/rahulk29/sram22",
+          href: "https://github.com/ucb-substrate/sram22",
           label: "GitHub",
           position: "right",
         },
       ],
     },
     footer: {
-      style: "dark",
       links: [
         {
-          title: "Documentation",
-          items: [
-            { label: "Quickstart", to: "/docs/quickstart/" },
-            { label: "Pin list", to: "/docs/interface/pin-list/" },
-            { label: "Timing diagrams", to: "/docs/interface/timing/" },
-            { label: "Macro catalog", to: "/docs/macros/" },
-          ],
+          label: "GitHub",
+          href: "https://github.com/ucb-substrate/sram22",
         },
         {
-          title: "Tutorials",
-          items: [
-            { label: "OpenROAD flow", to: "/docs/tutorial/openroad/" },
-            { label: "Cadence flow", to: "/docs/tutorial/cadence/" },
-          ],
+          label: "Issues",
+          href: "https://github.com/ucb-substrate/sram22/issues",
         },
         {
-          title: "More",
-          items: [
-            {
-              label: "GitHub",
-              href: "https://github.com/rahulk29/sram22",
-            },
-            {
-              label: "Prebuilt macros",
-              href: "https://github.com/ucb-substrate/sram22_sky130_macros",
-            },
-            {
-              label: "SKY130 PDK",
-              href: "https://skywater-pdk.readthedocs.io/",
-            },
-          ],
+          label: "License",
+          href: "https://github.com/ucb-substrate/sram22/blob/master/LICENSE",
         },
       ],
-      copyright: `SRAM22 — developed at UC Berkeley. Built with Docusaurus.`,
+      copyright: "SRAM22 is distributed under the BSD-3-Clause license.",
     },
     prism: {
       theme: prismThemes.github,
-      darkTheme: prismThemes.vsDark,
+      darkTheme: prismThemes.oneDark,
       additionalLanguages: ["bash", "toml", "rust", "tcl", "verilog", "makefile"],
     },
   } satisfies Preset.ThemeConfig,

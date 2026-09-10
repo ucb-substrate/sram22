@@ -1,39 +1,11 @@
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SRAM22 logo">
-  <defs>
-    <linearGradient id="sram-die" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1b2845"/>
-      <stop offset="0.55" stop-color="#274060"/>
-      <stop offset="1" stop-color="#335c81"/>
-    </linearGradient>
-  </defs>
-
-  <!-- chip die -->
-  <rect x="6" y="6" width="52" height="52" rx="13" fill="url(#sram-die)"/>
-  <rect x="6.75" y="6.75" width="50.5" height="50.5" rx="12.25" fill="none" stroke="#65afff" stroke-opacity="0.35" stroke-width="1.5"/>
-
-  <!-- bitlines (vertical) + wordlines (horizontal), faint -->
-  <g stroke="#65afff" stroke-opacity="0.18" stroke-width="1">
-    <line x1="32" y1="12" x2="32" y2="52"/>
-    <line x1="12" y1="32" x2="52" y2="32"/>
-  </g>
-
-  <!-- 4x4 bitcell array; one wordline (row) driven bright -->
-  <g>
-    <!-- dim cells -->
-    <g fill="#65afff" fill-opacity="0.30">
-      <rect x="15" y="15" width="8" height="8" rx="2.2"/>
-      <rect x="27" y="15" width="8" height="8" rx="2.2"/>
-      <rect x="39" y="15" width="8" height="8" rx="2.2"/>
-      <rect x="15" y="39" width="8" height="8" rx="2.2"/>
-      <rect x="27" y="39" width="8" height="8" rx="2.2"/>
-      <rect x="39" y="39" width="8" height="8" rx="2.2"/>
-    </g>
-    <!-- active wordline row -->
-    <g fill="#65afff">
-      <rect x="15" y="27" width="8" height="8" rx="2.2"/>
-      <rect x="39" y="27" width="8" height="8" rx="2.2"/>
-    </g>
-    <!-- addressed / accessed cell -->
-    <rect x="27" y="27" width="8" height="8" rx="2.2" fill="#cfe6ff"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 48" role="img" aria-labelledby="title">
+  <title id="title">SRAM22</title>
+  <style>
+    @media (prefers-color-scheme: dark) {
+      .brackets { fill: #9ec5ff; }
+      .letters { fill: #f4f7fc; }
+    }
+  </style>
+  <path class="brackets" d="M9.52 33.26H4V14.74h5.52V17H6.46v14h3.06Zm46.48 0h-5.52V31h3.06V17h-3.06v-2.26H56Z" fill="#2455b8"/>
+  <path class="letters" d="M18.1 31.51Q16.62 31.51 15.54 31.01Q14.46 30.51 13.88 29.59Q13.29 28.67 13.28 27.42H15.61Q15.61 28.36 16.28 28.9Q16.95 29.45 18.13 29.45Q19.25 29.45 19.88 28.92Q20.51 28.39 20.51 27.45Q20.51 26.67 20.07 26.1Q19.63 25.53 18.82 25.32L17.06 24.82Q15.4 24.37 14.5 23.24Q13.59 22.11 13.59 20.54Q13.59 19.31 14.15 18.41Q14.7 17.5 15.72 17Q16.73 16.49 18.11 16.49Q20.17 16.49 21.4 17.58Q22.62 18.67 22.63 20.49H20.3Q20.3 19.58 19.72 19.07Q19.15 18.55 18.08 18.55Q17.05 18.55 16.49 19.03Q15.92 19.52 15.92 20.39Q15.92 21.18 16.35 21.75Q16.78 22.31 17.59 22.54L19.39 23.06Q21.06 23.51 21.95 24.63Q22.84 25.75 22.84 27.36Q22.84 28.6 22.25 29.53Q21.66 30.47 20.6 30.99Q19.53 31.51 18.1 31.51ZM25.71 31.31V29.03L30.24 24.41Q31.24 23.37 31.71 22.54Q32.19 21.71 32.19 20.87Q32.19 19.8 31.6 19.19Q31.02 18.59 30.01 18.59Q28.9 18.59 28.27 19.23Q27.64 19.86 27.64 20.98H25.31Q25.33 19.61 25.92 18.6Q26.5 17.6 27.56 17.05Q28.62 16.51 30.04 16.51Q31.4 16.51 32.41 17.02Q33.41 17.54 33.97 18.48Q34.52 19.42 34.52 20.71Q34.52 22.03 33.84 23.29Q33.16 24.54 31.64 26.04L28.47 29.2H34.72V31.31ZM37.71 31.31V29.03L42.24 24.41Q43.24 23.37 43.71 22.54Q44.19 21.71 44.19 20.87Q44.19 19.8 43.6 19.19Q43.02 18.59 42.01 18.59Q40.9 18.59 40.27 19.23Q39.64 19.86 39.64 20.98H37.31Q37.33 19.61 37.92 18.6Q38.5 17.6 39.56 17.05Q40.62 16.51 42.04 16.51Q43.4 16.51 44.41 17.02Q45.41 17.54 45.97 18.48Q46.52 19.42 46.52 20.71Q46.52 22.03 45.84 23.29Q45.16 24.54 43.64 26.04L40.47 29.2H46.72V31.31Z" fill="#182133"/>
 </svg>

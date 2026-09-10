@@ -19,7 +19,7 @@ docusaurus.config.ts           site config (URL, navbar, footer, search, theme)
 sidebars.ts                    the docs sidebar: order and labels
 docs/**                        the documentation (served under /docs/)
 src/
-  pages/index.tsx              custom landing page (/)
+  pages/index.tsx              homepage: install command, layout preview + docs (/)
   components/                  React components, incl. the interactive widgets
   components/layout-renderer.ts  canvas vector renderer for the layout viewers
   theme/MDXComponents.tsx      components available in every MDX page
@@ -27,9 +27,10 @@ src/
   css/custom.css               design tokens — the single source for the palette
   data/                        data the docs render from (see below)
 static/
+  img/                         light/dark [S22] logo
+  favicon.svg                  logo with colors for the browser's theme
   layout/                      layout-geom.bin (vector geometry) + landing thumbnail
   figures/                     block diagram, read-timing waveform
-  img/logo-mark.svg            logo (navbar + landing hero)
   CNAME                        custom domain for GitHub Pages
 scripts/
   check-docs.mjs               consistency check (docs ⟷ Rust source)
@@ -45,9 +46,9 @@ and redraw on every zoom, so they stay crisp at any depth with no zoom cap.
 
 ## Components in MDX
 
-Small layout primitives — `Steps`, `FileTree`, `CardGrid`, `LinkCard`, `Figure`,
-and Docusaurus's `Tabs`/`TabItem` — are registered in
-`src/theme/MDXComponents.tsx` and are available in every page without an import.
+Small layout primitives — `FileTree`, `CardGrid`, `LinkCard`, and `Figure` — are
+registered in `src/theme/MDXComponents.tsx` and are available in every page without
+an import.
 
 The heavier per-page widgets (`PinExplorer`, `LayoutBrowser`, `MacroTable`,
 `PinTable`, `ConfigTable`, `TimingDiagram`, `DecoderDiagram`,
@@ -59,66 +60,88 @@ Note that MDX strips leading whitespace from every line inside a JSX block, so
 indentation cannot express nesting there — this is why `FileTree` takes a
 structured `entries` prop rather than an indented list.
 
-## Changing the color palette
+## Styling and color palette
 
-All brand colors live in **`src/css/custom.css`** as CSS custom properties.
-Edit the five brand colors (and, optionally, the derived anchors) at the top of
-that file; every page and component references the semantic `--sram-*` tokens,
-so the change propagates everywhere, including Docusaurus's Infima theme.
+The site follows [Argon's documentation style](https://github.com/ucb-substrate/argon/tree/main/docs),
+with blue accents and the same front-page proportions, type scale, overlapping
+layout preview, documentation cards, and compact footer. The hero provides the
+direct Cargo install command, and the final section links to contribution
+resources. Installation details and configuration examples live in the quickstart.
+Fira Sans (body), Space Grotesk (headings and navigation), and JetBrains Mono
+(code) are self-hosted through Fontsource. Light mode is the default; the site
+respects the system preference and retains the light/dark toggle.
+
+The navbar uses the `[S22]` mark without adjacent title text, matching Argon's
+[September 10, 2026 documentation updates](https://github.com/ucb-substrate/argon/commit/bf8ec4ee02c05634973f1f9140afc4fc9b32b5d7).
+`static/img/logo-mark.svg` and `logo-mark-dark.svg` have transparent backgrounds
+and explicit light/dark colors. The lettering is outlined JetBrains Mono, so the
+logo does not depend on font loading. `static/favicon.svg` uses the same mark and
+follows the browser's color preference. Keep its paths in sync with both logos.
+
+Brand colors and semantic `--sram-*` tokens live in **`src/css/custom.css`**.
+Update the brand anchors, light/dark semantic values, and Infima primary-color
+shades there when changing the palette. Pages and components consume these
+shared tokens rather than defining their own interface colors.
 
 The semantic tokens are defined twice — on `:root` for the light theme and on
-`[data-theme="dark"]` for the dark one. Components never branch on the theme
-themselves; they just read the tokens.
+`[data-theme="dark"]` for the dark one. Components read these tokens; the homepage
+uses Docusaurus's `ThemedImage` to select its light or dark layout thumbnail.
 
-Three things carry baked-in colors and are regenerated rather than themed:
-
-- the **logo** (`static/img/logo-mark.svg`),
-- the **layout layer colors** — the `LAYERS`/`layerStyles` tables in
-  `src/components/PinExplorer/` and `src/components/LayoutBrowser/` (the vector
-  viewers) and in `scripts/render_gds.py` (the landing thumbnail). These are GDS
-  layer colors, tuned against a dark backdrop, so those canvases stay dark in
-  both themes.
+The **layout layer colors** use fixed values in the `LAYERS`/`layerStyles`
+tables in `src/components/PinExplorer/` and `src/components/LayoutBrowser/`.
+Those interactive canvases retain a dark backdrop. The homepage thumbnails use
+separate light and dark palettes in `scripts/render_gds.py`, rendered from the
+same GDS geometry.
 
 ## Data and reproducibility
 
-The documentation does not hardcode interface or timing facts; it renders them
-from JSON in `src/data/`, generated from a real published macro
-([`sram22_64x32m4w8`](https://github.com/ucb-substrate/sram22_sky130_macros)):
+The site renders interface, configuration, pin geometry, timing, and catalog data
+from `src/data/`. These files have different sources and verification coverage:
 
-- `pins.json` — pin geometry, from the macro `.lef` (drives the pin explorer).
-- `timing.json` — setup/hold/clk-Q/min-period, from the macro `.lib`.
-- `macros.json` — the published macro catalog + silicon-validated flags.
-- `interface.json`, `config.json` — the canonical pin and config tables, which
-  `check-docs.mjs` verifies against `src/abs.rs` and `SramConfig`.
+- `pins.json`: pin geometry and macro dimensions from the published LEF.
+- `timing.json`: complete rise/fall constraint ranges, explicit illustrative table
+  entries, operating conditions, and the input Liberty SHA-256.
+- `macros.json`: a manually maintained catalog and upstream reported silicon flags.
+- `interface.json` / `config.json`: manually maintained descriptions. The checker
+  compares pin names/directions/width expressions/layers and config field names to Rust;
+  it does not validate prose, behavior, numeric timing, or configuration constraints.
 
-To regenerate from a different macro, download its `.lef`, `.lib`, and `.gds`
-and run the scripts writing directly to the paths the site consumes (they need
-Python with `gdstk`, `matplotlib`, and `Pillow`):
+The checked-in example uses the published `sram22_64x32m4w8` macro. To regenerate:
 
 ```bash
-# pins.json + timing.json  → src/data/
-python scripts/extract_data.py sram22_64x32m4w8 macro.lef macro.lib src/data
-# vector geometry (gzip bytes) → the exact file the viewers fetch
-python scripts/export_geom.py macro.gds static/layout/layout-geom.bin
-# landing thumbnail
-python scripts/render_gds.py macro.gds static/layout/composite_preview.webp
+python3 scripts/extract_data.py sram22_64x32m4w8 macro.lef macro.lib src/data
+python3 scripts/export_geom.py macro.gds static/layout/layout-geom.bin
+python3 scripts/render_gds.py macro.gds static/layout/composite_preview.webp
+python3 scripts/render_gds.py macro.gds static/layout/composite_preview_light.webp --theme light
 ```
 
-`macros.json`, `interface.json`, and `config.json` are hand-maintained;
-`check-docs.mjs` verifies `interface.json`/`config.json` against `src/abs.rs`
-and `SramConfig`.
+The LEF/Liberty extractor uses only the Python standard library. Geometry/image
+scripts also require `gdstk`, `matplotlib`, and `Pillow`. Decompress published
+`.gds.gz` files first. Use all views from the same artifact revision. Dimensions
+and layout-example captions derive from `pins.json`; review illustrative RTL and
+configuration examples separately if changing the featured macro. Update the
+published Liberty source link in `docs/interface/timing.mdx` when replacing that
+artifact. Its operating conditions and hash are extracted automatically. The parser
+rejects incompatible units and missing required timing groups instead of guessing.
+
+The timing diagram labels are explicit first-table entries at documented slew/load
+coordinates; they are not averaged constraints or guaranteed operating limits.
+`python3 -m unittest discover -s scripts -p 'test_*.py'` checks extraction of full
+rise/fall tables, including negative constraints and changed operating conditions.
 
 ## Consistency checks (CI)
 
 ```bash
 npm run check          # TypeScript typecheck
-npm run check:docs     # docs data must match the SRAM22 Rust source
+npm run check:docs     # pin attributes and config field names match Rust
 npm run build
 npm run check:links    # no broken internal links/assets
 ```
 
-These run in `.github/workflows/docs.yaml` on every pull request; the same
-workflow deploys to GitHub Pages on pushes to `master`.
+These run in `.github/workflows/docs.yaml` for pull requests matching its path
+filters; the workflow also tests the Liberty extractor. It deploys to GitHub Pages
+on matching pushes to `master`. These checks do not establish technical accuracy
+of every paragraph or qualify the EDA integration outlines.
 
 Docusaurus itself fails the build on a broken internal *page* link
 (`onBrokenLinks: "throw"`); `check-links.mjs` additionally covers assets.
@@ -134,3 +157,7 @@ hosting.
 `trailingSlash: true` is deliberate — every page is served at a URL ending in
 `/`, matching the URLs the site has always used. Changing it would break
 existing inbound links.
+
+The source button uses Docusaurus's GitHub icon, as in Argon. The adapted Argon
+styles and bracket geometry retain their BSD-3-Clause notice in
+`static/licenses/argon.txt`.

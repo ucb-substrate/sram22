@@ -16,3 +16,6 @@ pnpm-debug.log*
 .env.local
 # macOS
 .DS_Store
+
+# Python extraction tests
+__pycache__/

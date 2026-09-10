@@ -4,16 +4,17 @@ description: Browse the real SRAM22 macro layout in your browser, layer by layer
 ---
 
 import LayoutBrowser from "@site/src/components/LayoutBrowser";
+import pins from "@site/src/data/pins.json";
 
-Browse the actual `sram22_64x32m4w8` layout below, rendered directly from its
+Browse the actual <code>{pins.macro}</code> layout below, rendered directly from its
 GDS. Toggle individual mask layers, then scroll to zoom and drag to pan.
 
 <LayoutBrowser />
 
 :::tip[Try this]
 
-Turn everything off, then enable just **Poly** to see the regular wordline
-pattern of the bitcell array, or just **Met2** to see the top-level power and
+Turn everything off, then enable just **Poly** to see transistor gate patterns
+in the bitcell array, or just **Met2** to see the top-level power and
 signal routing. Enabling **Diff** + **Poly** reveals the transistors.
 
 :::
@@ -32,10 +33,11 @@ the default view):
   self-timed controller that sequences precharge, the wordline pulse, the
   replica bitline, and the sense-amp enable.
 - **Column circuitry** — the horizontal bands directly below the array:
-  precharge, the column mux, sense amplifiers, and write drivers, shared between
-  the top and bottom banks.
-- **Input/output flip-flops** — the regular cell rows at the bottom that latch
-  `addr`, `din`, `wmask`, and the control signals, and register `dout`.
+  precharge, the column mux, sense amplifiers, and write drivers serving the
+  single array.
+- **Input flip-flops** — cells that capture `addr`, `din`, `wmask`, and access
+  controls. The sense-amplifier outputs feed **differential latches** that hold
+  `dout`; there is no separate clocked output flip-flop.
 
 :::note[About this view]
 
@@ -46,5 +48,5 @@ the macro's GDS. Pin shapes for the same macro are in
 
 :::
 
-The block measures **360.32 × 191.00 µm**. Recall that it is meant to be
+The block measures **{pins.um_width.toFixed(2)} × {pins.um_height.toFixed(2)} µm**. Recall that it is meant to be
 [placed rotated 90°](/docs/orientations/) in a floorplan.

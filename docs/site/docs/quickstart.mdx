@@ -1,131 +1,77 @@
 ---
 title: Quickstart
-description: Install SRAM22 and generate your first SKY130 SRAM macro in a few minutes.
+description: Install SRAM22 and generate a macro from a TOML configuration.
 ---
 
 import ConfigTable from "@site/src/components/ConfigTable";
 
-Install SRAM22 and generate a macro. To integrate the result into a
-place-and-route flow, see the [OpenROAD](/docs/tutorial/openroad/) or
-[Cadence](/docs/tutorial/cadence/) tutorials.
-
-## Prerequisites
-
-- **Rust** (SRAM22 is tested with version 1.81.0)
-- **Make**
-- A local clone of the
-  [modified SKY130 PDK](https://github.com/ucb-substrate/skywater-pdk), with the
-  `SKY130_OPEN_PDK_ROOT` environment variable set to its absolute path.
-
-Substrate uses standard cells from the `sky130_fd_sc_hs` library, so from the
-PDK root run:
-
-```bash
-git submodule update --init libraries/sky130_fd_sc_hs/latest
-```
-
-:::tip[Just need a macro?]
-
-If you only want a ready-made SRAM and not the generator, skip installation
-and download a pre-built macro from the
-[macro catalog](/docs/macros/) — many are silicon-validated.
-
-:::
-
 ## Install
 
-<Tabs>
-  <TabItem value="external" label="External">
-    Without BWRC access you can still install and run SRAM22, but proprietary
-    tools for DRC, LVS, PEX, and simulation are unavailable.
+With a current stable Rust toolchain and Cargo:
 
-    ```bash
-    git clone https://github.com/rahulk29/sram22.git
-    cd sram22 && make install && cd -
-    ```
-  </TabItem>
-  <TabItem value="bwrc-full" label="BWRC (full)">
-    With BWRC access you get all features. Ensure you have SSH access to
-    `bwrcrepo.eecs.berkeley.edu` and add the following to `~/.cargo/config.toml`:
-
-    ```toml
-    [net]
-    git-fetch-with-cli = true
-    ```
-
-    Then install using the commercial manifest:
-
-    ```bash
-    git clone https://github.com/rahulk29/sram22.git
-    cd sram22 && mv Cargo.bwrc.toml Cargo.toml && make install && cd -
-    ```
-  </TabItem>
-</Tabs>
+```bash
+cargo install --git https://github.com/ucb-substrate/sram22 --locked sram22
+```
 
 ## Generate an SRAM
 
-<Steps>
+Create `sram22.toml` in a working directory:
 
-1. **Create a working directory and a config file.** This describes a 64-word ×
-   32-bit SRAM with a column-mux ratio of 4 and a write granularity of 8 bits:
+```toml
+num_words = 64
+data_width = 32
+mux_ratio = 4
+write_size = 8
+```
 
-   ```bash
-   mkdir sram22_64x32m4w8 && cd sram22_64x32m4w8
-   cat > sram22.toml <<'TOML'
-   num_words  = 64
-   data_width = 32
-   mux_ratio  = 4
-   write_size = 8
-   TOML
-   ```
+Run the generator:
 
-2. **Run the generator:**
+```bash
+sram22
+```
 
-   ```bash
-   sram22
-   ```
+SRAM22 reads `sram22.toml` and writes GDS, LEF, SPICE, and Verilog to
+`./sram22_64x32m4w8/`. To choose explicit paths:
 
-   By default this reads `sram22.toml` and writes the output views to the
-   current directory.
+```bash
+sram22 --config sram22.toml --output-dir output --spice-corner tt
+```
 
-3. **Add views and verification as needed.** Flags control which views are
-   produced and which checks run (most require a full BWRC install):
-
-   ```bash
-   sram22 --lef --lib      # generate the LEF abstract and Liberate timing
-   sram22 --all            # run every available step
-   ```
-
-</Steps>
+To simulate the macro in ngspice, include its `.spice` file in a testbench and
+provide power supplies, stimuli, and a simulation temperature. When combining
+several macros in one testbench, keep one copy of their shared model definitions.
 
 ## Command-line options
 
-```
-Usage: sram22 [OPTIONS]
+| Option | Meaning |
+| --- | --- |
+| `-c, --config <CONFIG>` | TOML path; default `sram22.toml` |
+| `-o, --output-dir <OUTPUT_DIR>` | Output directory; default macro name |
+| `--spice-corner <CORNER>` | SPICE model corner: `tt`, `ss`, or `ff`; default `tt` |
+| `-h, --help` | Available options for the installed build |
+| `-V, --version` | Version |
 
-Options:
-  -c, --config <CONFIG>          Path to TOML configuration file [default: sram22.toml]
-  -o, --output-dir <OUTPUT_DIR>  Directory to which output files should be saved
-      --lef                      Generate LEF (used in place and route)
-      --lib                      Generate LIB (setup, hold, and delay timing information)
-      --drc                      Run DRC using Calibre
-      --lvs                      Run LVS using Calibre
-      --pex                      Run PEX using Calibre
-  -a, --all                      Run all available steps
-  -h, --help                     Print help information
-  -V, --version                  Print version information
-```
+The BWRC build also offers `--lib`, `--drc`, `--lvs`, `--pex`, and
+`--all`. These run licensed characterization or verification. `--lib` emits
+corner-suffixed Liberty files, such as `sram22_64x32m4w8_tt_025C_1v80.lib`.
+Liberate characterizes TT, SS, and FF. Set the temperature for SPICE simulations
+in your testbench.
+
+The [macro catalog](/docs/macros/) provides characterized views for download.
 
 ## Configuration reference
 
-A valid configuration sets the following options:
-
 <ConfigTable />
 
-:::warning[Placement orientation]
+## Placement
 
-SRAM22 macros are designed to be **placed rotated by 90°**. There are four
-legal orientations (R90, R270, and their mirrored variants). See
-[Orientations](/docs/orientations/) before you place a macro in a floorplan.
+Use the project's four supported quarter-turn placements: R90, R270, and their
+mirrors. Enforce this restriction in your flow; LEF symmetry alone does not enforce
+it. See [Orientations](/docs/orientations/), then the
+[OpenROAD](/docs/tutorial/openroad/) or [Cadence](/docs/tutorial/cadence/) integration outline.
 
-:::
+## Advanced setup
+
+See the README for [source builds and custom forks](https://github.com/ucb-substrate/sram22#local-checkout-or-custom-fork),
+[BWRC installation](https://github.com/ucb-substrate/sram22#bwrc-installation),
+and [external PDK overrides](https://github.com/ucb-substrate/sram22#external-open-pdk-override).

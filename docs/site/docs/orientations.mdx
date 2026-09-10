@@ -1,62 +1,49 @@
 ---
 title: Orientations
-description: SRAM22 macros are placed rotated by 90°. The four legal orientations — R90, R270, and their mirrors — and what they mean for floorplanning.
+description: Supported SRAM22 macro placements and how to constrain them in a physical-design flow.
 ---
 
 import OrientationDiagram from "@site/src/components/OrientationDiagram";
 
-:::warning[Read this before placing a macro]
-
-SRAM22 macros are designed to be **placed rotated by 90°**. There are exactly
-**four legal orientations**: R90, R270, and the mirrored variants of each.
-Placing a macro at R0 or R180 is not supported.
-
-:::
-
-The macro is generated in a landscape "as-drawn" frame, but its pin access,
-power straps, and internal routing assume it will be rotated a quarter turn when
-placed. As a result, only the 90°-rotated placements — and their mirror images,
-which the place-and-route tool may use to abut macros or align power — are
-valid.
-
-## The four legal orientations
+The project specifies four supported placements: **R90, R270, and their mirrored
+variants**. Use those quarter-turn orientations in integration flows. R0/R180 are
+outside the project's supported placement set.
 
 <OrientationDiagram />
 
-In place-and-route orientation codes:
-
-| Orientation | DEF / LEF code | Meaning |
+| Placement | DEF code | Transformation in the original Cartesian frame |
 | --- | --- | --- |
-| R90 | `W` | Rotate 90° |
-| R270 | `E` | Rotate 270° |
-| R90 + mirror | `FW` | Rotate 90°, then flip |
-| R270 + mirror | `FE` | Rotate 270°, then flip |
+| R90 | W | Rotate 90° counterclockwise |
+| R270 | E | Rotate 270° counterclockwise |
+| R90 + mirror | FW | Reflect across the original X axis, then rotate 90° counterclockwise |
+| R270 + mirror | FE | Reflect across the original X axis, then rotate 270° counterclockwise |
 
-The macro's LEF declares `SYMMETRY X Y R90`, which tells the placer these
-mirrored/rotated variants are equivalent and legal to use.
+The generated LEF declares `SYMMETRY X Y R90`. This permits a broader set of
+candidate orientations, including N/R0 and S/R180: it **does not encode the
+project's four-orientation restriction**. Explicitly constrain or check placements
+in your integration flow. See the
+[LEF/DEF symmetry reference](https://coriolis.lip6.fr/doc/lefdef/lefdefref/LEFSyntax.html).
 
-## Why it matters
+Signal pins are on met1 along the bottom edge in the generated frame. After a
+quarter turn that edge is vertical; the met2 power geometry rotates as well.
+Plan routing access and power connections using the transformed LEF geometry.
+The placement restriction is a project integration requirement; the available
+source does not establish a more specific physical rationale or abutment guarantee.
 
-- **Pin edge.** After a 90° rotation the signal pin edge (normally the bottom
-  edge on **met1**) runs vertically. Route channels and pin access must be
-  planned for the rotated edge.
-- **Power.** The `vdd`/`vss` straps on **met2** likewise rotate; align your
-  power grid to the rotated straps.
-- **Abutment.** The mirrored variants (`FW`, `FE`) let you place two macros
-  back-to-back with aligned power and pins.
+## OpenROAD
 
-## In the flows
-
-Both tutorials fix the macro in a legal orientation explicitly:
+With the current `place_inst` API and an initialized design:
 
 ```tcl
-# OpenROAD
-place_cell -inst_name u_mem -origin {120.0 80.0} -orientation R90 -status FIXED
-
-# Innovus
-place_inst u_mem 120.0 80.0 R90 -fixed
+place_inst -name u_mem -origin {120.0 80.0} -orientation R90 -status FIRM
 ```
 
-Constrain (or check) the macro placer so it cannot choose R0/R180. See the
-[OpenROAD](/docs/tutorial/openroad/) and [Cadence](/docs/tutorial/cadence/) tutorials for
-the surrounding flow.
+Coordinates are in microns. `-origin` positions the transformed cell origin;
+`-location` instead positions its bounding box. Check the
+[API for your OpenROAD version](https://openroad.readthedocs.io/en/latest/main/src/README.html),
+since older releases used a different `place_cell` interface.
+
+For Innovus, use the placement command or GUI in your flow's documented UI/version
+to apply one of the four transforms and fix the instance. Verify the resulting
+orientation and pin access in the placed database. See the
+[OpenROAD](/docs/tutorial/openroad/) and [Cadence](/docs/tutorial/cadence/) integration outlines.

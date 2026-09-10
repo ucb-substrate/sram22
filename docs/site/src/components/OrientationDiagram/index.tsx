@@ -27,9 +27,9 @@ export default function OrientationDiagram(): JSX.Element {
               aria-label={`${t.name} orientation`}
             >
               <g
-                transform={`translate(${cx} ${cy}) rotate(${t.rot}) scale(${
+                transform={`translate(${cx} ${cy}) rotate(${t.rot}) scale(1 ${
                   t.mirror ? -1 : 1
-                } 1)`}
+                })`}
               >
                 {/* macro body (landscape in local space) */}
                 <rect

@@ -49,7 +49,7 @@ export default function MacroTable(): JSX.Element {
             {rows.map((m) => (
               <tr key={m.name}>
                 <td>
-                  <code>{m.name}</code>
+                  <a href={`${macros.repo}/tree/master/${m.name}`}><code>{m.name}</code></a>
                 </td>
                 <td>{m.num_words}</td>
                 <td>{m.data_width}</td>

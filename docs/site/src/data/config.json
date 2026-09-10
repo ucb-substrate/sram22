@@ -45,6 +45,7 @@
     }
   ],
   "constraints": [
+    "num_words, data_width, and write_size must be positive; num_words must be a power of two.",
     "mux_ratio must be 4 or 8.",
     "data_width must be an integer multiple of write_size.",
     "The number of rows, num_words / mux_ratio, must be a power of two.",

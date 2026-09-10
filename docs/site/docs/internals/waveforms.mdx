@@ -1,65 +1,42 @@
 ---
 title: Waveforms
-description: Key internal SRAM22 waveforms during a read — bitline development, the self-timed wordline pulse, and sense-amp enable.
+description: An illustrative simulated SRAM22 read and the internal control signals it exposes.
 ---
 
-The plot below shows the key internal nodes of an SRAM22 macro during a **read**,
-captured from a transistor-level simulation. It is the electrical picture behind
-the [timing diagram](/docs/interface/timing/) and the self-timed control sequence.
+The figure below is a retained transistor-level simulation plot. The source run,
+macro configuration, PVT corner, and extraction status are not recorded alongside
+this image, so it illustrates the signal sequence rather than specifying timing
+or establishing silicon performance.
 
 <Figure
   src="/figures/read_sim.png"
-  alt="SRAM22 read-timing waveforms: after the rising clock edge, PC_B goes high to end precharge, WLEN and the selected wordline WL[0] pulse high, the main bitlines BL[0] and BR[0] begin to separate, and SAEN fires the sense amplifier."
+  alt="Simulated SRAM read: CLK rises, PC_B disables precharge, WLEN and WL[0] pulse, BL[0] and BR[0] develop a differential, then SAEN rises and precharge resumes."
   plate
 />
 
-## What each trace is
+| Trace | Meaning |
+| --- | --- |
+| CLK | External clock; access starts after its rising edge |
+| PC_B | Active-low precharge control |
+| WLEN | Enable applied to the row-address gating |
+| WL[0] | Selected wordline after the decoder |
+| BL[0], BR[0] | Main-array bitline pair |
+| SAEN | Sense-amplifier enable |
 
-| Trace | Node | Role |
-| --- | --- | --- |
-| **CLK** | clock | The access begins on its rising edge. |
-| **PC_B** | precharge bar | Low precharges/equalizes the bitlines; goes high to start the access. |
-| **WLEN** | wordline enable | The self-timed enable that gates the decoded wordline. |
-| **WL[0]** | wordline | The selected row's wordline; its pulse connects the bitcells to the bitlines. |
-| **BL[0] / BR[0]** | bitline pair | The true/complement bitlines of column 0; they separate as the cell discharges one side. |
-| **SAEN** | sense-amp enable | Fires the sense amplifier once enough bitline differential has built up. |
+After CLK rises, PC_B rises to disable precharge. WLEN then asserts and the selected
+wordline rises after decoder delay. The main bitlines develop a differential.
+WLEN falls first; WL[0] falls near the subsequent SAEN transition. Finally PC_B
+falls and the bitlines return toward their precharged levels.
 
-## Reading the sequence
+## Replica timing
 
-1. On the **rising clock edge**, `PC_B` rises, ending precharge and releasing
-   the bitlines from VDD.
-2. `WLEN` asserts and the decoded **wordline** `WL[0]` pulses high, connecting
-   the addressed row's cells to their bitlines.
-3. The accessed cell pulls one of **BL[0] / BR[0]** down while the other stays
-   near VDD — the differential you can see opening between the red and olive
-   traces.
-4. `SAEN` fires the sense amplifier, which resolves the small differential to a
-   full-swing logic level and latches the result toward `dout`.
-5. The wordline turns off and `PC_B` falls again to precharge for the next
-   cycle.
+The replica bitline is **not plotted here**. In the implementation, replica
+bitline detection resets the wordline-enable path during reads. A delay chain then
+sequences sensing and precharge. One row of replica cells is driven by `rwl`; the
+other replica wordlines are tied low and contribute load.
 
-## Replica vs. main bitline
-
-The crucial timing question is *when to turn the wordline off and fire the sense
-amp*. SRAM22 answers it with a **replica bitline** rather than a fixed delay.
-
-- The **main bitlines** (`BL`/`BR` above) carry the actual read data. Their
-  differential must be large enough for the sense amp — but no larger, or time
-  and energy are wasted.
-- A **replica bitline**, loaded by a small group of always-on replica cells,
-  discharges at a rate that tracks the real bitlines across process, voltage,
-  and temperature. When the replica bitline falls to ≈ VDD/2, the control logic
-  turns `WLEN` off and asserts `SAEN`.
-
-Because the replica tracks the real array, the wordline pulse self-adjusts: it
-is just long enough to develop a reliable sense margin in every corner, instead
-of being padded for the worst case.
-
-:::note
-
-This replica-based self-timing is implemented in the control logic block (see
-the <a href="/docs/internals/layout/">layout</a>, mid-left of the floorplan). The behavioral
-sketch of the control SR-latches is summarized in the
-<a href="/docs/internals/algorithms/#self-timed-control">algorithms</a> page.
-
-:::
+The mechanism is intended to track array behavior across operating conditions.
+This image does not demonstrate a particular replica trip voltage, replica/main
+tracking accuracy, or sensing margin across all PVT corners. See
+[Algorithms](/docs/internals/algorithms/#self-timed-control) for the source-derived
+sequence and [Timing diagrams](/docs/interface/timing/) for characterized Liberty constraints.

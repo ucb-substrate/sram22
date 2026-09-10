@@ -1,195 +1,289 @@
-import React, { type JSX } from "react";
+import pins from "@site/src/data/pins.json";
+import React, { useCallback, useEffect, useRef, useState, type JSX, type ReactNode } from "react";
 import Layout from "@theme/Layout";
+import ThemedImage from "@theme/ThemedImage";
+import GitHubIcon from "@theme/Icon/Socials/GitHub";
 import Link from "@docusaurus/Link";
-import CodeBlock from "@theme/CodeBlock";
 import useBaseUrl from "@docusaurus/useBaseUrl";
-import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
-import macros from "@site/src/data/macros.json";
 import styles from "./index.module.css";
 
-const REPO = "https://github.com/rahulk29/sram22";
-const MACROS_REPO = macros.repo;
+const REPO = "https://github.com/ucb-substrate/sram22";
+const INSTALL = `cargo install --git ${REPO} --locked sram22`;
 
-const total = macros.macros.length;
-const validated = macros.macros.filter((m) => m.silicon_validated).length;
+// Lucide icons (ISC), matching the documentation cards on the Argon site.
+const ICONS = {
+  book: (
+    <>
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+    </>
+  ),
+  code: (
+    <>
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </>
+  ),
+  terminal: (
+    <>
+      <polyline points="4 17 10 11 4 5" />
+      <line x1="12" y1="19" x2="20" y2="19" />
+    </>
+  ),
+  window: (
+    <>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M2 9h20" />
+      <path d="M8 9v11" />
+    </>
+  ),
+} satisfies Record<string, ReactNode>;
 
-const FEATURES = [
+const DOC_GROUPS = [
   {
-    title: "Parametric",
-    body: "Depth, word width, column-mux ratio (4 or 8), and write granularity are set in a TOML file. The decoders, drivers, and self-timed control are sized accordingly.",
+    icon: "book",
+    title: "Quickstart",
+    description: "Installation, TOML configuration, and command-line options.",
+    to: "/docs/quickstart/",
+    action: "Read the guide",
   },
   {
-    title: "Complete view set",
-    body: "Each run emits GDS, a LEF abstract, a SPICE netlist, Liberty (.lib) timing for multiple PVT corners, and a Verilog behavioral model.",
+    icon: "code",
+    title: "Interface",
+    description: "Pin definitions, physical pin positions, and read/write timing.",
+    to: "/docs/interface/pin-list/",
+    action: "Interface reference",
   },
   {
-    title: "P&R integration",
-    body: "Instantiated as a hard macro in OpenROAD or Cadence Genus/Innovus, placed rotated 90° in one of four legal orientations.",
+    icon: "terminal",
+    title: "Physical design",
+    description: "OpenROAD and Cadence flows, macro placement, and orientations.",
+    to: "/docs/tutorial/openroad/",
+    action: "Integration guide",
   },
   {
-    title: "Measured in silicon",
-    body: `${validated} of the ${total} published macros have been taped out on SKY130 and verified functional at VDD = 1.8 V, 25 MHz.`,
+    icon: "window",
+    title: "Internals",
+    description: "Layout geometry, control waveforms, and generation algorithms.",
+    to: "/docs/internals/layout/",
+    action: "Browse the layout",
   },
-];
+] satisfies Array<{
+  icon: keyof typeof ICONS;
+  title: string;
+  description: string;
+  to: string;
+  action: string;
+}>;
 
-const INSTALL = `git clone ${REPO}.git
-cd sram22 && make install && cd -
+// Adapted from Argon's install strip (BSD-3-Clause; static/licenses/argon.txt).
+function InstallCommand({ command }: { command: string }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
 
-# describe the SRAM you want
-cat > sram22.toml <<'TOML'
-num_words  = 64
-data_width = 32
-mux_ratio  = 4
-write_size = 8
-TOML
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopied(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // The command remains selectable if clipboard access is unavailable.
+    }
+  }, [command]);
 
-sram22            # generates the macro`;
-
-function GitHubIcon(): JSX.Element {
   return (
-    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+    <div className={styles.install}>
+      <code>
+        {command.split(" ").map((token, index) => (
+          <React.Fragment key={index}>
+            {index > 0 && " "}
+            <span className={styles.token}>{token}</span>
+          </React.Fragment>
+        ))}
+      </code>
+      <button
+        type="button"
+        className={`${styles.copy}${copied ? ` ${styles.copied}` : ""}`}
+        onClick={copy}
+        aria-label={copied ? "Copied" : "Copy install command"}
+        title={copied ? "Copied" : "Copy"}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          {copied ? (
+            <path d="M20 6 9 17l-5-5" />
+          ) : (
+            <>
+              <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+              <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+            </>
+          )}
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+function Icon({ name }: { name: keyof typeof ICONS }): JSX.Element {
+  return (
+    <svg
+      className={styles.icon}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {ICONS[name]}
     </svg>
   );
 }
 
-function Hero(): JSX.Element {
-  return (
-    <header className={styles.hero}>
-      <div className={styles.container}>
-        <img
-          className={styles.heroMark}
-          src={useBaseUrl("/img/logo-mark.svg")}
-          alt=""
-          width={64}
-          height={64}
-        />
-        <p className={styles.eyebrow}>
-          Single-port SRAM generator · SKY130 · open source
-        </p>
-        <h1 className={styles.title}>
-          Configurable SRAM macros for <span className={styles.grad}>SKY130</span>
-          .
-        </h1>
-        <p className={styles.lede}>
-          SRAM22 generates single-port SRAM macros from a short TOML description
-          — depth, word width, column-mux ratio, and write granularity. Each run
-          produces GDS, LEF, SPICE, Liberty timing across PVT corners, and a
-          Verilog model.
-        </p>
-        <div className={styles.cta}>
-          <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/docs/">
-            Documentation
-          </Link>
-          <Link className={`${styles.btn} ${styles.btnGhost}`} to={REPO}>
-            <GitHubIcon /> Source on GitHub
-          </Link>
-        </div>
-
-        <dl className={styles.stats}>
-          <div>
-            <dt>{total}</dt>
-            <dd>published macros</dd>
-          </div>
-          <div>
-            <dt>{validated}</dt>
-            <dd>silicon-validated</dd>
-          </div>
-          <div>
-            <dt>SKY130</dt>
-            <dd>open PDK</dd>
-          </div>
-          <div>
-            <dt>BSD-3</dt>
-            <dd>licensed</dd>
-          </div>
-        </dl>
-      </div>
-    </header>
-  );
-}
-
-function Features(): JSX.Element {
-  return (
-    <section className={`${styles.container} ${styles.features}`}>
-      {FEATURES.map((f) => (
-        <article className={styles.card} key={f.title}>
-          <h3>{f.title}</h3>
-          <p>{f.body}</p>
-        </article>
-      ))}
-    </section>
-  );
-}
-
-function Showcase(): JSX.Element {
-  return (
-    <section className={`${styles.container} ${styles.showcase}`}>
-      <div>
-        <h2>Inspect a generated macro</h2>
-        <p>
-          The layout below is <code>sram22_64x32m4w8</code> — a 64-word × 32-bit
-          macro — rendered from its GDS. Browse it layer by layer, inspect each
-          pin&apos;s physical position, and view the internal read waveforms in
-          the docs.
-        </p>
-        <div className={styles.showcaseLinks}>
-          <Link to="/docs/internals/layout/">Layout browser →</Link>
-          <Link to="/docs/interface/pin-positions/">Pin positions →</Link>
-          <Link to="/docs/internals/waveforms/">Waveforms →</Link>
-        </div>
-      </div>
-      <Link className={styles.showcaseFigure} to="/docs/internals/layout/">
-        <img
-          src={useBaseUrl("/layout/composite_preview.webp")}
-          width={2200}
-          height={1166}
-          alt="GDS layout of the sram22_64x32m4w8 macro"
-          loading="lazy"
-        />
-        <span className={styles.showcaseCap}>
-          sram22_64x32m4w8 · 360.32 × 191.00 µm
-        </span>
-      </Link>
-    </section>
-  );
-}
-
-function GetStarted(): JSX.Element {
-  return (
-    <section className={`${styles.container} ${styles.getStarted}`}>
-      <h2>Install and generate</h2>
-      <p>Install the generator, write a config, and run:</p>
-      <div className={styles.code}>
-        <CodeBlock language="bash">{INSTALL}</CodeBlock>
-      </div>
-      <div className={styles.cta}>
-        <Link
-          className={`${styles.btn} ${styles.btnPrimary}`}
-          to="/docs/quickstart/"
-        >
-          Quickstart guide
-        </Link>
-        <Link className={`${styles.btn} ${styles.btnGhost}`} to={MACROS_REPO}>
-          Pre-built macros ↗
-        </Link>
-      </div>
-    </section>
-  );
-}
-
 export default function Home(): JSX.Element {
-  const { siteConfig } = useDocusaurusContext();
   return (
     <Layout
-      title={`${siteConfig.title} — configurable SRAM generator for SKY130`}
-      description="Configurable single-port SRAM generator for the SKY130 process. Produces GDS, LEF, SPICE, Liberty timing, and a Verilog model from a short TOML description."
+      wrapperClassName="front-page"
+      description="SRAM22 generates single-port SRAM macros for SKY130 from a TOML configuration. Installation, configuration, interface reference, and physical-design integration."
     >
-      <Hero />
-      <main>
-        <Features />
-        <Showcase />
-        <GetStarted />
+      <main className={styles.main}>
+        <section className={styles.hero} aria-labelledby="sram22-title">
+          <div className={styles.container}>
+            <h1 id="sram22-title">SRAM22</h1>
+            <p className={styles.tagline}>
+              A parametric single-port SRAM generator for the SKY130 process.
+            </p>
+            <div className={styles.actions}>
+              <Link
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                to="/docs/quickstart/"
+              >
+                Quickstart
+              </Link>
+              <Link
+                className={`${styles.btn} ${styles.btnSecondary}`}
+                to={REPO}
+              >
+                <GitHubIcon
+                  className={styles.githubIcon}
+                  aria-hidden="true"
+                  focusable="false"
+                />
+                Source on GitHub
+              </Link>
+            </div>
+            <InstallCommand command={INSTALL} />
+          </div>
+        </section>
+
+        <div className={`${styles.container} ${styles.shotWrap}`}>
+          <figure className={styles.shot}>
+            <Link to="/docs/internals/layout/">
+              <ThemedImage
+                sources={{
+                  light: useBaseUrl("/layout/composite_preview_light.webp"),
+                  dark: useBaseUrl("/layout/composite_preview.webp"),
+                }}
+                width={2200}
+                height={1166}
+                alt={`GDS layout of ${pins.macro}. Open the interactive layout browser.`}
+              />
+            </Link>
+            <figcaption>
+              <code>{pins.macro}</code> · {pins.num_words} words × {pins.data_width} bits · {pins.um_width.toFixed(2)} × {pins.um_height.toFixed(2)} µm.
+              {" "}<Link to="/docs/internals/layout/">Open the layout browser</Link>.
+            </figcaption>
+          </figure>
+        </div>
+
+        <section
+          className={`${styles.container} ${styles.section}`}
+          aria-labelledby="features-title"
+        >
+          <h2 id="features-title" className={styles.heading}>
+            Features
+          </h2>
+          <div className={styles.details}>
+            <div>
+              <h3>Parametric generation</h3>
+              <p>
+                Configurable depth, word width, column multiplexing, and write-mask
+                granularity. SRAM22 generates the array geometry and sizes the
+                decoders and wordline drivers for each{" "}
+                <Link to="/docs/quickstart/#configuration-reference">
+                  configuration
+                </Link>.
+              </p>
+            </div>
+            <div>
+              <h3>Physical-design views</h3>
+              <p>
+                GDS layout, LEF abstracts, SPICE netlists, and Verilog models for
+                simulation and place-and-route. BWRC builds also support Liberty
+                characterization and DRC, LVS, and parasitic extraction through
+                commercial tools.
+              </p>
+            </div>
+            <div>
+              <h3>Self-timed architecture</h3>
+              <p>
+                Replica-based timing controls the wordline pulse and sense-amplifier
+                activation. A single bitcell array shares precharge, transmission-gate
+                column muxes, sense amplifiers, and masked write drivers. See the{" "}
+                <Link to="/docs/internals/algorithms/#self-timed-control">control sequence</Link>.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <nav className={styles.band} aria-labelledby="docs-title">
+          <div className={`${styles.container} ${styles.section}`}>
+            <h2 id="docs-title" className={styles.heading}>Documentation</h2>
+            <div className={styles.cards}>
+              {DOC_GROUPS.map((group) => (
+                <div className={styles.card} key={group.title}>
+                  <span className={styles.iconWrap}>
+                    <Icon name={group.icon} />
+                  </span>
+                  <h3>{group.title}</h3>
+                  <p>{group.description}</p>
+                  <Link
+                    className={`${styles.btn} ${styles.btnSecondary} ${styles.btnSmall}`}
+                    to={group.to}
+                  >
+                    {group.action}
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        </nav>
+
+        <section
+          className={`${styles.container} ${styles.section}`}
+          aria-labelledby="involved-title"
+        >
+          <h2 id="involved-title" className={styles.heading}>Get involved</h2>
+          <p className={styles.involved}>
+            SRAM22 is developed on <Link to={REPO}>GitHub</Link>. Bug reports
+            and pull requests are welcome. Report problems in the{" "}
+            <Link to={`${REPO}/issues`}>issue tracker</Link>, or follow the{" "}
+            <Link to={`${REPO}#local-checkout-or-custom-fork`}>
+              local checkout instructions
+            </Link>{" "}
+            to make changes and contribute.
+          </p>
+        </section>
       </main>
     </Layout>
   );

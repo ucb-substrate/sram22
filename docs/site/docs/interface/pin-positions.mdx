@@ -4,10 +4,12 @@ description: Interactive viewer for the physical location of every pin on an SRA
 ---
 
 import PinExplorer from "@site/src/components/PinExplorer";
+import pins from "@site/src/data/pins.json";
 
-Every pin has a physical location on the macro boundary, taken straight from the
+Signal pins have landing shapes at the macro edge, and power pins span the block.
+Their locations are taken from the
 LEF abstract. Use the explorer below to find any pin on the real
-`sram22_64x32m4w8` layout.
+<code>{pins.macro}</code> layout.
 
 - **Click a pin group** (e.g. `addr`, `din`) to highlight all of its bits and
   zoom to fit them.
@@ -30,7 +32,7 @@ toggle.
 
 :::
 
-This macro measures **360.32 × 191.00 µm**. Remember that it is
+This macro measures **{pins.um_width.toFixed(2)} × {pins.um_height.toFixed(2)} µm**. Remember that it is
 [placed rotated 90°](/docs/orientations/), so in a real floorplan the pin edge
 runs vertically, and you connect your power distribution network to the `vdd`/`vss`
 met2 straps.

@@ -1,19 +1,18 @@
 ---
-title: SRAM22 documentation
+title: Documentation
 description: A configurable, open-source SRAM generator for the SKY130 process — overview and guide to the documentation.
 ---
 
 **SRAM22** is a configurable SRAM generator developed at UC Berkeley. Given a
 short TOML description — depth, word width, column-mux ratio, and write
-granularity — it parametrically generates a complete, DRC/LVS-clean SRAM macro
+granularity — it parametrically generates an SRAM macro
 for the [SkyWater **SKY130**](https://skywater-pdk.readthedocs.io/) open process.
 
-Each generated macro comes with every view a physical-design flow needs:
+The generator emits these views:
 
 - **GDS** layout
 - **LEF** abstract (for place-and-route)
 - **SPICE** netlist
-- **Liberate `.lib`** timing across PVT corners
 - **Verilog** behavioral model
 
 :::note[Process support]
@@ -23,12 +22,17 @@ project; use generated macros at your own risk.
 
 :::
 
+Liberty timing is available from the published catalog or optional commercial
+characterization.
+Run DRC/LVS and timing checks for your generated configuration and integration.
+
 ## Architecture at a glance
 
-SRAM22 builds a self-timed SRAM around a 6T bitcell array with a divided
-wordline / divided bitline organization, four-way banking, and replica-based
-timing control. Inputs are latched on the rising clock edge; a replica bitline
-turns the wordline pulse off and fires the sense amplifiers.
+SRAM22 builds a self-timed SRAM around one 6T bitcell array with shared column
+peripherals and replica-based timing control. Address, data, and access controls
+are captured on the rising clock edge. Physical reset is asynchronous. Replica
+bitline detection ends the read wordline pulse, followed by delayed sensing and
+precharge. The output uses a differential latch.
 
 <Figure
   src="/figures/block_diagram.png"
@@ -73,6 +77,6 @@ turns the wordline pulse off and fires the sense amplifiers.
   <LinkCard
     title="Macro catalog"
     href="/docs/macros/"
-    description="Pre-built, silicon-validated macros you can download."
+    description="Pre-built macros, including the reported silicon-tested set."
   />
 </CardGrid>
