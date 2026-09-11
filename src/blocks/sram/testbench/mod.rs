@@ -129,16 +129,18 @@ impl TbParams {
     }
 
     pub fn sram_signal_path(&self, signal: TbSignals) -> String {
-        #[allow(unused_variables)]
-        let mut last_stage_decoder_depth = 0;
-        let mut node = &self.dsn.row_decoder.tree.root;
-        let num_children = node.children.len();
-        if num_children == 1 {
-            while node.gate.gate_type().is_inv() {
-                last_stage_decoder_depth += 1;
-                node = &node.children[0];
+        #[cfg(feature = "commercial")]
+        let last_stage_decoder_depth = {
+            let mut depth = 0;
+            let mut node = &self.dsn.row_decoder.tree.root;
+            if node.children.len() == 1 {
+                while node.gate.gate_type().is_inv() {
+                    depth += 1;
+                    node = &node.children[0];
+                }
             }
-        }
+            depth
+        };
 
         match signal {
             TbSignals::Clk => "clk".to_string(),
@@ -895,7 +897,7 @@ pub fn tb_params(
     let addr2 = BitSignal::ones(addr_width);
     let mask1 = BitSignal::from_vec(
         std::iter::once(true)
-            .chain(std::iter::repeat(false).take(wmask_width - 1))
+            .chain(std::iter::repeat_n(false, wmask_width - 1))
             .collect(),
     );
 

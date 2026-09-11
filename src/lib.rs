@@ -1,17 +1,15 @@
 #![allow(unexpected_cfgs)]
 
+#[cfg(feature = "commercial")]
 use std::path::PathBuf;
 
 #[cfg(feature = "commercial")]
 use crate::verification::calibre::SKY130_LAYERPROPS_PATH;
 pub use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
-#[cfg(not(feature = "commercial"))]
 use ngspice::Ngspice;
 #[cfg(feature = "commercial")]
 use sky130_commercial_pdk::Sky130CommercialPdk;
-#[cfg(not(feature = "commercial"))]
-use sky130_open_pdk::Sky130OpenPdk;
 #[cfg(feature = "commercial")]
 use spectre::Spectre;
 #[cfg(feature = "commercial")]
@@ -21,13 +19,12 @@ use sub_calibre::CalibreLvs;
 #[cfg(feature = "commercial")]
 use sub_calibre::CalibrePex;
 use substrate::data::{SubstrateConfig, SubstrateCtx};
-#[cfg(not(feature = "commercial"))]
-use substrate::pdk::PdkParams;
 use substrate::schematic::netlist::impls::spice::SpiceNetlister;
 use substrate::verification::simulation::{Simulator, SimulatorOpts};
 use tera::Tera;
 
 pub mod abs;
+pub mod assets;
 pub mod blocks;
 pub mod cli;
 #[cfg(feature = "commercial")]
@@ -37,22 +34,25 @@ pub mod measure;
 pub mod paths;
 pub mod pex;
 pub mod plan;
+pub mod spice;
 pub mod tech;
 pub mod verification;
 pub mod verilog;
 
 pub const BUILD_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/build");
 pub const LIB_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/lib");
-pub const SKY130_OPEN_PDK_ROOT: &str = env!("SKY130_OPEN_PDK_ROOT");
 #[cfg(feature = "commercial")]
 pub const SKY130_COMMERCIAL_PDK_ROOT: &str = env!("SKY130_COMMERCIAL_PDK_ROOT");
 
 lazy_static! {
-    pub static ref TEMPLATES: Tera =
-        match Tera::new(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/*")) {
-            Ok(t) => t,
-            Err(e) => panic!("Error parsing templates: {e}"),
-        };
+    pub static ref TEMPLATES: Tera = match Tera::new(
+        assets::path("templates/*")
+            .to_str()
+            .expect("invalid temporary path")
+    ) {
+        Ok(t) => t,
+        Err(e) => panic!("Error parsing templates: {e}"),
+    };
 }
 
 pub fn bus_bit(name: &str, index: usize) -> String {
@@ -60,23 +60,33 @@ pub fn bus_bit(name: &str, index: usize) -> String {
 }
 
 pub fn setup_ctx() -> SubstrateCtx {
+    try_setup_ctx().expect("failed to initialize SRAM22")
+}
+
+pub fn try_setup_open_ctx() -> Result<SubstrateCtx> {
+    let cfg = SubstrateConfig::builder()
+        .pdk(tech::sky130::OpenPdk::new()?)
+        .netlister(SpiceNetlister::new())
+        .simulator(Ngspice::new(SimulatorOpts::default())?)
+        .build();
+    Ok(SubstrateCtx::from_config(cfg)?)
+}
+
+pub fn try_setup_ctx() -> Result<SubstrateCtx> {
     #[cfg(not(feature = "commercial"))]
-    let simulator = Ngspice::new(SimulatorOpts::default()).unwrap();
+    let simulator = Ngspice::new(SimulatorOpts::default())?;
 
     #[cfg(feature = "commercial")]
-    let simulator = Spectre::new(SimulatorOpts::default()).unwrap();
+    let simulator = Spectre::new(SimulatorOpts::default())?;
 
     let mut builder = SubstrateConfig::builder();
 
     #[cfg(feature = "commercial")]
     let builder = builder
-        .pdk(
-            Sky130CommercialPdk::new(
-                PathBuf::from(SKY130_COMMERCIAL_PDK_ROOT),
-                PathBuf::from(SKY130_OPEN_PDK_ROOT),
-            )
-            .unwrap(),
-        )
+        .pdk(Sky130CommercialPdk::new(
+            PathBuf::from(SKY130_COMMERCIAL_PDK_ROOT),
+            assets::standard_cell_root(),
+        )?)
         .drc_tool(
             CalibreDrc::builder()
                 .rules_file(PathBuf::from(
@@ -86,8 +96,7 @@ pub fn setup_ctx() -> SubstrateCtx {
                     crate::verification::calibre::SKY130_DRC_RUNSET_PATH,
                 ))
                 .layerprops(PathBuf::from(SKY130_LAYERPROPS_PATH))
-                .build()
-                .unwrap(),
+                .build()?,
         )
         .lvs_tool(
             CalibreLvs::builder()
@@ -95,19 +104,13 @@ pub fn setup_ctx() -> SubstrateCtx {
                     crate::verification::calibre::SKY130_LVS_RULES_PATH,
                 ))
                 .layerprops(PathBuf::from(SKY130_LAYERPROPS_PATH))
-                .build()
-                .unwrap(),
+                .build()?,
         )
         .pex_tool(CalibrePex::new(PathBuf::from(
             crate::verification::calibre::SKY130_PEX_RULES_PATH,
         )));
     #[cfg(not(feature = "commercial"))]
-    let builder = builder.pdk(
-        Sky130OpenPdk::new(&PdkParams {
-            pdk_root: PathBuf::from(SKY130_OPEN_PDK_ROOT),
-        })
-        .unwrap(),
-    );
+    let builder = builder.pdk(tech::sky130::OpenPdk::new()?);
 
     #[cfg(feature = "commercial")]
     builder.simulation_bashrc("/tools/B/rahulkumar/sky130/priv/drc/.bashrc");
@@ -117,7 +120,7 @@ pub fn setup_ctx() -> SubstrateCtx {
         .simulator(simulator)
         .build();
 
-    SubstrateCtx::from_config(cfg).unwrap()
+    Ok(SubstrateCtx::from_config(cfg)?)
 }
 
 #[cfg(test)]

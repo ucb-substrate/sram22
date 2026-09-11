@@ -130,7 +130,11 @@ fn draw_route(
             .tracks()
             .index(*track)
     }));
-    let end_dir = if tracks.len() % 2 == 0 { dir } else { !dir };
+    let end_dir = if tracks.len().is_multiple_of(2) {
+        dir
+    } else {
+        !dir
+    };
     spans.push(end.span(!end_dir));
     let mut curr_dir = dir;
     let mut prev_rect = None;

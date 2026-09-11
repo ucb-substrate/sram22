@@ -84,7 +84,7 @@ fn plot_inner(
 
     // To avoid the IO failure being ignored silently, we manually call the present function
     root.present().expect("Unable to write result to file");
-    println!("Result has been saved to {:?}", &params.output_path);
+    println!("Result has been saved to {:?}", params.output_path);
 
     Ok(())
 }
@@ -93,7 +93,7 @@ pub fn plot_read(params: PlotParams) -> substrate::error::Result<()> {
     plot_inner(
         params,
         138e-9f32..158e-9f32,
-        &vec![
+        &[
             ("clk", TbSignals::Clk),
             ("rwl", TbSignals::Rwl),
             ("rbl", TbSignals::Rbl),
@@ -110,7 +110,7 @@ pub fn plot_write(params: PlotParams) -> substrate::error::Result<()> {
     plot_inner(
         params,
         38e-9f32..58e-9f32,
-        &vec![
+        &[
             ("clk", TbSignals::Clk),
             ("write_driver_en[0]", TbSignals::WeI(0)),
             ("write_driver_enb[0]", TbSignals::WeIb(0)),

@@ -1,0 +1,25 @@
+.tableWrap {
+  overflow-x: auto;
+}
+.cfg table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.cfg th,
+.cfg td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--sram-border-solid);
+  vertical-align: top;
+}
+.cfg th {
+  font-weight: 650;
+  white-space: nowrap;
+}
+.cfg td:nth-child(3) {
+  white-space: nowrap;
+}
+.cfg h4 {
+  margin: 1.4rem 0 0.5rem;
+}

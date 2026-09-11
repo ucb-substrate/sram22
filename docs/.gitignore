@@ -1,1 +1,3 @@
-package-lock.json
+# The Docusaurus site keeps its own .gitignore at docs/docusaurus/.gitignore
+# (node_modules, build, .docusaurus). package-lock.json is intentionally
+# committed so CI can run `npm ci` reproducibly.

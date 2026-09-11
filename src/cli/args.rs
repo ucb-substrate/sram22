@@ -21,8 +21,7 @@ pub struct Args {
     #[arg(short, long)]
     pub output_dir: Option<PathBuf>,
 
-    /// Generate LIB timing using Liberate MX SPICE characterization instead of
-    /// the open-source interpolation model (requires a full installation).
+    /// Generate LIB timing with Liberate MX instead of interpolation.
     #[cfg(feature = "commercial")]
     #[arg(long)]
     pub liberate: bool,
@@ -38,14 +37,12 @@ pub struct Args {
     pub lvs: bool,
 
     #[cfg(feature = "commercial")]
-    /// Run all available steps.
+    /// Run DRC and LVS as well as generation. Use --liberate for characterization.
     #[arg(short, long)]
     pub all: bool,
 
     /// Maximum number of SRAMs to generate concurrently. Defaults to no limit
-    /// (all at once). With a commercial install each also runs licensed,
-    /// memory-intensive PEX and Liberate MX steps, so cap this if your licenses
-    /// or compute are limited.
+    /// (all at once). This limit also applies when PEX or Liberate MX is selected.
     #[arg(short = 'p', long)]
     pub parallel: Option<usize>,
 }

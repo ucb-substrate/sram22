@@ -1,0 +1,86 @@
+.lyb {
+  border: 1px solid var(--sram-border-solid);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--sram-panel);
+  margin: 1.2rem 0;
+}
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.layers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.layer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  font-family: var(--sram-mono);
+  cursor: pointer;
+  user-select: none;
+}
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+}
+.actions {
+  display: flex;
+  gap: 6px;
+}
+.btn {
+  background: var(--sram-surface-solid);
+  border: 1px solid var(--sram-border-solid);
+  color: inherit;
+  border-radius: 8px;
+  padding: 5px 11px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.btn:hover {
+  border-color: var(--sram-sky);
+}
+.viewport {
+  position: relative;
+  height: 500px;
+  border-radius: 10px;
+  overflow: hidden;
+  /* The GDS layer colors are tuned against a dark backdrop, so the canvas
+     stays dark in both themes. */
+  background: #0a0f1a;
+}
+.canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+/* The renderer toggles this plain class name directly on the canvas. */
+.canvas:global(.is-grabbing) {
+  cursor: grabbing;
+}
+.loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8a9bbb;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+.hint {
+  margin: 8px 2px 0;
+  font-size: 0.78rem;
+  color: var(--sram-text-muted);
+}

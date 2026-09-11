@@ -1,0 +1,89 @@
+---
+title: Quickstart
+description: Install SRAM22 and generate a macro from a TOML configuration.
+---
+
+import ConfigTable from "@site/src/components/ConfigTable";
+
+## Install
+
+With a current stable Rust toolchain and Cargo:
+
+```bash
+cargo install --git https://github.com/ucb-substrate/sram22 --locked sram22
+```
+
+## Generate an SRAM
+
+Create `sram22.toml` in a working directory:
+
+```toml
+[[sram]]
+num_words = 64
+data_width = 32
+mux_ratio = 4
+write_size = 8
+```
+
+Run the generator:
+
+```bash
+sram22
+```
+
+SRAM22 reads `sram22.toml` and writes GDS, LEF, SPICE, Verilog, and Liberty to
+`build/sram22_64x32m4w8/` beside the configuration file. Add more `[[sram]]` blocks
+to generate several macros; each gets its own output subdirectory. A single
+configuration without the header is also accepted. To choose explicit paths:
+
+```bash
+sram22 --config sram22.toml --output-dir output
+```
+
+To simulate the macro in ngspice, load its `.spice` circuit netlist and the
+device-model library from your SKY130 PDK in a testbench. Select the corner with
+`.lib`, and provide power supplies, stimuli, and temperature. See the
+[SPICE simulation example](https://github.com/ucb-substrate/sram22#spice-simulation).
+
+## Command-line options
+
+| Option | Meaning |
+| --- | --- |
+| `-c, --config <CONFIG>` | TOML path; default `sram22.toml` |
+| `-o, --output-dir <OUTPUT_DIR>` | Parent output directory; default `build/` beside the config |
+| `-p, --parallel <PARALLEL>` | Maximum concurrent macros; default no limit |
+| `-h, --help` | Available options for the installed build |
+| `-V, --version` | Version |
+
+The BWRC build offers `--liberate` for Liberate MX characterization, and `--drc`
+and `--lvs` for Calibre verification. A per-macro `pex_level` runs extraction.
+`--all` enables DRC/LVS; it uses interpolated timing unless `--liberate` is also
+supplied. Liberate uses extracted netlists when `pex_level` is set.
+
+## Liberty timing
+
+Generation includes TT, SS, and FF Liberty files, such as
+`sram22_64x32m4w8_tt_025C_1v80.lib`, using interpolation by default. Timing data
+supports `write_size = 8`, word widths from 8 to 128 bits, and depths of 64, 128,
+256, 512, 1024, or 2048 words. Both mux ratios are supported except 64 words with
+mux ratio 8. Other configurations need additional timing data or a BWRC build
+with `--liberate`. See the
+[model assumptions](https://github.com/ucb-substrate/sram22/blob/main/timingdata/INTERPOLATION.md).
+
+The [macro catalog](/docs/macros/) provides characterized views for download.
+
+## Configuration reference
+
+<ConfigTable />
+
+## Placement
+
+Use the project's four supported quarter-turn placements: R90, R270, and their
+mirrors. Enforce this restriction in your flow; LEF symmetry alone does not enforce
+it. See [Orientations](/docs/orientations/), then the
+[OpenROAD](/docs/tutorial/openroad/) or [Cadence](/docs/tutorial/cadence/) integration outline.
+
+## Advanced setup
+
+See the README for [source builds and custom forks](https://github.com/ucb-substrate/sram22#local-checkout-or-custom-fork)
+and [BWRC installation](https://github.com/ucb-substrate/sram22#bwrc-installation).

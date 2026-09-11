@@ -1,87 +1,19 @@
-# SRAM 22
+# SRAM22
 
-## A Configurable SRAM Generator
+SRAM22 is a configurable single-port SRAM generator for SKY130, developed at UC
+Berkeley. It is a research tool; validate generated macros in your integration flow.
 
-SRAM22 parametrically generates SRAM blocks. At the moment, we only support the SKY130 process.
-SRAM22 is still a work in progress.
+## Installation
 
-### Dependencies
-
-In order to use SRAM22, your system will need to have the following components:
-
-- Rust (SRAM22 is tested with version 1.81.0)
-- Make
-- A local clone of our [slightly modified version of the SKY 130 PDK](https://github.com/ucb-substrate/skywater-pdk). 
-You will also need to set the environment variable `SKY130_OPEN_PDK_ROOT` to the absolute path of the local PDK's root directory.
-Substrate uses standard cells from the `sky130_fd_sc_hs` library, so you will also need to run the following from the PDK root directory:
-    ```
-    git submodule update --init libraries/sky130_fd_sc_hs/latest
-    ```
-
-### Installation
-
-#### BWRC
-
-If you have BWRC access, you can install all features of SRAM22. Make sure that you have SSH access to [bwrcrepo.eecs.berkeley.edu](https://bwrcrepo.eecs.berkeley.edu) from a BWRC machine by [adding your SSH key to your GitLab account](https://docs.gitlab.com/ee/user/ssh.html#add-an-ssh-key-to-your-gitlab-account). You will then need to add the following lines to your `~/.cargo/config.toml` file:
-
-```
-[net]
-git-fetch-with-cli = true
-[registries]
-substrate = { index = "https://github.com/substrate-labs/crates-index" }
-```
-
-You can then install SRAM22 using the following commands:
+Install with a current stable Rust toolchain and Cargo:
 
 ```bash
-git clone https://github.com/rahulk29/sram22.git
-cd sram22 && mv Cargo.bwrc.toml Cargo.toml && make install && cd -
+cargo install --git https://github.com/ucb-substrate/sram22 --locked sram22
 ```
 
-#### External
+## Generate a macro
 
-If you do not have BWRC access, you can still install SRAM22, albeit without
-the ability to invoke proprietary tools for DRC, LVS, PEX, and simulation.
-
-Use the following commands:
-
-```bash
-git clone https://github.com/rahulk29/sram22.git
-cd sram22 && make install && cd -
-```
-
-### Usage
-
-```
-sram22 0.2.0
-Rahul Kumar <rahulkumar@berkeley.edu>, Rohan Kumar <rohankumar@berkeley.edu>
-A configurable SRAM generator
-
-Usage: sram22 [OPTIONS]
-
-Options:
-  -c, --config <CONFIG>          Path to TOML configuration file [default: sram22.toml]
-  -o, --output-dir <OUTPUT_DIR>  Directory to which output files should be saved
-      --lef                      Generate LEF (used in place and route)
-      --liberate                 Generate LIB with Liberate MX instead of the interpolation model
-      --drc                      Run DRC using Calibre
-      --lvs                      Run LVS using Calibre
-  -a, --all                      Run all available steps
-  -p, --parallel <PARALLEL>      Max number of SRAMs to generate concurrently [default: no limit]
-  -h, --help                     Print help information
-  -V, --version                  Print version information
-```
-
-`--liberate`, `--drc`, `--lvs`, and `--all` are only available with a full (commercial) installation.
-
-By default all SRAMs are generated concurrently. Pass `--parallel` (or `-p`) to cap how many
-run at once — useful in a commercial install, where each SRAM also runs PEX and Liberate MX
-steps that invoke licensed tools and are memory-intensive.
-
-### Configuration
-
-SRAM22 generates memory blocks based on a TOML configuration file. Configurations are specified
-as an array of `[[sram]]` configurations, allowing up to multiple SRAMs to be generated.
+Save this as `sram22.toml`:
 
 ```toml
 [[sram]]
@@ -89,53 +21,118 @@ num_words = 64
 data_width = 32
 mux_ratio = 4
 write_size = 8
-
-[[sram]]
-num_words = 256
-data_width = 64
-mux_ratio = 4
-write_size = 8
-# The `pex_level` flag is only available with a full installation.
-pex_level = "rcc"
+# Optional, with commercial features: pex_level = "rcc"
 ```
 
-Save this as `sram22.toml` and run:
+Then run:
 
-```
+```bash
 sram22
 ```
 
-Each `[[sram]]` block is generated independently. Output files are placed in subdirectories
-named after the SRAM (e.g. `build/sram22_64x32m4w8/`)
+SRAM22 writes GDS, LEF, SPICE, behavioral Verilog, and Liberty timing files to
+`build/sram22_64x32m4w8/` beside the configuration file. Add more `[[sram]]` blocks
+to generate a batch. Each macro gets its own directory under `build/`, or under
+the directory selected with `--output-dir <path>`. A single configuration without
+the `[[sram]]` header is also accepted.
 
-The number of rows in the SRAM bitcell array is `num_words / mux_ratio`.
-The number of columns in the array is `data_width * mux_ratio`.
+```text
+-c, --config <CONFIG>          TOML file (default: sram22.toml)
+-o, --output-dir <OUTPUT_DIR>  Output directory
+-p, --parallel <PARALLEL>      Maximum concurrent macros (default: no limit)
+-h, --help                     Show available options
+-V, --version                  Show version
+```
 
-A valid configuration must have:
-* A `mux_ratio` of 4 or 8
-* A `data_width` that is an integer multiple of the `write_size`
-* A power-of-two number of rows
-* At least 16 rows
-* At least 16 columns
-* `pex_level` (optional): Must be `"r"`, `"c"`, `"rc"`, or `"rcc"`. Only available with a full installation. When set, PEX runs automatically — no additional flag required. Each `[[sram]]` block sets its own `pex_level` independently; SRAMs without it skip PEX. The extracted netlist is only consumed by Liberate MX (see below).
+With the BWRC manifest, `--liberate` selects Liberate MX characterization;
+`--drc` and `--lvs` run Calibre verification. Setting `pex_level` to `r`, `c`, `rc`,
+or `rcc` runs extraction for that macro; it is ignored without commercial features.
+`--all` enables DRC and LVS but retains interpolated timing unless `--liberate`
+is also supplied. Liberate uses the extracted netlist when `pex_level` is set.
 
-### LIB generation
+### Liberty timing
 
-SRAM22 always generates Liberty (.lib) timing files for the tt/ss/ff PVT corners — no flag
-is required. By default the LIB is produced by an open-source interpolation model;
-interpolated LIBs carry a conservative overestimate of up to 2% for SRAM configurations
-with `data_width` between 8 and 128.  `data_width` outside that range is not supported by
-the open-source model and will produce an error.
+By default, SRAM22 generates TT, SS, and FF Liberty files from an interpolation
+model. Its timing data supports `write_size = 8`, word widths from 8 to 128 bits,
+and depths of 64, 128, 256, 512, 1024, or 2048 words. Both mux ratios are supported
+except 64 words with mux ratio 8, which has too few rows. Other configurations
+require additional timing data or a BWRC build with `--liberate`.
+See [the interpolation model](timingdata/INTERPOLATION.md) for its assumptions.
+Liberty filenames include a corner suffix, such as
+`sram22_64x32m4w8_tt_025C_1v80.lib`, with SS `ss_100C_1v60` and FF `ff_n40C_1v95`.
 
-With a full BWRC installation, passing `--liberate` instead characterizes the LIB with
-Liberate MX running SPICE simulation; interpolation is skipped in that case. `--all` does
-not select Liberate MX — it still generates the LIB by interpolation. If a config also has
-`pex_level` set, Liberate MX uses the extracted netlist; otherwise it falls back to the
-plain SPICE netlist.
+### SPICE simulation
 
-### Contribution
+In an ngspice testbench, load the device-model library from your
+[SKY130 PDK](https://github.com/ucb-substrate/skywater-pdk) and the generated circuit
+netlist. Select the process corner on the `.lib` line and provide power supplies,
+stimuli, and temperature:
+
+```spice
+.lib "/path/to/skywater-pdk/libraries/sky130_fd_pr/latest/models/sky130.lib.spice" tt
+.include "sram22_64x32m4w8.spice"
+.temp 25
+```
+
+Load the model library once when simulating several macros together. For SRAM22's
+Rust simulation testbenches, set `SKY130_OPEN_PDK_ROOT` to the open PDK root:
+
+```bash
+export SKY130_OPEN_PDK_ROOT=/path/to/skywater-pdk
+```
+
+## Configuration
+
+Rows = `num_words / mux_ratio`; columns = `data_width * mux_ratio`.
+Valid configurations require positive `num_words`, `data_width`, and `write_size`,
+a power-of-two `num_words`, a mux ratio of 4 or 8, data width divisible by write
+size, at least 16 rows, and at least 16 columns. Address width is `log2(num_words)`;
+write-mask width is `data_width / write_size`.
+
+With `write_size == data_width`, `wmask` is a scalar whole-word write mask. Drive
+it high to allow writes.
+
+See the [documentation](https://sram22.com/docs/) for the interface and integration
+outlines, and the [published macro catalog](https://github.com/ucb-substrate/sram22_sky130_macros)
+for existing layouts and timing libraries. Published GDS files are compressed;
+run the catalog's `unzip.sh` or decompress individual `.gds.gz` files.
+
+## Advanced setup
+
+### Local checkout or custom fork
+
+Use a checkout to modify SRAM22 or install a fork. Substitute your fork's URL:
+
+```bash
+git clone https://github.com/ucb-substrate/sram22.git
+cd sram22
+cargo install --path . --locked
+```
+
+### BWRC installation
+
+Commercial characterization and Calibre verification require the licensed tools,
+commercial PDK, and access to the BWRC Git repositories. Configure SSH access and
+add this to `~/.cargo/config.toml`:
+
+```toml
+[net]
+git-fetch-with-cli = true
+```
+
+Set `SKY130_COMMERCIAL_PDK_ROOT` to the commercial PDK root before building, then
+select the commercial manifest:
+
+```bash
+git clone https://github.com/ucb-substrate/sram22.git
+cd sram22
+cp Cargo.bwrc.toml Cargo.toml
+make install
+```
+
+## Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you shall be licensed under the BSD 3-Clause license,
-without any additional terms or conditions.
-
+without any additional terms or conditions. Vendored third-party files retain their
+own notices and licenses; see [tech/sky130/pdk](tech/sky130/pdk/README.md) for provenance.

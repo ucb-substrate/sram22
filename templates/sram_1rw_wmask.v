@@ -25,7 +25,9 @@ module {{module_name}}(
   input  rstb; // reset bar (active low reset)
   input  ce; // chip enable
   input  we; // write enable
-  input [WMASK_WIDTH-1:0] wmask; // write mask
+  {% if wmask_width == 1 %}input wmask; // whole-word write enable
+  {% else %}input [WMASK_WIDTH-1:0] wmask; // write mask
+  {% endif %}
   input [ADDR_WIDTH-1:0]  addr; // address
   input [DATA_WIDTH-1:0]  din; // data in
   output reg [DATA_WIDTH-1:0] dout; // data out
@@ -40,7 +42,7 @@ module {{module_name}}(
         {%- for i in range(end=wmask_width) -%}
           {% set lower = i * bits_per_mask %}
           {% set upper = (i + 1) * bits_per_mask - 1 -%}
-          if (wmask[{{i}}]) begin
+          if ({% if wmask_width == 1 %}wmask{% else %}wmask[{{i}}]{% endif %}) begin
             mem[addr][{{upper}}:{{lower}}] <= din[{{upper}}:{{lower}}];
           end
         {%- endfor %}
@@ -54,4 +56,3 @@ module {{module_name}}(
   end
 
 endmodule
-

@@ -1,0 +1,62 @@
+{
+  "comment": "Canonical SRAM22 TOML configuration options. The config table renders from this file, and scripts/check-docs.mjs verifies the option names against the SramConfig struct in src/blocks/sram/mod.rs.",
+  "example": {
+    "num_words": 64,
+    "data_width": 32,
+    "mux_ratio": 4,
+    "write_size": 8,
+    "pex_level": "rcc"
+  },
+  "options": [
+    {
+      "name": "num_words",
+      "type": "integer",
+      "required": true,
+      "default": null,
+      "purpose": "Number of words (depth) of the SRAM."
+    },
+    {
+      "name": "data_width",
+      "type": "integer",
+      "required": true,
+      "default": null,
+      "purpose": "Word size in bits (width)."
+    },
+    {
+      "name": "mux_ratio",
+      "type": "4 or 8",
+      "required": true,
+      "default": null,
+      "purpose": "Column-mux ratio M: how many columns share one sense amplifier / write driver."
+    },
+    {
+      "name": "write_size",
+      "type": "integer",
+      "required": true,
+      "default": null,
+      "purpose": "Write-mask granularity in bits. data_width must be an integer multiple of write_size."
+    },
+    {
+      "name": "pex_level",
+      "type": "\"r\" | \"c\" | \"rc\" | \"rcc\"",
+      "required": false,
+      "default": null,
+      "purpose": "Parasitic-extraction level. Only available on a commercial (BWRC) install; ignored otherwise."
+    }
+  ],
+  "constraints": [
+    "num_words, data_width, and write_size must be positive; num_words must be a power of two.",
+    "mux_ratio must be 4 or 8.",
+    "data_width must be an integer multiple of write_size.",
+    "The number of rows, num_words / mux_ratio, must be a power of two.",
+    "At least 16 rows (num_words / mux_ratio ≥ 16).",
+    "At least 16 columns (data_width · mux_ratio ≥ 16).",
+    "pex_level, if set, must be one of \"r\", \"c\", \"rc\", or \"rcc\" (ignored without commercial plugins)."
+  ],
+  "derived": [
+    "Number of rows = num_words / mux_ratio.",
+    "Number of columns = data_width · mux_ratio.",
+    "Address width = log2(num_words).",
+    "Write-mask width = data_width / write_size."
+  ]
+}

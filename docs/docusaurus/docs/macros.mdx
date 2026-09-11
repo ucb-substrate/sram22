@@ -1,0 +1,45 @@
+---
+title: Macro catalog
+description: Pre-built SRAM22 SKY130 macros available for download, including the silicon-validated set.
+---
+
+import MacroTable from "@site/src/components/MacroTable";
+
+A library of pre-generated SRAM22 macros for SKY130 is published in the
+[**sram22_sky130_macros**](https://github.com/ucb-substrate/sram22_sky130_macros)
+repository. Each macro includes its `.gds.gz`, `.lef`, `.spice`, `.v`, and
+multi-corner `.lib` files — the views consumed by the
+[OpenROAD](/docs/tutorial/openroad/) and [Cadence](/docs/tutorial/cadence/) flows.
+
+After downloading, run the repository's `./unzip.sh`, or use
+`gzip -d <macro>.gds.gz` for an individual layout.
+
+Check the downloaded views before integration: catalog SPICE files can reference
+external files, and some whole-word-write Verilog models omit the scalar `wmask`
+present in LEF/SPICE. Resolve those file references and use a model whose ports
+match the physical interface.
+
+<MacroTable />
+
+:::tip[Naming]
+
+A macro named <code>sram22_<b>D</b>x<b>W</b>m<b>M</b>w<b>G</b></code> has depth
+<code>D</code> (words), word width <code>W</code> (bits), column-mux ratio
+<code>M</code>, and write granularity <code>G</code> (bits). For example,
+<code>sram22_64x32m4w8</code> is 64 words × 32 bits, mux ratio 4, byte-masked.
+
+:::
+
+:::note[Silicon measurements]
+
+The [validation report](https://github.com/ucb-substrate/sram22_sky130_macros#verification)
+states that the marked macros were taped out via Cadence's shuttle program and
+measured working at <strong>VDD = 1.8 V</strong> and a 25 MHz clock.
+
+:::
+
+## Generating a macro not listed here
+
+Follow the [Quickstart](/docs/quickstart/) to configure and generate a macro.
+Characterize its timing and run physical verification for the configuration and
+process corners used in your design.

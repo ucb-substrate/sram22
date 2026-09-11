@@ -1,0 +1,41 @@
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.count {
+  font-size: 0.85rem;
+  color: var(--sram-text-muted);
+}
+.filter {
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.wrap {
+  overflow-x: auto;
+}
+.mt table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.mt th,
+.mt td {
+  text-align: left;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--sram-border-solid);
+  white-space: nowrap;
+}
+.mt th {
+  font-weight: 650;
+}
+.yes {
+  color: var(--sram-accent);
+  font-weight: 700;
+}

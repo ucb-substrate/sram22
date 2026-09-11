@@ -1,0 +1,84 @@
+name: Docs
+
+# Builds the Docusaurus site, checks pin attributes and config field names against
+# SRAM22 source, checks internal links, and deploys to GitHub
+# Pages (https://sram22.com) on pushes to main.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/docusaurus/**"
+      - "src/abs.rs"
+      - "src/blocks/sram/mod.rs"
+      - ".github/workflows/docs.yaml"
+  pull_request:
+    paths:
+      - "docs/docusaurus/**"
+      - "src/abs.rs"
+      - "src/blocks/sram/mod.rs"
+      - ".github/workflows/docs.yaml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: docs/docusaurus
+
+jobs:
+  build:
+    name: Build & check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/docusaurus/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run check
+
+      - name: Check pin attributes and configuration field names
+        run: npm run check:docs
+
+      - name: Test Liberty data extraction
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+
+      - name: Build website
+        run: npm run build
+
+      - name: Check internal links
+        run: npm run check:links
+
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/docusaurus/build
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write # to deploy to Pages
+      id-token: write # to verify the deployment origin
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+# Allow one concurrent deployment; don't cancel in-progress production deploys.
+concurrency:
+  group: pages
+  cancel-in-progress: false
