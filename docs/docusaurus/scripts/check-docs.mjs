@@ -127,7 +127,7 @@ console.log("");
 if (failures) {
   console.error(`✗ docs consistency check FAILED with ${failures} mismatch(es).`);
   console.error(
-    "  Update the data files in docs/site/src/data/ (or the Rust source) so they agree.",
+    "  Update the data files in docs/docusaurus/src/data/ (or the Rust source) so they agree.",
   );
   process.exit(1);
 }

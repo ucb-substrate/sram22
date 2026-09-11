@@ -34,7 +34,7 @@ fn check_gds(bytes: &[u8]) {
 #[test]
 fn generated_outputs_are_portable_for_both_mux_ratios() {
     let run = tempfile::tempdir().unwrap();
-    for (words, width, mux, write_size, corner) in [(64, 8, 4, 8, "tt"), (128, 16, 8, 8, "ss")] {
+    for (words, width, mux, write_size) in [(64, 8, 4, 8), (128, 16, 8, 8)] {
         let config = run.path().join("sram22.toml");
         fs::write(
             &config,
@@ -44,16 +44,20 @@ fn generated_outputs_are_portable_for_both_mux_ratios() {
         )
         .unwrap();
         let output = run.path().join(format!("m{mux}"));
-        let result = Command::new(env!("CARGO_BIN_EXE_sram22"))
+        let mut command = Command::new(env!("CARGO_BIN_EXE_sram22"));
+        command
             .env_remove("SKY130_OPEN_PDK_ROOT")
-            .env_remove("SKY130_COMMERCIAL_PDK_ROOT")
+            .env_remove("SKY130_COMMERCIAL_PDK_ROOT");
+        if mux == 8 {
+            // External PDKs and simulation settings cannot select generation inputs.
+            command.env("SKY130_OPEN_PDK_ROOT", run.path().join("absent-pdk"));
+        }
+        let result = command
             .args([
                 "--config",
                 config.to_str().unwrap(),
                 "--output-dir",
                 output.to_str().unwrap(),
-                "--spice-corner",
-                corner,
             ])
             .output()
             .unwrap();
@@ -72,12 +76,12 @@ fn generated_outputs_are_portable_for_both_mux_ratios() {
                 .unwrap_or("")
                 .to_ascii_lowercase();
             assert!(
-                !matches!(token.as_str(), ".inc" | ".include" | ".lib"),
-                "external SPICE reference: {line}"
+                !matches!(token.as_str(), ".inc" | ".include" | ".lib" | ".model"),
+                "external reference or device model in circuit export: {line}"
             );
         }
-        assert!(spice.contains(&format!("device models: {corner} corner")));
-        assert!(spice.to_ascii_lowercase().contains(".model"));
+        assert!(spice.contains("sky130_fd_pr__nfet_01v8"));
+        assert!(spice.contains(".subckt sky130_fd_sc_hs__"));
         assert!(!spice.contains("sram22-assets-") && !spice.contains(env!("CARGO_MANIFEST_DIR")));
         let isolated = run.path().join(format!("isolated-{mux}.gds"));
         fs::copy(output.join(format!("{name}.gds")), &isolated).unwrap();
@@ -99,27 +103,4 @@ fn generated_outputs_are_portable_for_both_mux_ratios() {
             assert!(lef.contains("PIN wmask[1]"));
         }
     }
-}
-
-#[test]
-fn explicit_incomplete_pdk_does_not_fall_back_to_bundled() {
-    let directory = tempfile::tempdir().unwrap();
-    let config = directory.path().join("config.toml");
-    fs::write(
-        &config,
-        "num_words=64\ndata_width=8\nmux_ratio=4\nwrite_size=8\n",
-    )
-    .unwrap();
-    let result = Command::new(env!("CARGO_BIN_EXE_sram22"))
-        .env("SKY130_OPEN_PDK_ROOT", directory.path())
-        .args([
-            "--config",
-            config.to_str().unwrap(),
-            "--output-dir",
-            directory.path().to_str().unwrap(),
-        ])
-        .output()
-        .unwrap();
-    assert!(!result.status.success());
-    assert!(String::from_utf8_lossy(&result.stderr).contains("is missing"));
 }

@@ -42,7 +42,7 @@ pub fn cleanup() {
     INPUTS.lock().unwrap().take();
 }
 
-pub(crate) fn bundled_sky130_root() -> PathBuf {
+pub(crate) fn standard_cell_root() -> PathBuf {
     path("pdk")
 }
 
@@ -54,8 +54,12 @@ mod tests {
     fn embedded_inputs_are_extracted() {
         assert!(path("templates/sram_1rw_wmask.v").is_file());
         assert!(path("tech/sky130/gds/sram_sp_cell.gds").is_file());
-        assert!(bundled_sky130_root()
-            .join("libraries/sky130_fd_pr/latest/models/sky130.lib.spice")
+        assert!(standard_cell_root()
+            .join("libraries/sky130_fd_sc_hs/latest/cells/inv/sky130_fd_sc_hs__inv_2.gds")
             .is_file());
+        assert!(standard_cell_root()
+            .join("libraries/sky130_fd_sc_hs/latest/cells/inv/sky130_fd_sc_hs__inv_2.spice")
+            .is_file());
+        assert!(!standard_cell_root().join("libraries/sky130_fd_pr").exists());
     }
 }

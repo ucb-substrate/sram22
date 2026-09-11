@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Rebuild the vendored SKY130 snapshot from a checked-out open PDK.
+"""Rebuild the bundled SKY130 standard cells from a checked-out open PDK.
 
-Copies standard-cell GDS/SPICE views and the complete model include closure.
-No timing tables, documentation trees, or proprietary PDK files are copied.
+Copies standard-cell GDS/SPICE views and their license notices.
+Device models, timing tables, and proprietary PDK files are not copied.
 """
 import argparse
 import gzip
@@ -10,8 +10,6 @@ import hashlib
 import io
 import json
 from pathlib import Path
-import re
-import shlex
 import subprocess
 import tarfile
 
@@ -35,21 +33,6 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     files = set()
 
-    def visit(path):
-        path = path.resolve()
-        if not path.is_relative_to(root):
-            raise ValueError(f"Include escapes PDK root: {path}")
-        if path in files:
-            return
-        files.add(path)
-        for line in path.read_text().splitlines():
-            if re.match(r"^\s*\.(include|inc|lib)\s", line, re.I):
-                words = shlex.split(line)
-                if words[0].lower() == ".lib" and len(words) == 2:
-                    continue  # Local library section, not a file reference.
-                visit(path.parent / words[1])
-
-    visit(root / "libraries/sky130_fd_pr/latest/models/sky130.lib.spice")
     for lib in ("sky130_fd_sc_hd", "sky130_fd_sc_hs"):
         for cell, strengths in STRENGTHS.items():
             for strength in strengths:
@@ -59,7 +42,7 @@ def main():
                     if path.exists():
                         files.add(path.resolve())
     repos = {".": root, **{lib: root / f"libraries/{lib}/latest" for lib in (
-        "sky130_fd_sc_hd", "sky130_fd_sc_hs", "sky130_fd_pr")}}
+        "sky130_fd_sc_hd", "sky130_fd_sc_hs")}}
     sources = {}
     for name, directory in repos.items():
         if subprocess.check_output(["git", "-C", str(directory), "status", "--porcelain"]):

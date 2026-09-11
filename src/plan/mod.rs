@@ -139,7 +139,6 @@ pub enum TaskKey {
 pub struct ExecutePlanParams<'a> {
     pub work_dir: &'a Path,
     pub plan: &'a SramPlan,
-    pub spice_corner: &'a str,
     pub tasks: Arc<HashSet<TaskKey>>,
     pub ctx: Option<&'a mut StepContext>,
     #[cfg(feature = "commercial")]
@@ -214,7 +213,7 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
     let sctx = try_setup_ctx()?;
 
     let spice_path = out_spice(work_dir, name);
-    // Portable exports always use open models; licensed signoff and timing tasks
+    // Circuit exports use open device names; licensed signoff and timing tasks
     // below continue to generate their own netlists using the commercial PDK.
     #[cfg(feature = "commercial")]
     let export_ctx = crate::try_setup_open_ctx()?;
@@ -225,7 +224,7 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
     netlist_ctx
         .write_schematic_to_file::<Sram>(&plan.sram_params, &spice_path)
         .context("failed to write schematic")?;
-    crate::spice::make_portable(&spice_path, params.spice_corner)?;
+    crate::spice::make_portable(&spice_path)?;
     try_finish_task!(ctx, TaskKey::GenerateNetlist);
 
     let gds_path = out_gds(work_dir, name);

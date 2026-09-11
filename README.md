@@ -40,7 +40,6 @@ the `[[sram]]` header is also accepted.
 -c, --config <CONFIG>          TOML file (default: sram22.toml)
 -o, --output-dir <OUTPUT_DIR>  Output directory
 -p, --parallel <PARALLEL>      Maximum concurrent macros (default: no limit)
-    --spice-corner <CORNER>    SPICE model corner: tt, ss, ff (default: tt)
 -h, --help                     Show available options
 -V, --version                  Show version
 ```
@@ -64,10 +63,23 @@ Liberty filenames include a corner suffix, such as
 
 ### SPICE simulation
 
-Include the generated `.spice` file in an ngspice testbench and provide power
-supplies, stimuli, and a simulation temperature. Use `--spice-corner tt`, `ss`, or
-`ff` to select the device models. When combining several macros in one testbench,
-keep one copy of their shared model definitions.
+In an ngspice testbench, load the device-model library from your
+[SKY130 PDK](https://github.com/ucb-substrate/skywater-pdk) and the generated circuit
+netlist. Select the process corner on the `.lib` line and provide power supplies,
+stimuli, and temperature:
+
+```spice
+.lib "/path/to/skywater-pdk/libraries/sky130_fd_pr/latest/models/sky130.lib.spice" tt
+.include "sram22_64x32m4w8.spice"
+.temp 25
+```
+
+Load the model library once when simulating several macros together. For SRAM22's
+Rust simulation testbenches, set `SKY130_OPEN_PDK_ROOT` to the open PDK root:
+
+```bash
+export SKY130_OPEN_PDK_ROOT=/path/to/skywater-pdk
+```
 
 ## Configuration
 
@@ -117,20 +129,6 @@ cd sram22
 cp Cargo.bwrc.toml Cargo.toml
 make install
 ```
-
-### External open PDK override
-
-To use a custom version of the [open SKY130 PDK](https://github.com/ucb-substrate/skywater-pdk),
-set `SKY130_OPEN_PDK_ROOT` when running SRAM22:
-
-```bash
-SKY130_OPEN_PDK_ROOT=/absolute/path/to/skywater-pdk sram22
-```
-
-Use the linked repository's layout, with the `sky130_fd_sc_hs` and `sky130_fd_pr`
-submodules initialized under `libraries/`. The override selects standard-cell views
-and device models; SRAM22's custom cells retain their definitions. Missing files
-produce an error.
 
 ## Contribution
 

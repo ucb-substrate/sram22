@@ -38,7 +38,7 @@ const config: Config = {
           routeBasePath: "/docs",
           path: "docs",
           sidebarPath: "./sidebars.ts",
-          editUrl: "https://github.com/ucb-substrate/sram22/edit/main/docs/site/",
+          editUrl: "https://github.com/ucb-substrate/sram22/edit/main/docs/docusaurus/",
           showLastUpdateTime: true,
         },
         blog: false,

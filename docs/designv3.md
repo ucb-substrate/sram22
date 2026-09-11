@@ -3,7 +3,7 @@
 This is an unimplemented/partially implemented planning note, not a description
 of the current generator. In particular, the four-bank organization and control
 pseudocode below do not describe the current circuit. See
-[the maintained algorithms documentation](site/docs/internals/algorithms.mdx).
+[the maintained algorithms documentation](docusaurus/docs/internals/algorithms.mdx).
 
 Changes:
 Separate wen/ren (should have defined behavior if both are high)

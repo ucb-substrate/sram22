@@ -10,7 +10,6 @@ use lazy_static::lazy_static;
 use ngspice::Ngspice;
 #[cfg(feature = "commercial")]
 use sky130_commercial_pdk::Sky130CommercialPdk;
-use sky130_open_pdk::Sky130OpenPdk;
 #[cfg(feature = "commercial")]
 use spectre::Spectre;
 #[cfg(feature = "commercial")]
@@ -20,7 +19,6 @@ use sub_calibre::CalibreLvs;
 #[cfg(feature = "commercial")]
 use sub_calibre::CalibrePex;
 use substrate::data::{SubstrateConfig, SubstrateCtx};
-use substrate::pdk::PdkParams;
 use substrate::schematic::netlist::impls::spice::SpiceNetlister;
 use substrate::verification::simulation::{Simulator, SimulatorOpts};
 use tera::Tera;
@@ -67,9 +65,7 @@ pub fn setup_ctx() -> SubstrateCtx {
 
 pub fn try_setup_open_ctx() -> Result<SubstrateCtx> {
     let cfg = SubstrateConfig::builder()
-        .pdk(Sky130OpenPdk::new(&PdkParams {
-            pdk_root: tech::sky130::open_pdk_root()?,
-        })?)
+        .pdk(tech::sky130::OpenPdk::new()?)
         .netlister(SpiceNetlister::new())
         .simulator(Ngspice::new(SimulatorOpts::default())?)
         .build();
@@ -77,7 +73,6 @@ pub fn try_setup_open_ctx() -> Result<SubstrateCtx> {
 }
 
 pub fn try_setup_ctx() -> Result<SubstrateCtx> {
-    let open_pdk_root = tech::sky130::open_pdk_root()?;
     #[cfg(not(feature = "commercial"))]
     let simulator = Ngspice::new(SimulatorOpts::default())?;
 
@@ -90,7 +85,7 @@ pub fn try_setup_ctx() -> Result<SubstrateCtx> {
     let builder = builder
         .pdk(Sky130CommercialPdk::new(
             PathBuf::from(SKY130_COMMERCIAL_PDK_ROOT),
-            open_pdk_root,
+            assets::standard_cell_root(),
         )?)
         .drc_tool(
             CalibreDrc::builder()
@@ -115,9 +110,7 @@ pub fn try_setup_ctx() -> Result<SubstrateCtx> {
             crate::verification::calibre::SKY130_PEX_RULES_PATH,
         )));
     #[cfg(not(feature = "commercial"))]
-    let builder = builder.pdk(Sky130OpenPdk::new(&PdkParams {
-        pdk_root: open_pdk_root,
-    })?);
+    let builder = builder.pdk(tech::sky130::OpenPdk::new()?);
 
     #[cfg(feature = "commercial")]
     builder.simulation_bashrc("/tools/B/rahulkumar/sky130/priv/drc/.bashrc");

@@ -657,7 +657,7 @@ impl Component for ReplicaPrecharge {
         }
 
         let mut tiler = tiler
-            .push(if self.params.cols % 2 == 0 {
+            .push(if self.params.cols.is_multiple_of(2) {
                 pc_end_bot.with_orientation(Named::ReflectHoriz)
             } else {
                 pc_end_top

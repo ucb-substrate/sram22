@@ -21,10 +21,6 @@ pub struct Args {
     #[arg(short, long)]
     pub output_dir: Option<PathBuf>,
 
-    /// Open SKY130 model corner embedded in the portable SPICE output.
-    #[arg(long, default_value = "tt", value_parser = ["tt", "ss", "ff"])]
-    pub spice_corner: String,
-
     /// Generate LIB timing with Liberate MX instead of interpolation.
     #[cfg(feature = "commercial")]
     #[arg(long)]

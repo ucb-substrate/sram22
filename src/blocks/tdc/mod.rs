@@ -108,7 +108,7 @@ impl Component for Tdc {
 
         for i in 0..stage2.width() {
             let sin0 = stage1.index(i / 2);
-            let sin1 = stage1.index((i + 1) / 2);
+            let sin1 = stage1.index(i.div_ceil(2));
             inv.clone()
                 .with_connections([
                     ("vdd", vdd),
@@ -187,7 +187,7 @@ impl Component for Tdc {
 
         for i in 0..stage4.width() {
             let sin0 = stage3.index(i / 2);
-            let sin1 = stage3.index((i + 1) / 2);
+            let sin1 = stage3.index(i.div_ceil(2));
             inv.clone()
                 .with_connections([
                     ("vdd", vdd),

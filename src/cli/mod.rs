@@ -32,7 +32,7 @@ pub const BANNER: &str = r"
 SRAM22 v0.2
 ";
 
-fn is_already_built(work_dir: &std::path::Path, name: &str, spice_corner: &str) -> bool {
+fn is_already_built(work_dir: &std::path::Path, name: &str) -> bool {
     out_spice(work_dir, name).exists()
         && out_gds(work_dir, name).exists()
         && out_verilog(work_dir, name).exists()
@@ -42,12 +42,9 @@ fn is_already_built(work_dir: &std::path::Path, name: &str, spice_corner: &str) 
             .all(|suffix| out_lib(work_dir, &format!("{name}_{suffix}")).exists())
         && std::fs::File::open(out_spice(work_dir, name))
             .map(|file| {
-                let marker =
-                    format!("* Self-contained open SKY130 device models: {spice_corner} corner.");
-                BufReader::new(file)
-                    .lines()
-                    .map_while(std::result::Result::ok)
-                    .any(|line| line == marker)
+                BufReader::new(file).lines().all(|line| {
+                    line.is_ok_and(|line| !crate::spice::is_external_or_model_directive(&line))
+                })
             })
             .unwrap_or(false)
 }
@@ -103,10 +100,10 @@ pub fn run() -> Result<()> {
 
     let plans: Vec<SramPlan> = configs
         .iter()
-        .map(|c| generate_plan(c))
+        .map(generate_plan)
         .collect::<Result<Vec<_>>>()?;
 
-    println!("Configuration file: {:?}", &config_path);
+    println!("Configuration file: {:?}", config_path);
     for (i, (config, plan)) in configs.iter().zip(plans.iter()).enumerate() {
         println!(
             "  [{}] {} (num_words={}, data_width={}, mux_ratio={}, write_size={})",
@@ -124,17 +121,13 @@ pub fn run() -> Result<()> {
         .into_iter()
         .zip(configs)
         .filter(|(plan, _config)| {
-            // Explicit source overrides and licensed tasks must run even when
-            // files from an earlier generation are already present.
-            if std::env::var_os("SKY130_OPEN_PDK_ROOT").is_some() {
-                return true;
-            }
+            // Requested licensed tasks must run even when generated views exist.
             #[cfg(feature = "commercial")]
             if args.liberate || args.drc || args.lvs || args.all || _config.pex_level.is_some() {
                 return true;
             }
             let work_dir = build_dir.join(plan.sram_params.name().as_str());
-            !is_already_built(&work_dir, &plan.sram_params.name(), &args.spice_corner)
+            !is_already_built(&work_dir, &plan.sram_params.name())
         })
         .collect();
 
@@ -157,7 +150,6 @@ pub fn run() -> Result<()> {
             let base_tasks = base_tasks.clone();
             let build_dir = build_dir.clone();
             let mp = mp.clone();
-            let spice_corner = args.spice_corner.clone();
             std::thread::spawn(move || loop {
                 let item = queue.lock().unwrap().next();
                 let Some((plan, config)) = item else { break };
@@ -173,7 +165,6 @@ pub fn run() -> Result<()> {
                         let res = execute_plan(ExecutePlanParams {
                             work_dir: &work_dir,
                             plan: &plan,
-                            spice_corner: &spice_corner,
                             tasks,
                             ctx: Some(&mut ctx),
                             #[cfg(feature = "commercial")]
@@ -238,7 +229,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn completed_generation_requires_all_timing_corners_and_selected_models() {
+    fn completed_generation_requires_all_views_and_a_portable_circuit() {
         let directory = tempfile::tempdir().unwrap();
         let root = directory.path();
         let name = "sram22_64x8m4w8";
@@ -247,16 +238,24 @@ mod tests {
         }
         std::fs::write(
             out_spice(root, name),
-            "* Self-contained open SKY130 device models: ss corner.\n",
+            ".subckt sram22_64x8m4w8 clk vdd vss\n.ends\n",
         )
         .unwrap();
-        assert!(!is_already_built(root, name, "ss"));
+        assert!(!is_already_built(root, name));
         for suffix in ["tt_025C_1v80", "ss_100C_1v60", "ff_n40C_1v95"] {
             std::fs::write(out_lib(root, &format!("{name}_{suffix}")), "generated").unwrap();
         }
-        assert!(is_already_built(root, name, "ss"));
-        assert!(!is_already_built(root, name, "tt"));
+        assert!(is_already_built(root, name));
         std::fs::remove_file(out_lib(root, &format!("{name}_ss_100C_1v60"))).unwrap();
-        assert!(!is_already_built(root, name, "ss"));
+        assert!(!is_already_built(root, name));
+        std::fs::write(out_lib(root, &format!("{name}_ss_100C_1v60")), "generated").unwrap();
+        for directive in [
+            ".model nfet nmos level=1",
+            ".include /tmp/cells.spice",
+            ".lib /tmp/models.spice tt",
+        ] {
+            std::fs::write(out_spice(root, name), directive).unwrap();
+            assert!(!is_already_built(root, name));
+        }
     }
 }

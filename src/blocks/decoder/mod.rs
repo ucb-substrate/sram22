@@ -372,7 +372,7 @@ fn partition_bits(bits: usize, top: bool) -> Vec<usize> {
         return vec![bits - right, right];
     }
 
-    if bits % 2 == 0 {
+    if bits.is_multiple_of(2) {
         vec![bits / 2, bits / 2]
     } else if bits / 3 >= 2 {
         match bits % 3 {

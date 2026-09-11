@@ -1,4 +1,4 @@
-//! Portable SPICE export: inline circuit includes and package selectable models.
+//! Portable circuit netlists with included cell definitions inlined.
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -38,82 +38,61 @@ fn words(line: &str) -> Result<Vec<String>> {
     Ok(result)
 }
 
-fn expand(
-    path: &Path,
-    section: Option<&str>,
-    stack: &mut Vec<(PathBuf, Option<String>)>,
-) -> Result<String> {
+pub(crate) fn is_external_or_model_directive(line: &str) -> bool {
+    matches!(
+        line.split_whitespace()
+            .next()
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str(),
+        ".include" | ".inc" | ".lib" | ".model"
+    )
+}
+
+fn expand(path: &Path, stack: &mut Vec<PathBuf>) -> Result<String> {
     let path = path
         .canonicalize()
         .with_context(|| format!("missing SPICE input {}", path.display()))?;
-    let key = (path.clone(), section.map(str::to_ascii_lowercase));
-    if stack.contains(&key) {
+    if stack.contains(&path) {
         bail!("cyclic SPICE include at {}", path.display());
     }
-    stack.push(key);
+    stack.push(path.clone());
     let source = fs::read_to_string(&path)?;
     let mut output = String::new();
-    let mut active = section.is_none();
-    let mut found = section.is_none();
     for line in source.lines() {
         let command = line
             .split_whitespace()
             .next()
             .unwrap_or("")
             .to_ascii_lowercase();
-        if !matches!(command.as_str(), ".include" | ".inc" | ".lib" | ".endl") {
-            if active {
-                output.push_str(line);
-                output.push('\n');
-            }
+        if matches!(command.as_str(), ".lib" | ".model") {
+            bail!(
+                "Device-model directives belong in the simulation testbench: {}: {line}",
+                path.display()
+            );
+        }
+        if !matches!(command.as_str(), ".include" | ".inc") {
+            output.push_str(line);
+            output.push('\n');
             continue;
         }
         let tokens = words(line)?;
-        if command == ".lib" && tokens.len() == 2 {
-            if let Some(wanted) = section {
-                active = tokens[1].eq_ignore_ascii_case(wanted);
-                found |= active;
-            } else {
-                output.push_str(line);
-                output.push('\n');
-            }
-        } else if command == ".endl" {
-            if section.is_some() {
-                active = false;
-            } else {
-                output.push_str(line);
-                output.push('\n');
-            }
-        } else if active {
-            let expected = if command == ".lib" { 3 } else { 2 };
-            if tokens.len() != expected {
-                bail!(
-                    "unsupported SPICE include syntax in {}: {line}",
-                    path.display()
-                );
-            }
-            let child = path.parent().unwrap().join(&tokens[1]);
-            let child_section = (command == ".lib").then(|| tokens[2].as_str());
-            output.push_str(&expand(&child, child_section, stack)?);
+        if tokens.len() != 2 {
+            bail!(
+                "unsupported SPICE include syntax in {}: {line}",
+                path.display()
+            );
         }
+        let child = path.parent().unwrap().join(&tokens[1]);
+        output.push_str(&expand(&child, stack)?);
     }
     stack.pop();
-    if !found {
-        bail!(
-            "SPICE library {} has no section {}",
-            path.display(),
-            section.unwrap()
-        );
-    }
     Ok(output)
 }
 
-/// Inline the complete circuit and one selected set of open device models.
-pub fn make_portable(path: &Path, corner: &str) -> Result<()> {
-    let mut output = expand(path, None, &mut Vec::new())?;
-    let models = crate::tech::sky130::open_model_library()?;
-    output.push_str(&format!("\n* Self-contained open SKY130 device models: {corner} corner.\n* Do not load another PDK model library alongside this file.\n"));
-    output.push_str(&expand(&models, Some(corner), &mut Vec::new())?);
+/// Inline circuit definitions; the simulation testbench supplies device models.
+pub fn make_portable(path: &Path) -> Result<()> {
+    let output = expand(path, &mut Vec::new())?;
     fs::write(path, output)?;
     Ok(())
 }
@@ -123,12 +102,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn nested_relative_includes_and_selected_library() {
+    fn nested_relative_circuit_includes() {
         let dir = tempfile::tempdir().unwrap();
         fs::create_dir(dir.path().join("nested")).unwrap();
         fs::write(
             dir.path().join("top"),
-            ".INCLUDE 'nested/cell with space'\n.lib nested/models ss\n",
+            ".INCLUDE 'nested/cell with space'\n",
         )
         .unwrap();
         fs::write(
@@ -137,25 +116,22 @@ mod tests {
         )
         .unwrap();
         fs::write(dir.path().join("leaf"), ".subckt test a b\n.ends test\n").unwrap();
-        fs::write(
-            dir.path().join("nested/models"),
-            ".lib tt\nwrong\n.endl\n.lib ss\nright\n.endl\n",
-        )
-        .unwrap();
-        let result = expand(&dir.path().join("top"), None, &mut Vec::new()).unwrap();
-        assert_eq!(result, ".subckt test a b\n.ends test\nright\n");
+        let result = expand(&dir.path().join("top"), &mut Vec::new()).unwrap();
+        assert_eq!(result, ".subckt test a b\n.ends test\n");
     }
 
     #[test]
-    fn reject_cycles_missing_files_and_missing_sections() {
+    fn reject_cycles_missing_files_and_device_models() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("a");
         fs::write(&path, ".include a\n").unwrap();
-        assert!(expand(&path, None, &mut Vec::new()).is_err());
+        assert!(expand(&path, &mut Vec::new()).is_err());
         fs::write(&path, ".include absent\n").unwrap();
-        assert!(expand(&path, None, &mut Vec::new()).is_err());
-        fs::write(&path, ".lib tt\n.endl\n").unwrap();
-        assert!(expand(&path, Some("ss"), &mut Vec::new()).is_err());
+        assert!(expand(&path, &mut Vec::new()).is_err());
+        for directive in [".lib models tt", ".model nfet nmos level=1"] {
+            fs::write(&path, directive).unwrap();
+            assert!(expand(&path, &mut Vec::new()).is_err());
+        }
         assert!(words(".include \"unterminated").is_err());
     }
 }

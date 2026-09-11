@@ -37,12 +37,13 @@ to generate several macros; each gets its own output subdirectory. A single
 configuration without the header is also accepted. To choose explicit paths:
 
 ```bash
-sram22 --config sram22.toml --output-dir output --spice-corner tt
+sram22 --config sram22.toml --output-dir output
 ```
 
-To simulate the macro in ngspice, include its `.spice` file in a testbench and
-provide power supplies, stimuli, and a simulation temperature. When combining
-several macros in one testbench, keep one copy of their shared model definitions.
+To simulate the macro in ngspice, load its `.spice` circuit netlist and the
+device-model library from your SKY130 PDK in a testbench. Select the corner with
+`.lib`, and provide power supplies, stimuli, and temperature. See the
+[SPICE simulation example](https://github.com/ucb-substrate/sram22#spice-simulation).
 
 ## Command-line options
 
@@ -51,7 +52,6 @@ several macros in one testbench, keep one copy of their shared model definitions
 | `-c, --config <CONFIG>` | TOML path; default `sram22.toml` |
 | `-o, --output-dir <OUTPUT_DIR>` | Parent output directory; default `build/` beside the config |
 | `-p, --parallel <PARALLEL>` | Maximum concurrent macros; default no limit |
-| `--spice-corner <CORNER>` | SPICE model corner: `tt`, `ss`, or `ff`; default `tt` |
 | `-h, --help` | Available options for the installed build |
 | `-V, --version` | Version |
 
@@ -70,9 +70,6 @@ mux ratio 8. Other configurations need additional timing data or a BWRC build
 with `--liberate`. See the
 [model assumptions](https://github.com/ucb-substrate/sram22/blob/main/timingdata/INTERPOLATION.md).
 
-`--spice-corner` selects exported SPICE device models independently of these
-Liberty corners. Set SPICE simulation temperature in your testbench.
-
 The [macro catalog](/docs/macros/) provides characterized views for download.
 
 ## Configuration reference
@@ -88,6 +85,5 @@ it. See [Orientations](/docs/orientations/), then the
 
 ## Advanced setup
 
-See the README for [source builds and custom forks](https://github.com/ucb-substrate/sram22#local-checkout-or-custom-fork),
-[BWRC installation](https://github.com/ucb-substrate/sram22#bwrc-installation),
-and [external PDK overrides](https://github.com/ucb-substrate/sram22#external-open-pdk-override).
+See the README for [source builds and custom forks](https://github.com/ucb-substrate/sram22#local-checkout-or-custom-fork)
+and [BWRC installation](https://github.com/ucb-substrate/sram22#bwrc-installation).

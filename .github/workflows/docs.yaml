@@ -8,13 +8,13 @@ on:
   push:
     branches: [main]
     paths:
-      - "docs/site/**"
+      - "docs/docusaurus/**"
       - "src/abs.rs"
       - "src/blocks/sram/mod.rs"
       - ".github/workflows/docs.yaml"
   pull_request:
     paths:
-      - "docs/site/**"
+      - "docs/docusaurus/**"
       - "src/abs.rs"
       - "src/blocks/sram/mod.rs"
       - ".github/workflows/docs.yaml"
@@ -22,7 +22,7 @@ on:
 
 defaults:
   run:
-    working-directory: docs/site
+    working-directory: docs/docusaurus
 
 jobs:
   build:
@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: docs/site/package-lock.json
+          cache-dependency-path: docs/docusaurus/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -60,7 +60,7 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/site/build
+          path: docs/docusaurus/build
 
   deploy:
     name: Deploy to GitHub Pages
