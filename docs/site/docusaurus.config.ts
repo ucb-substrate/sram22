@@ -38,7 +38,7 @@ const config: Config = {
           routeBasePath: "/docs",
           path: "docs",
           sidebarPath: "./sidebars.ts",
-          editUrl: "https://github.com/ucb-substrate/sram22/edit/master/docs/site/",
+          editUrl: "https://github.com/ucb-substrate/sram22/edit/main/docs/site/",
           showLastUpdateTime: true,
         },
         blog: false,
@@ -102,7 +102,7 @@ const config: Config = {
         },
         {
           label: "License",
-          href: "https://github.com/ucb-substrate/sram22/blob/master/LICENSE",
+          href: "https://github.com/ucb-substrate/sram22/blob/main/LICENSE",
         },
       ],
       copyright: "SRAM22 is distributed under the BSD-3-Clause license.",

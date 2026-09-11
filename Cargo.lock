@@ -370,7 +370,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "codegen"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#ab6a40deb778bc9f6d6b3e88bbd83f712f8b7ad4"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
 dependencies = [
  "darling 0.14.4",
  "itertools",
@@ -980,7 +980,7 @@ checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
 [[package]]
 name = "gds21"
 version = "0.2.1"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#ab6a40deb778bc9f6d6b3e88bbd83f712f8b7ad4"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
 dependencies = [
  "arcstr",
  "byteorder",
@@ -1395,7 +1395,7 @@ dependencies = [
 [[package]]
 name = "ngspice"
 version = "0.0.1"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#ab6a40deb778bc9f6d6b3e88bbd83f712f8b7ad4"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -2282,7 +2282,7 @@ checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 [[package]]
 name = "sky130_common_pdk"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#ab6a40deb778bc9f6d6b3e88bbd83f712f8b7ad4"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
 dependencies = [
  "arcstr",
  "subgeom",
@@ -2292,7 +2292,7 @@ dependencies = [
 [[package]]
 name = "sky130_open_pdk"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#ab6a40deb778bc9f6d6b3e88bbd83f712f8b7ad4"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
 dependencies = [
  "arcstr",
  "sky130_common_pdk",
@@ -2334,7 +2334,7 @@ checksum = "b7c388c1b5e93756d0c740965c41e8822f866621d41acbdf6336a6a168f8840c"
 [[package]]
 name = "spice_rawfile"
 version = "0.0.1"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#ab6a40deb778bc9f6d6b3e88bbd83f712f8b7ad4"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
 dependencies = [
  "nom",
  "serde",
@@ -2414,7 +2414,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 [[package]]
 name = "subgeom"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#ab6a40deb778bc9f6d6b3e88bbd83f712f8b7ad4"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
 dependencies = [
  "array_map",
  "enum_dispatch",
@@ -2426,7 +2426,7 @@ dependencies = [
 [[package]]
 name = "sublut"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#ab6a40deb778bc9f6d6b3e88bbd83f712f8b7ad4"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
 dependencies = [
  "derive_builder 0.12.0",
  "serde",
@@ -2436,7 +2436,7 @@ dependencies = [
 [[package]]
 name = "subspice"
 version = "0.0.2"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#ab6a40deb778bc9f6d6b3e88bbd83f712f8b7ad4"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
 dependencies = [
  "anyhow",
  "nom",
@@ -2447,7 +2447,7 @@ dependencies = [
 [[package]]
 name = "substrate"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#ab6a40deb778bc9f6d6b3e88bbd83f712f8b7ad4"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
 dependencies = [
  "anyhow",
  "arcstr",

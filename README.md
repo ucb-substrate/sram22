@@ -50,7 +50,6 @@ With the BWRC manifest, `--liberate` selects Liberate MX characterization;
 or `rcc` runs extraction for that macro; it is ignored without commercial features.
 `--all` enables DRC and LVS but retains interpolated timing unless `--liberate`
 is also supplied. Liberate uses the extracted netlist when `pex_level` is set.
-An ordinary generation run does not establish DRC/LVS correctness.
 
 ### Liberty timing
 
@@ -76,8 +75,7 @@ Rows = `num_words / mux_ratio`; columns = `data_width * mux_ratio`.
 Valid configurations require positive `num_words`, `data_width`, and `write_size`,
 a power-of-two `num_words`, a mux ratio of 4 or 8, data width divisible by write
 size, at least 16 rows, and at least 16 columns. Address width is `log2(num_words)`;
-write-mask width is `data_width / write_size`. Supported geometry is not a guarantee
-of successful signoff or a particular operating frequency.
+write-mask width is `data_width / write_size`.
 
 With `write_size == data_width`, `wmask` is a scalar whole-word write mask. Drive
 it high to allow writes.

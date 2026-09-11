@@ -21,12 +21,12 @@ The diagram is not to scale and omits reset and mask traces for clarity.
 
 ## Characterized constraints
 
-These values come from <code>{timing.macro}</code> at **{timing.corner_label}**.
+These values come from the [published Liberty file](https://github.com/ucb-substrate/sram22_sky130_macros/blob/75cbe961e18ee00d5a6c73fa455505f0bcdf4c05/sram22_64x32m4w8/sram22_64x32m4w8_tt_025C_1v80.lib)
+for <code>{timing.macro}</code> at **{timing.corner_label}**.
 Each range spans every entry of the corresponding rise- or fall-constraint table,
 including both slew axes. “Rise/fall” below refers to the **input transition**;
-all these setup/hold arcs are relative to a rising clock edge. A range is not a
-single constraint to apply at every operating point: use the full Liberty tables
-and the actual signal slews in STA.
+all these setup/hold arcs are relative to a rising clock edge. Use the full Liberty
+tables and the actual signal slews in STA.
 
 <table>
   <thead><tr><th>Input</th><th>Setup, rising (ns)</th><th>Setup, falling (ns)</th><th>Hold, rising (ns)</th><th>Hold, falling (ns)</th></tr></thead>
@@ -41,8 +41,6 @@ and the actual signal slews in STA.
 
 The published library has a notably larger **falling-transition reset hold**
 constraint: {range(timing.hold.rstb.fall)} ns. Preserve it in timing analysis.
-This page reports the characterization as supplied; it does not establish why
-that constraint is large or independently validate the reset characterization.
 
 :::
 
@@ -55,14 +53,8 @@ that constraint is large or independently validate the reset characterization.
 | Clock-to-Q, rising output | {range(timing.clk_q.rise)} |
 | Clock-to-Q, falling output | {range(timing.clk_q.fall)} |
 
-The minimum-period arc is a clock constraint, not a demonstrated maximum operating
-frequency for a complete design. Output load, downstream setup time, clock skew,
-and other path constraints still affect the usable clock period.
-
-The diagram labels use the first rising-transition entries: clock/input slew
-{timing.example_conditions.clock_slew_ns} ns and output load
-{timing.example_conditions.output_load_pf} pF. They are illustrative points, not
-averages, worst-case limits, or silicon measurements.
+Choose the clock period using the minimum-period constraint together with output
+load, downstream setup time, clock skew, and the other constraints on each path.
 
 ## Internal sequence
 
@@ -72,7 +64,3 @@ a decoder-replica delay sequences sensing and subsequent precharge. The output
 is retained by a differential latch. See
 [Algorithms](/docs/internals/algorithms/#self-timed-control) for the implementation
 and [Waveforms](/docs/internals/waveforms/) for an illustrative main-bitline plot.
-
-The source is the [published TT Liberty file](https://github.com/ucb-substrate/sram22_sky130_macros/blob/75cbe961e18ee00d5a6c73fa455505f0bcdf4c05/sram22_64x32m4w8/sram22_64x32m4w8_tt_025C_1v80.lib).
-Its SHA-256 is <code>{timing.source_sha256}</code>. Update this source reference
-when regenerating the timing data from another artifact.

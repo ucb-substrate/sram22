@@ -2,11 +2,11 @@ name: Docs
 
 # Builds the Docusaurus site, checks pin attributes and config field names against
 # SRAM22 source, checks internal links, and deploys to GitHub
-# Pages (https://sram22.com) on pushes to master.
+# Pages (https://sram22.com) on pushes to main.
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - "docs/site/**"
       - "src/abs.rs"
@@ -57,7 +57,7 @@ jobs:
         run: npm run check:links
 
       - name: Upload Pages artifact
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs/site/build
@@ -65,7 +65,7 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       pages: write # to deploy to Pages

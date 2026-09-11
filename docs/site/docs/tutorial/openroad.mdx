@@ -3,10 +3,10 @@ title: "Integration: OpenROAD"
 description: Required macro views, RTL binding, and placement constraints for an existing OpenROAD flow.
 ---
 
-This is an integration outline for an existing SKY130 flow, including
+These steps add an SRAM22 macro to an existing SKY130 flow, including
 [OpenROAD-flow-scripts](https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts)
 (ORFS). Supply your flow's technology setup, clocks, floorplan, power connections,
-and signoff checks. These snippets are not a complete, qualified RTL-to-GDS flow.
+and signoff checks.
 
 ## 1. Obtain matching macro views
 
@@ -77,12 +77,11 @@ link_design top
 ```
 
 Load corresponding standard-cell and macro corners together for multi-corner STA.
-Provide clock and I/O constraints; merely loading the `.lib` does not constrain
-the design.
+Provide clock and I/O constraints for the design.
 
 ## 4. Place and connect the macro
 
-After the floorplan exists, the current OpenROAD API supports:
+After creating the floorplan, place the macro:
 
 ```tcl
 place_inst -name u_mem -origin {120.0 80.0} -orientation R90 -status FIRM
@@ -103,5 +102,3 @@ before standard-cell placement, CTS, and routing.
 Check STA using all required corners, merge the macro GDS into the streamed
 layout, and run the flow's DRC/LVS and connectivity checks. ORFS can use
 `ADDITIONAL_GDS` during its merge; a custom flow must arrange its own merge.
-Successful generation or placement alone does not establish a hardened,
-verified block.

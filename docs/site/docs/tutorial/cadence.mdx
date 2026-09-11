@@ -4,9 +4,9 @@ description: Macro views and binding, placement, and signoff checks for an exist
 ---
 
 Use an established SKY130 Genus/Innovus flow with its licensed technology setup.
-This outline describes the SRAM-specific integration points. It has not been
-qualified end-to-end against a particular Cadence release; command names and
-initialization differ between legacy and common UIs.
+These steps cover SRAM-specific integration. Use the commands for your
+Genus/Innovus version; initialization and placement commands differ between
+legacy and common UIs.
 
 ## 1. Obtain consistent views
 
@@ -60,15 +60,10 @@ not enforce the project's placement restriction. See [Orientations](/docs/orient
 
 Build the power connections to the rotated `vdd`/`vss` met2 shapes, inspect signal
 pin access, then continue through the flow's standard-cell placement, CTS, and
-routing stages. This outline deliberately leaves version-specific placement and
-power commands to the established flow.
+routing stages.
 
 ## 4. Check timing and physical integration
 
 Run STA with the selected macro corners, checking the full rise/fall constraints,
 including reset. Merge the SRAM GDS into the top-level stream and verify power
 connectivity, DRC, and LVS with the intended decks.
-
-A placed instance or a successful generation run is not evidence that these checks
-have passed. Record the tool version, corners, and verification results for the
-integrated block.

@@ -138,8 +138,7 @@ export default function LayoutBrowser(): JSX.Element {
         {status && <div className={styles.loading}>{status}</div>}
       </div>
       <p className={styles.hint}>
-        Scroll to zoom · drag to pan · toggle layers above. Vector geometry from
-        the <code>sram22_64x32m4w8</code> GDS (360.32 × 191.00 µm).
+        Scroll to zoom · drag to pan · toggle layers above.
       </p>
     </div>
   );

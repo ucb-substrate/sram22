@@ -5,9 +5,8 @@ description: Supported SRAM22 macro placements and how to constrain them in a ph
 
 import OrientationDiagram from "@site/src/components/OrientationDiagram";
 
-The project specifies four supported placements: **R90, R270, and their mirrored
-variants**. Use those quarter-turn orientations in integration flows. R0/R180 are
-outside the project's supported placement set.
+SRAM22 supports four placements: **R90, R270, and their mirrored variants**.
+Use these quarter-turn orientations in your integration flow.
 
 <OrientationDiagram />
 
@@ -27,12 +26,10 @@ in your integration flow. See the
 Signal pins are on met1 along the bottom edge in the generated frame. After a
 quarter turn that edge is vertical; the met2 power geometry rotates as well.
 Plan routing access and power connections using the transformed LEF geometry.
-The placement restriction is a project integration requirement; the available
-source does not establish a more specific physical rationale or abutment guarantee.
 
 ## OpenROAD
 
-With the current `place_inst` API and an initialized design:
+With an initialized design:
 
 ```tcl
 place_inst -name u_mem -origin {120.0 80.0} -orientation R90 -status FIRM
@@ -40,8 +37,7 @@ place_inst -name u_mem -origin {120.0 80.0} -orientation R90 -status FIRM
 
 Coordinates are in microns. `-origin` positions the transformed cell origin;
 `-location` instead positions its bounding box. Check the
-[API for your OpenROAD version](https://openroad.readthedocs.io/en/latest/main/src/README.html),
-since older releases used a different `place_cell` interface.
+[API for your OpenROAD version](https://openroad.readthedocs.io/en/latest/main/src/README.html).
 
 For Innovus, use the placement command or GUI in your flow's documented UI/version
 to apply one of the four transforms and fix the instance. Verify the resulting

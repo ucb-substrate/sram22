@@ -242,7 +242,7 @@ export default function TimingDiagram(): JSX.Element {
       <figcaption>
         Synchronous read then write, with <code>rstb</code> and all <code>wmask</code>
         {" "}bits high (schematic — setup/hold shown exaggerated).
-        Illustrative rising-transition table entries at {corner}. Clock and input slew
+        Example rising-transition timing at {corner}. Clock and input slew
         are {timing.example_conditions.clock_slew_ns} ns; output load is {timing.example_conditions.output_load_pf} pF. Full rise/fall constraints are in the{" "}
         <code>.lib</code>; see{" "}
         <Link to="/docs/internals/waveforms/">Waveforms</Link> for the physical

@@ -3,10 +3,8 @@ title: Waveforms
 description: An illustrative simulated SRAM22 read and the internal control signals it exposes.
 ---
 
-The figure below is a retained transistor-level simulation plot. The source run,
-macro configuration, PVT corner, and extraction status are not recorded alongside
-this image, so it illustrates the signal sequence rather than specifying timing
-or establishing silicon performance.
+This simulated read illustrates the sequence of internal control signals. Use
+the macro's Liberty tables for [timing constraints](/docs/interface/timing/).
 
 <Figure
   src="/figures/read_sim.png"
@@ -30,13 +28,10 @@ falls and the bitlines return toward their precharged levels.
 
 ## Replica timing
 
-The replica bitline is **not plotted here**. In the implementation, replica
-bitline detection resets the wordline-enable path during reads. A delay chain then
-sequences sensing and precharge. One row of replica cells is driven by `rwl`; the
-other replica wordlines are tied low and contribute load.
+Replica bitline detection resets the wordline-enable path during reads. A delay
+chain then sequences sensing and precharge. One row of replica cells is driven by
+`rwl`; the other replica wordlines are tied low and contribute load.
 
 The mechanism is intended to track array behavior across operating conditions.
-This image does not demonstrate a particular replica trip voltage, replica/main
-tracking accuracy, or sensing margin across all PVT corners. See
-[Algorithms](/docs/internals/algorithms/#self-timed-control) for the source-derived
-sequence and [Timing diagrams](/docs/interface/timing/) for characterized Liberty constraints.
+See [Algorithms](/docs/internals/algorithms/#self-timed-control) for the control
+sequence.

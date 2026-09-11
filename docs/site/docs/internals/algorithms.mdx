@@ -7,7 +7,7 @@ import DecoderDiagram from "@site/src/components/DecoderDiagram";
 
 SRAM22 assembles fixed bitcell and sense-amplifier macros with parameterized
 peripheral circuits. The implementation lives in
-[`src/blocks/`](https://github.com/ucb-substrate/sram22/tree/master/src/blocks).
+[`src/blocks/`](https://github.com/ucb-substrate/sram22/tree/main/src/blocks).
 
 ## Generation pipeline
 
@@ -33,13 +33,12 @@ C_wordline = (columns + 4) × WORDLINE_CAP_PER_CELL × 1.5
 ```
 
 The extra cells and safety factor are part of the sizing model. The effective load
-is capped at `WORDLINE_CAP_MAX = 500e-15` F. Stage count and sizes use logical effort
-and RC gate models; this is a sizing heuristic, not a guarantee of minimum measured
-delay. The cap limits further scaling when routing parasitics are expected to dominate.
+is capped at `WORDLINE_CAP_MAX = 500e-15` F. Stage count and sizes are estimated using
+logical effort and RC gate models. The cap limits further scaling when routing
+parasitics are expected to dominate.
 
 Address partitioning uses balanced two- or three-way splits. The top-level split
-is two-way, and smaller groups terminate in two- or three-input decode gates. The
-implementation does not explicitly optimize a routed-wire-count objective.
+is two-way, and smaller groups terminate in two- or three-input decode gates.
 
 ## Self-timed control
 
@@ -62,9 +61,8 @@ replica detection. Write-driver enable is set for a write and reset after the
 replica-decoder delay. Precharge is subsequently restored. The write mask qualifies
 the write-driver groups.
 
-The decoder replica delays the **end-of-access sequence**; it is not a detector
-that waits for address decoding to finish before enabling a wordline. The precharge
-latch's `q` output is `pc`, and its complemented output drives `pc_b`.
+The decoder replica delays the **end-of-access sequence**. The precharge latch's
+`q` output is `pc`, and its complemented output drives `pc_b`.
 
 Replica timing is intended to track array behavior. Adequate sensing margin and
 write completion still need verification for each configuration and PVT range.
@@ -72,10 +70,9 @@ See [Waveforms](/docs/internals/waveforms/) for an illustrative simulated read.
 
 ## Array organization
 
-The current implementation has one bitcell array. Every row shares a wordline,
+SRAM22 has one bitcell array. Every row shares a wordline,
 and every column shares a `bl`/`br` pair across its rows. A decoder sits to the left
-and column peripherals below the array. There is no address-controlled top/bottom
-bank selection or four-bank divided-bitline organization in this implementation.
+and column peripherals below the array.
 
 ## Column circuitry and the mux ratio
 
@@ -85,9 +82,9 @@ muxes. Each data bit has a shared sense amplifier, write driver, and differentia
 output latch. Input data and write-mask bits use flip-flops.
 
 Increasing M reduces the number of rows and the bitline load while increasing the
-number of cells across a wordline. It changes the aspect ratio and mux overhead;
-it does not shorten both dimensions or necessarily make the array square. This
-implementation supports M=4 and M=8, with at least 16 rows and 16 columns.
+number of cells across a wordline. This makes the array wider and shorter and
+increases mux overhead. SRAM22 supports M=4 and M=8, with at least 16 rows and
+16 columns.
 
 `write_size` sets the number of data bits controlled by each mask bit. A whole-word
 write still has a scalar `wmask`; drive it high to permit writes.

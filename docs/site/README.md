@@ -110,6 +110,10 @@ the same framing in both themes; do not override `ThemedImage`'s display rules.
 
 ## Data and reproducibility
 
+Keep hashes, regeneration instructions, and documentation audit notes here.
+Public guides should describe SRAM22's behavior and how to use it; include source
+links and operating conditions where they help readers interpret technical data.
+
 The site renders interface, configuration, pin geometry, timing, and catalog data
 from `src/data/`. These files have different sources and verification coverage:
 
@@ -121,7 +125,9 @@ from `src/data/`. These files have different sources and verification coverage:
   compares pin names/directions/width expressions/layers and config field names to Rust;
   it does not validate prose, behavior, numeric timing, or configuration constraints.
 
-The checked-in example uses the published `sram22_64x32m4w8` macro. To regenerate:
+The checked-in timing example uses the [published TT Liberty file](https://github.com/ucb-substrate/sram22_sky130_macros/blob/75cbe961e18ee00d5a6c73fa455505f0bcdf4c05/sram22_64x32m4w8/sram22_64x32m4w8_tt_025C_1v80.lib)
+for `sram22_64x32m4w8`. Its SHA-256 is recorded in `src/data/timing.json` as
+`source_sha256`. To regenerate the example assets:
 
 ```bash
 python3 scripts/extract_data.py sram22_64x32m4w8 macro.lef macro.lib src/data
@@ -139,6 +145,10 @@ published Liberty source link in `docs/interface/timing.mdx` when replacing that
 artifact. Its operating conditions and hash are extracted automatically. The parser
 rejects incompatible units and missing required timing groups instead of guessing.
 
+The retained read-waveform image has no recorded macro configuration, PVT corner,
+extraction status, or originating simulation run. Keep its public description
+illustrative; use a documented run before adding quantitative conclusions.
+
 The timing diagram labels are explicit first-table entries at documented slew/load
 coordinates; they are not averaged constraints or guaranteed operating limits.
 `python3 -m unittest discover -s scripts -p 'test_*.py'` checks extraction of full
@@ -155,7 +165,7 @@ npm run check:links    # no broken internal links/assets
 
 These run in `.github/workflows/docs.yaml` for pull requests matching its path
 filters; the workflow also tests the Liberty extractor. It deploys to GitHub Pages
-on matching pushes to `master`. These checks do not establish technical accuracy
+on matching pushes to `main`. These checks do not establish technical accuracy
 of every paragraph or qualify the EDA integration outlines.
 
 Docusaurus itself fails the build on a broken internal *page* link
