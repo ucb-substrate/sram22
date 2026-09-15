@@ -2,14 +2,17 @@
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
+#[cfg(feature = "commercial")]
+use sky130_commercial_pdk::Sky130CommercialPdk;
 use sky130_open_pdk::Sky130OpenPdk;
+use substrate::component::View;
 use substrate::layout::context::LayoutCtx;
 use substrate::layout::elements::via::ViaParams;
 use substrate::layout::layers::Layers;
 use substrate::pdk::corner::CornerDb;
 use substrate::pdk::mos::spec::MosSpec;
 use substrate::pdk::mos::{LayoutMosParams, MosParams};
-use substrate::pdk::stdcell::StdCellDb;
+use substrate::pdk::stdcell::{StdCellData, StdCellDb, StdCellLibData};
 use substrate::pdk::{Pdk, PdkParams, Supplies, Units};
 use substrate::schematic::context::SchematicCtx;
 use substrate::schematic::netlist::{IncludeBundle, NetlistPurpose};
@@ -32,35 +35,53 @@ pub const TAPCELL_WIDTH: isize = 1300;
 pub const COLUMN_WIDTH: isize = BITCELL_WIDTH + TAPCELL_WIDTH;
 
 #[inline]
-pub fn custom_gds_dir() -> PathBuf {
+pub fn gds_dir() -> PathBuf {
     crate::assets::path("tech/sky130/gds")
 }
 
 #[inline]
-pub fn custom_spice_dir() -> PathBuf {
+pub fn spice_dir() -> PathBuf {
     crate::assets::path("tech/sky130/spice")
 }
 
-/// Uses bundled standard cells for every view and a separate model library for simulation.
-pub struct OpenPdk {
-    inner: Sky130OpenPdk,
-    model_pdk_root: Option<PathBuf>,
+enum Models {
+    Open(Option<PathBuf>),
+    #[cfg(feature = "commercial")]
+    Commercial,
 }
 
-impl OpenPdk {
-    pub fn new() -> Result<Self> {
+/// Uses SRAM22's cell directories with either open or commercial device models.
+pub struct Sky130Pdk {
+    inner: Box<dyn Pdk>,
+    models: Models,
+}
+
+impl Sky130Pdk {
+    pub fn open() -> Result<Self> {
         Ok(Self {
-            inner: Sky130OpenPdk::new(&PdkParams {
+            inner: Box::new(Sky130OpenPdk::new(&PdkParams {
                 pdk_root: crate::assets::standard_cell_root(),
-            })?,
-            model_pdk_root: std::env::var_os("SKY130_OPEN_PDK_ROOT").map(PathBuf::from),
+            })?),
+            models: Models::Open(std::env::var_os("SKY130_OPEN_PDK_ROOT").map(PathBuf::from)),
         })
     }
 
-    fn model_library(&self) -> Result<PathBuf> {
-        let root = self
-            .model_pdk_root
-            .as_ref()
+    #[cfg(feature = "commercial")]
+    pub fn commercial() -> Result<Self> {
+        let root = std::env::var_os("SKY130_COMMERCIAL_PDK_ROOT")
+            .map(PathBuf::from)
+            .context("Set SKY130_COMMERCIAL_PDK_ROOT before using the commercial build")?;
+        Ok(Self {
+            inner: Box::new(Sky130CommercialPdk::new(
+                root,
+                crate::assets::standard_cell_root(),
+            )?),
+            models: Models::Commercial,
+        })
+    }
+
+    fn open_model_library(root: Option<&PathBuf>) -> Result<PathBuf> {
+        let root = root
             .context("Set SKY130_OPEN_PDK_ROOT to the open SKY130 PDK root to run simulations")?;
         let path = root.join("libraries/sky130_fd_pr/latest/models/sky130.lib.spice");
         if !path.is_file() {
@@ -74,7 +95,7 @@ impl OpenPdk {
     }
 }
 
-impl Pdk for OpenPdk {
+impl Pdk for Sky130Pdk {
     fn name(&self) -> &'static str {
         self.inner.name()
     }
@@ -128,18 +149,50 @@ impl Pdk for OpenPdk {
     }
 
     fn includes(&self, purpose: NetlistPurpose) -> substrate::error::Result<IncludeBundle> {
-        if let NetlistPurpose::Simulation { corner } = purpose {
-            Ok(IncludeBundle {
-                lib_includes: vec![(self.model_library()?, corner.name().clone())],
+        match (&self.models, purpose) {
+            (Models::Open(root), NetlistPurpose::Simulation { corner }) => Ok(IncludeBundle {
+                lib_includes: vec![(
+                    Self::open_model_library(root.as_ref())?,
+                    corner.name().clone(),
+                )],
                 ..Default::default()
-            })
-        } else {
-            Ok(IncludeBundle::default())
+            }),
+            (_, purpose) => self.inner.includes(purpose),
         }
     }
 
     fn standard_cells(&self) -> substrate::error::Result<StdCellDb> {
-        self.inner.standard_cells()
+        let upstream = self.inner.standard_cells()?;
+        let mut cells = StdCellDb::new();
+        let layouts = gds_dir();
+        let schematics = spice_dir();
+        for name in ["sky130_fd_sc_hd", "sky130_fd_sc_hs"] {
+            let mut library = StdCellLibData::new(name);
+            for cell in upstream.try_lib_named(name)?.cells() {
+                let layout = layouts.join(format!("{}.gds", cell.name()));
+                let schematic = schematics.join(format!("{}.spice", cell.name()));
+                if !layout.is_file() || !schematic.is_file() {
+                    continue;
+                }
+                library.add_cell(
+                    StdCellData::builder()
+                        .name(cell.name().clone())
+                        .layout_name(cell.view_name(View::Layout).clone())
+                        .schematic_name(cell.view_name(View::Schematic).clone())
+                        .layout_source(layout)
+                        .schematic_source(schematic)
+                        .function(cell.function().clone())
+                        .strength(cell.strength())
+                        .build()
+                        .expect("all standard-cell fields are set"),
+                );
+            }
+            let id = cells.add_lib(library);
+            if name == "sky130_fd_sc_hd" {
+                cells.set_default_lib(id);
+            }
+        }
+        Ok(cells)
     }
 
     fn corners(&self) -> substrate::error::Result<CornerDb> {
@@ -153,8 +206,8 @@ mod tests {
 
     #[test]
     fn external_models_are_required_only_for_simulation() {
-        let mut pdk = OpenPdk::new().unwrap();
-        pdk.model_pdk_root = None;
+        let mut pdk = Sky130Pdk::open().unwrap();
+        pdk.models = Models::Open(None);
         assert!(pdk.standard_cells().is_ok());
         let includes = pdk.includes(NetlistPurpose::Library).unwrap();
         assert!(includes.includes.is_empty() && includes.lib_includes.is_empty());
@@ -174,7 +227,7 @@ mod tests {
         let models = directory
             .path()
             .join("libraries/sky130_fd_pr/latest/models/sky130.lib.spice");
-        pdk.model_pdk_root = Some(directory.path().to_path_buf());
+        pdk.models = Models::Open(Some(directory.path().to_path_buf()));
         assert!(pdk.includes(NetlistPurpose::Library).is_ok());
         assert!(pdk.includes(simulation()).is_err());
         std::fs::create_dir_all(models.parent().unwrap()).unwrap();

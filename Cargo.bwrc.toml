@@ -31,8 +31,6 @@ colored = "2"
 approx = "0.5"
 lef21 = { git = "https://github.com/dan-fritchman/Layout21.git", branch = "main" }
 plotters = "0.3.7"
-flate2 = "1"
-tar = "0.4"
 tempfile = "3"
 
 # Substrate dependencies
@@ -50,7 +48,10 @@ rust_decimal_macros = "1"
 [dev-dependencies]
 paste = "1"
 rayon = "1"
-itertools = "0.14"
+
+# Keep the BWRC Calibre adapter on SRAM22's Substrate dependency.
+[patch."https://github.com/substrate-labs/substrate.git"]
+substrate = { git = "https://github.com/ucb-substrate/substrate", branch = "main" }
 
 [features]
 commercial = ["dep:calibre", "dep:abstract_lef", "dep:liberate_mx", "dep:spectre", "dep:sky130_commercial_pdk", "dep:sub_calibre"]

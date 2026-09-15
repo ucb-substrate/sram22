@@ -9,8 +9,6 @@ pub use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
 use ngspice::Ngspice;
 #[cfg(feature = "commercial")]
-use sky130_commercial_pdk::Sky130CommercialPdk;
-#[cfg(feature = "commercial")]
 use spectre::Spectre;
 #[cfg(feature = "commercial")]
 use sub_calibre::CalibreDrc;
@@ -41,8 +39,6 @@ pub mod verilog;
 
 pub const BUILD_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/build");
 pub const LIB_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/lib");
-#[cfg(feature = "commercial")]
-pub const SKY130_COMMERCIAL_PDK_ROOT: &str = env!("SKY130_COMMERCIAL_PDK_ROOT");
 
 lazy_static! {
     pub static ref TEMPLATES: Tera = match Tera::new(
@@ -65,7 +61,7 @@ pub fn setup_ctx() -> SubstrateCtx {
 
 pub fn try_setup_open_ctx() -> Result<SubstrateCtx> {
     let cfg = SubstrateConfig::builder()
-        .pdk(tech::sky130::OpenPdk::new()?)
+        .pdk(tech::sky130::Sky130Pdk::open()?)
         .netlister(SpiceNetlister::new())
         .simulator(Ngspice::new(SimulatorOpts::default())?)
         .build();
@@ -83,10 +79,7 @@ pub fn try_setup_ctx() -> Result<SubstrateCtx> {
 
     #[cfg(feature = "commercial")]
     let builder = builder
-        .pdk(Sky130CommercialPdk::new(
-            PathBuf::from(SKY130_COMMERCIAL_PDK_ROOT),
-            assets::standard_cell_root(),
-        )?)
+        .pdk(tech::sky130::Sky130Pdk::commercial()?)
         .drc_tool(
             CalibreDrc::builder()
                 .rules_file(PathBuf::from(
@@ -110,7 +103,7 @@ pub fn try_setup_ctx() -> Result<SubstrateCtx> {
             crate::verification::calibre::SKY130_PEX_RULES_PATH,
         )));
     #[cfg(not(feature = "commercial"))]
-    let builder = builder.pdk(tech::sky130::OpenPdk::new()?);
+    let builder = builder.pdk(tech::sky130::Sky130Pdk::open()?);
 
     #[cfg(feature = "commercial")]
     builder.simulation_bashrc("/tools/B/rahulkumar/sky130/priv/drc/.bashrc");

@@ -28,8 +28,6 @@ colored = "2"
 approx = "0.5"
 lef21 = { git = "https://github.com/dan-fritchman/Layout21.git", branch = "main" }
 plotters = "0.3.7"
-flate2 = "1"
-tar = "0.4"
 tempfile = "3"
 
 # Substrate dependencies

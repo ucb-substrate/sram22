@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use codegen::hard_macro;
 
 use crate::blocks::columns::ColumnDesignScript;
-use crate::tech::sky130::{custom_gds_dir, custom_spice_dir};
+use crate::tech::sky130::{gds_dir, spice_dir};
 use subgeom::bbox::BoundBox;
 use subgeom::{Rect, Span};
 use substrate::component::{Component, NoParams, View};
@@ -15,15 +15,15 @@ use substrate::layout::layers::LayerBoundBox;
 
 fn path(_ctx: &SubstrateCtx, name: &str, view: View) -> Option<PathBuf> {
     match view {
-        View::Layout => Some(custom_gds_dir().join(format!("{name}.gds"))),
-        View::Schematic => Some(custom_spice_dir().join(format!("{name}.spice"))),
+        View::Layout => Some(gds_dir().join(format!("{name}.gds"))),
+        View::Schematic => Some(spice_dir().join(format!("{name}.spice"))),
         _ => None,
     }
 }
 
 fn layout_path(_ctx: &SubstrateCtx, name: &str, view: View) -> Option<PathBuf> {
     match view {
-        View::Layout => Some(custom_gds_dir().join(format!("{name}.gds"))),
+        View::Layout => Some(gds_dir().join(format!("{name}.gds"))),
         _ => None,
     }
 }

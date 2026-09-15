@@ -4,12 +4,10 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use anyhow::Result;
-use flate2::read::GzDecoder;
 use lazy_static::lazy_static;
 use tempfile::TempDir;
 
 const FILES: &[(&str, &[u8])] = include!(concat!(env!("OUT_DIR"), "/assets.rs"));
-const SKY130_ARCHIVE: &[u8] = include_bytes!("../tech/sky130/pdk/sky130.tar.gz");
 
 lazy_static! {
     // A private process-owned directory avoids shared-cache races and stale assets.
@@ -25,7 +23,6 @@ fn unpack() -> Result<TempDir> {
         fs::create_dir_all(path.parent().unwrap())?;
         fs::write(path, bytes)?;
     }
-    tar::Archive::new(GzDecoder::new(SKY130_ARCHIVE)).unpack(directory.path().join("pdk"))?;
     Ok(directory)
 }
 
@@ -43,7 +40,7 @@ pub fn cleanup() {
 }
 
 pub(crate) fn standard_cell_root() -> PathBuf {
-    path("pdk")
+    path("tech/sky130")
 }
 
 #[cfg(test)]
@@ -55,11 +52,11 @@ mod tests {
         assert!(path("templates/sram_1rw_wmask.v").is_file());
         assert!(path("tech/sky130/gds/sram_sp_cell.gds").is_file());
         assert!(standard_cell_root()
-            .join("libraries/sky130_fd_sc_hs/latest/cells/inv/sky130_fd_sc_hs__inv_2.gds")
+            .join("gds/sky130_fd_sc_hs__inv_2.gds")
             .is_file());
         assert!(standard_cell_root()
-            .join("libraries/sky130_fd_sc_hs/latest/cells/inv/sky130_fd_sc_hs__inv_2.spice")
+            .join("spice/sky130_fd_sc_hs__inv_2.spice")
             .is_file());
-        assert!(!standard_cell_root().join("libraries/sky130_fd_pr").exists());
+        assert!(!standard_cell_root().join("libraries").exists());
     }
 }

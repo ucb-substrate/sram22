@@ -45,9 +45,10 @@ fn generated_outputs_are_portable_for_both_mux_ratios() {
         .unwrap();
         let output = run.path().join(format!("m{mux}"));
         let mut command = Command::new(env!("CARGO_BIN_EXE_sram22"));
-        command
-            .env_remove("SKY130_OPEN_PDK_ROOT")
-            .env_remove("SKY130_COMMERCIAL_PDK_ROOT");
+        command.env_remove("SKY130_OPEN_PDK_ROOT").env(
+            "SKY130_COMMERCIAL_PDK_ROOT",
+            run.path().join(format!("absent-commercial-pdk-{mux}")),
+        );
         if mux == 8 {
             // External PDKs and simulation settings cannot select generation inputs.
             command.env("SKY130_OPEN_PDK_ROOT", run.path().join("absent-pdk"));

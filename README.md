@@ -120,8 +120,7 @@ add this to `~/.cargo/config.toml`:
 git-fetch-with-cli = true
 ```
 
-Set `SKY130_COMMERCIAL_PDK_ROOT` to the commercial PDK root before building, then
-select the commercial manifest:
+Select the commercial manifest:
 
 ```bash
 git clone https://github.com/ucb-substrate/sram22.git
@@ -130,9 +129,15 @@ cp Cargo.bwrc.toml Cargo.toml
 make install
 ```
 
+Set the commercial PDK root when running the BWRC build:
+
+```bash
+export SKY130_COMMERCIAL_PDK_ROOT=/path/to/commercial/sky130
+```
+
 ## Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you shall be licensed under the BSD 3-Clause license,
 without any additional terms or conditions. Vendored third-party files retain their
-own notices and licenses; see [tech/sky130/pdk](tech/sky130/pdk/README.md) for provenance.
+own notices and licenses; see [tech/sky130](tech/sky130/README.md#standard-cell-provenance-and-licenses) for provenance.
