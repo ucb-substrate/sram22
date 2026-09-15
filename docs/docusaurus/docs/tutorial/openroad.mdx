@@ -1,0 +1,104 @@
+---
+title: "Integration: OpenROAD"
+description: Required macro views, RTL binding, and placement constraints for an existing OpenROAD flow.
+---
+
+These steps add an SRAM22 macro to an existing SKY130 flow, including
+[OpenROAD-flow-scripts](https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts)
+(ORFS). Supply your flow's technology setup, clocks, floorplan, power connections,
+and signoff checks.
+
+## 1. Obtain matching macro views
+
+The [published catalog](/docs/macros/) supplies characterized macros. Download all
+views from the same macro directory and decompress its GDS:
+
+```bash
+gzip -d sram22_64x32m4w8.gds.gz
+```
+
+The relevant files at the TT corner are:
+
+<FileTree entries={[
+  { name: "sram22_64x32m4w8.gds", comment: "layout, after decompression" },
+  { name: "sram22_64x32m4w8.lef", comment: "physical abstract" },
+  { name: "sram22_64x32m4w8.v", comment: "behavioral simulation model" },
+  { name: "sram22_64x32m4w8_tt_025C_1v80.lib", comment: "TT timing" },
+]} />
+
+Alternatively, [generate the macro](/docs/quickstart/). SRAM22 emits
+GDS/LEF/SPICE/Verilog and interpolated TT/SS/FF Liberty files. Its BWRC `--liberate`
+option runs Liberate MX characterization instead. Use timing libraries appropriate
+for the generated macro's geometry and your flow's verification requirements.
+
+## 2. Instantiate a library macro
+
+Reference the macro module in the top-level RTL:
+
+```verilog
+sram22_64x32m4w8 u_mem (
+  .clk(clk), .rstb(rstb), .ce(ce), .we(we),
+  .wmask(wmask), // [3:0]
+  .addr(addr),   // [5:0]
+  .din(din),    // [31:0]
+  .dout(dout)   // [31:0]
+);
+```
+
+Use the behavioral `.v` in **simulation**. In synthesis, use your flow's Liberty
+library-cell/black-box binding so the SRAM remains a hard macro; do not synthesize
+its behavioral memory implementation. Inspect the synthesized netlist for the
+`u_mem` instance and its correct library-cell type. Connect physical power pins
+using the flow's global-connect and power-grid setup. See the
+[pin interface](/docs/interface/pin-list/) for signal widths and behavior.
+
+## 3. Register the views
+
+In an ORFS design configuration, with these files under its macro directory:
+
+```makefile
+export ADDITIONAL_LEFS += $(DESIGN_HOME)/macros/sram22_64x32m4w8.lef
+export ADDITIONAL_LIBS += $(DESIGN_HOME)/macros/sram22_64x32m4w8_tt_025C_1v80.lib
+export ADDITIONAL_GDS  += $(DESIGN_HOME)/macros/sram22_64x32m4w8.gds
+```
+
+For a custom OpenROAD Tcl flow, load the **technology LEF, standard-cell LEF and
+Liberty, and SRAM LEF and Liberty** before linking the synthesized netlist.
+The following assumes `TECH_LEF`, `SC_LEF`, and `SC_LIB` were set by your flow:
+
+```tcl
+read_lef $::env(TECH_LEF)
+read_lef $::env(SC_LEF)
+read_lef ./macros/sram22_64x32m4w8.lef
+read_liberty $::env(SC_LIB)
+read_liberty ./macros/sram22_64x32m4w8_tt_025C_1v80.lib
+read_verilog ./results/synth.v
+link_design top
+```
+
+Load corresponding standard-cell and macro corners together for multi-corner STA.
+Provide clock and I/O constraints for the design.
+
+## 4. Place and connect the macro
+
+After creating the floorplan, place the macro:
+
+```tcl
+place_inst -name u_mem -origin {120.0 80.0} -orientation R90 -status FIRM
+```
+
+Coordinates are microns and must fit your actual floorplan. The project supports
+R90, R270, and their mirrored variants. Explicitly enforce this restriction;
+`SYMMETRY X Y R90` in the LEF permits more orientations. See
+[Orientations](/docs/orientations/) and your version's
+[OpenROAD API](https://openroad.readthedocs.io/en/latest/main/src/README.html).
+
+Connect `vdd`/`vss` and design the PDN for their rotated met2 geometry. Verify power
+connectivity, routing access, placement status, and orientation in the database
+before standard-cell placement, CTS, and routing.
+
+## 5. Verify the integrated design
+
+Check STA using all required corners, merge the macro GDS into the streamed
+layout, and run the flow's DRC/LVS and connectivity checks. ORFS can use
+`ADDITIONAL_GDS` during its merge; a custom flow must arrange its own merge.

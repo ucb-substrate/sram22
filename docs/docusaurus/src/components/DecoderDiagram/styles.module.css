@@ -1,0 +1,50 @@
+.dd {
+  margin: 1.3rem 0;
+  border: 1px solid var(--sram-border-solid);
+  border-radius: 12px;
+  padding: 14px 16px 6px;
+  background: var(--sram-panel);
+}
+.dd svg {
+  width: 100%;
+  min-width: 51.25rem;
+  height: auto;
+  font-family: var(--sram-mono);
+  font-size: 13px;
+  display: block;
+}
+.viewport {
+  overflow-x: auto;
+}
+.bus {
+  stroke: var(--sram-cloud);
+  stroke-width: 3;
+}
+.wire {
+  stroke: var(--sram-sky);
+  stroke-width: 1.6;
+  fill: none;
+}
+.wl {
+  stroke: var(--sram-signal);
+  stroke-width: 2.4;
+}
+.block rect {
+  fill: color-mix(in srgb, var(--sram-sky) 10%, transparent);
+  stroke: var(--sram-cloud);
+  stroke-width: 1.6;
+}
+.block text {
+  fill: var(--sram-text);
+  text-anchor: middle;
+}
+.lbl {
+  fill: var(--sram-text);
+  font-weight: 600;
+}
+.dd figcaption {
+  margin-top: 8px;
+  font-size: 0.875rem;
+  color: var(--sram-text-muted);
+  line-height: 1.5;
+}

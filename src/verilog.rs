@@ -29,11 +29,8 @@ pub struct DelayLineParams {
 
 pub fn generate_1rw_verilog(params: &SramParams) -> Result<String> {
     assert_eq!(params.num_words(), 1 << params.addr_width());
-    let template = if params.wmask_width() > 1 {
-        "sram_1rw_wmask.v"
-    } else {
-        "sram_1rw.v"
-    };
+    // The physical macro retains a scalar write mask even for whole-word writes.
+    let template = "sram_1rw_wmask.v";
 
     let template_params = Sram1RwParams {
         module_name: params.name().to_string(),

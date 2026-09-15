@@ -1,0 +1,45 @@
+---
+title: Orientations
+description: Supported SRAM22 macro placements and how to constrain them in a physical-design flow.
+---
+
+import OrientationDiagram from "@site/src/components/OrientationDiagram";
+
+SRAM22 supports four placements: **R90, R270, and their mirrored variants**.
+Use these quarter-turn orientations in your integration flow.
+
+<OrientationDiagram />
+
+| Placement | DEF code | Transformation in the original Cartesian frame |
+| --- | --- | --- |
+| R90 | W | Rotate 90° counterclockwise |
+| R270 | E | Rotate 270° counterclockwise |
+| R90 + mirror | FW | Reflect across the original X axis, then rotate 90° counterclockwise |
+| R270 + mirror | FE | Reflect across the original X axis, then rotate 270° counterclockwise |
+
+The generated LEF declares `SYMMETRY X Y R90`. This permits a broader set of
+candidate orientations, including N/R0 and S/R180: it **does not encode the
+project's four-orientation restriction**. Explicitly constrain or check placements
+in your integration flow. See the
+[LEF/DEF symmetry reference](https://coriolis.lip6.fr/doc/lefdef/lefdefref/LEFSyntax.html).
+
+Signal pins are on met1 along the bottom edge in the generated frame. After a
+quarter turn that edge is vertical; the met2 power geometry rotates as well.
+Plan routing access and power connections using the transformed LEF geometry.
+
+## OpenROAD
+
+With an initialized design:
+
+```tcl
+place_inst -name u_mem -origin {120.0 80.0} -orientation R90 -status FIRM
+```
+
+Coordinates are in microns. `-origin` positions the transformed cell origin;
+`-location` instead positions its bounding box. Check the
+[API for your OpenROAD version](https://openroad.readthedocs.io/en/latest/main/src/README.html).
+
+For Innovus, use the placement command or GUI in your flow's documented UI/version
+to apply one of the four transforms and fix the instance. Verify the resulting
+orientation and pin access in the placed database. See the
+[OpenROAD](/docs/tutorial/openroad/) and [Cadence](/docs/tutorial/cadence/) integration outlines.

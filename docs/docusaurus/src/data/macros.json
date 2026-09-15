@@ -1,0 +1,203 @@
+{
+  "repo": "https://github.com/ucb-substrate/sram22_sky130_macros",
+  "macros": [
+    {
+      "name": "sram22_1024x32m8w8",
+      "num_words": 1024,
+      "data_width": 32,
+      "mux_ratio": 8,
+      "write_size": 8,
+      "capacity_kib": 4.0,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_1024x64m4w8",
+      "num_words": 1024,
+      "data_width": 64,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 8.0,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_1024x8m8w1",
+      "num_words": 1024,
+      "data_width": 8,
+      "mux_ratio": 8,
+      "write_size": 1,
+      "capacity_kib": 1.0,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_128x16m4w8",
+      "num_words": 128,
+      "data_width": 16,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 0.25,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_128x24m4w8",
+      "num_words": 128,
+      "data_width": 24,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 0.375,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_128x32m4w8",
+      "num_words": 128,
+      "data_width": 32,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 0.5,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_128x40m4w20",
+      "num_words": 128,
+      "data_width": 40,
+      "mux_ratio": 4,
+      "write_size": 20,
+      "capacity_kib": 0.625,
+      "silicon_validated": false
+    },
+    {
+      "name": "sram22_2048x32m8w8",
+      "num_words": 2048,
+      "data_width": 32,
+      "mux_ratio": 8,
+      "write_size": 8,
+      "capacity_kib": 8.0,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_2048x64m8w8",
+      "num_words": 2048,
+      "data_width": 64,
+      "mux_ratio": 8,
+      "write_size": 8,
+      "capacity_kib": 16.0,
+      "silicon_validated": false
+    },
+    {
+      "name": "sram22_2048x8m8w1",
+      "num_words": 2048,
+      "data_width": 8,
+      "mux_ratio": 8,
+      "write_size": 1,
+      "capacity_kib": 2.0,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_256x128m4w8",
+      "num_words": 256,
+      "data_width": 128,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 4.0,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_256x16m8w8",
+      "num_words": 256,
+      "data_width": 16,
+      "mux_ratio": 8,
+      "write_size": 8,
+      "capacity_kib": 0.5,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_256x32m4w8",
+      "num_words": 256,
+      "data_width": 32,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 1.0,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_256x64m4w8",
+      "num_words": 256,
+      "data_width": 64,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 2.0,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_256x8m8w1",
+      "num_words": 256,
+      "data_width": 8,
+      "mux_ratio": 8,
+      "write_size": 1,
+      "capacity_kib": 0.25,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_512x128m4w8",
+      "num_words": 512,
+      "data_width": 128,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 8.0,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_512x32m4w8",
+      "num_words": 512,
+      "data_width": 32,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 2.0,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_512x64m4w8",
+      "num_words": 512,
+      "data_width": 64,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 4.0,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_512x8m8w1",
+      "num_words": 512,
+      "data_width": 8,
+      "mux_ratio": 8,
+      "write_size": 1,
+      "capacity_kib": 0.5,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_64x22m4w22",
+      "num_words": 64,
+      "data_width": 22,
+      "mux_ratio": 4,
+      "write_size": 22,
+      "capacity_kib": 0.172,
+      "silicon_validated": false
+    },
+    {
+      "name": "sram22_64x24m4w8",
+      "num_words": 64,
+      "data_width": 24,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 0.188,
+      "silicon_validated": true
+    },
+    {
+      "name": "sram22_64x32m4w8",
+      "num_words": 64,
+      "data_width": 32,
+      "mux_ratio": 4,
+      "write_size": 8,
+      "capacity_kib": 0.25,
+      "silicon_validated": true
+    }
+  ]
+}

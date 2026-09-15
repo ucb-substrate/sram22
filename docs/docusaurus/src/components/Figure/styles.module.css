@@ -1,0 +1,47 @@
+.figure {
+  margin: 1rem 0;
+}
+.frame {
+  border-radius: 10px;
+  border: 1px solid var(--sram-border-solid);
+  padding: 1rem;
+  background: var(--sram-panel);
+}
+.viewport {
+  overflow: auto;
+}
+.img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.expanded {
+  width: max(100%, 75rem);
+  max-width: none;
+}
+.controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: .4rem;
+}
+.zoom {
+  border: 0;
+  padding: .35rem .5rem;
+  background: transparent;
+  color: var(--sram-accent);
+  font: inherit;
+  font-size: .875rem;
+  cursor: pointer;
+}
+.zoom:hover {
+  text-decoration: underline;
+}
+.plate {
+  background: #fff;
+}
+.caption {
+  font-size: 0.875rem;
+  color: var(--sram-text-muted);
+  line-height: 1.5;
+  margin-top: 0.5rem;
+}

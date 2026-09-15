@@ -1,0 +1,69 @@
+---
+title: "Integration: Cadence"
+description: Macro views and binding, placement, and signoff checks for an existing Genus/Innovus flow.
+---
+
+Use an established SKY130 Genus/Innovus flow with its licensed technology setup.
+These steps cover SRAM-specific integration. Use the commands for your
+Genus/Innovus version; initialization and placement commands differ between
+legacy and common UIs.
+
+## 1. Obtain consistent views
+
+Use matching GDS, LEF, and corner-specific Liberty from the
+[macro catalog](/docs/macros/), or generate and characterize the same configuration
+with a BWRC installation. Decompress published `.gds.gz` files before stream merge.
+For example, use `sram22_64x32m4w8_tt_025C_1v80.lib` with TT standard-cell timing,
+and the matching `ss_100C_1v60` and `ff_n40C_1v95` libraries for SS and FF.
+The BWRC build supports `sram22 --liberate` for Liberate MX and `--drc` and
+`--lvs` for Calibre verification. Set `pex_level` in each macro's configuration to
+run extraction. `--all` enables DRC/LVS but uses interpolated timing unless
+`--liberate` is also supplied. LEF generation is automatic. See
+[Quickstart](/docs/quickstart/).
+
+## 2. Bind the SRAM as a library cell in Genus
+
+Add the SRAM Liberty to the standard-cell library setup and the SRAM LEF to the
+physical library setup. Register matching PVT corners in the flow's timing views.
+Instantiate the macro in your design as in the
+[OpenROAD RTL example](/docs/tutorial/openroad/#2-instantiate-a-library-macro).
+
+Keep the generated behavioral SRAM `.v` in the **simulation file list**. For
+synthesis, use your flow's library-cell/black-box binding; do not elaborate that
+behavioral memory as synthesizable RTL. With libraries already configured, the
+synthesis command sequence uses separate Tcl commands:
+
+```tcl
+read_hdl top.v
+elaborate top
+read_sdc constraints.sdc
+syn_generic
+syn_map
+syn_opt
+```
+
+Inspect the mapped netlist: `u_mem` must remain an instance of the intended SRAM
+library cell, with the expected port widths and no synthesized replacement memory.
+Export the mapped netlist and constraints using the commands for your Genus UI.
+See [Pin list](/docs/interface/pin-list/) for signal widths and behavior.
+
+## 3. Initialize and place in Innovus
+
+Initialize the mapped design with the technology and standard-cell LEFs, SRAM LEF,
+and matching library corners in the flow's MMMC configuration. Define the floorplan,
+clock constraints, and global power-net connections.
+
+Use the placement command or GUI documented for your Innovus version to place and
+fix `u_mem` at **R90, R270, or one of their mirrored variants**. Check the resulting
+transform and coordinates in the database. The LEF's `SYMMETRY X Y R90` alone does
+not enforce the project's placement restriction. See [Orientations](/docs/orientations/).
+
+Build the power connections to the rotated `vdd`/`vss` met2 shapes, inspect signal
+pin access, then continue through the flow's standard-cell placement, CTS, and
+routing stages.
+
+## 4. Check timing and physical integration
+
+Run STA with the selected macro corners, checking the full rise/fall constraints,
+including reset. Merge the SRAM GDS into the top-level stream and verify power
+connectivity, DRC, and LVS with the intended decks.

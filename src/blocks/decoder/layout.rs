@@ -226,7 +226,7 @@ impl DecoderStage {
                 }
             }
 
-            if (self.params.num * max_folding_factor) % dsn.tap_period != 0 {
+            if !(self.params.num * max_folding_factor).is_multiple_of(dsn.tap_period) {
                 stage_tiler.push(tap.clone());
             }
 

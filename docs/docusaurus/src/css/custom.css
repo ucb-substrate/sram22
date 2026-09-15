@@ -1,0 +1,236 @@
+/* Self-hosted fonts: the same body/display pairing as the Argon docs. */
+@import "@fontsource/fira-sans/400.css";
+@import "@fontsource/fira-sans/400-italic.css";
+@import "@fontsource/fira-sans/500.css";
+@import "@fontsource/fira-sans/600.css";
+@import "@fontsource/fira-sans/700.css";
+@import "@fontsource-variable/space-grotesk/index.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
+
+/* Shared palette for the homepage, documentation, and interactive diagrams.
+   Layout layer colors are independent of the interface theme. */
+:root {
+  --sram-yale: #1e40af;
+  --sram-baltic: #2455b8;
+  --sram-sky: #3b75c3;
+  --sram-indigo: #172b4d;
+  --sram-cloud: #4d83d1;
+  --sram-sky-soft: #b9d5fa;
+  --sram-ink: #1b1b1d;
+  --sram-ink-2: #202024;
+
+  --sram-font:
+    "Fira Sans", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --sram-display: "Space Grotesk Variable", var(--sram-font);
+  --sram-mono:
+    "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+
+  /* Light theme: neutral reading surfaces with blue accents. */
+  --sram-bg: #ffffff;
+  --sram-bg-elev: #f8f9fc;
+  --sram-surface: #f4f6fa;
+  --sram-surface-solid: #edf2fa;
+  --sram-panel: #ffffff;
+  --sram-border: #e0e4ec;
+  --sram-border-solid: #dce1e9;
+  --sram-text: #242830;
+  --sram-text-dim: #454c59;
+  --sram-text-muted: #606978;
+  --sram-accent: var(--sram-baltic);
+  --sram-accent-2: var(--sram-yale);
+  --sram-on-accent: #ffffff;
+  --sram-sky-pale: #234a72;
+  --sram-hero-top: #f1f5fb;
+  /* Distinct categorical color for timing-diagram annotations. */
+  --sram-signal: #8a5b00;
+
+  --ifm-color-primary: var(--sram-accent);
+  --ifm-color-primary-dark: #204da6;
+  --ifm-color-primary-darker: #1f489c;
+  --ifm-color-primary-darkest: #193b81;
+  --ifm-color-primary-light: #285eca;
+  --ifm-color-primary-lighter: #2b63d5;
+  --ifm-color-primary-lightest: #4677db;
+  --ifm-font-family-base: var(--sram-font);
+  --ifm-font-family-monospace: var(--sram-mono);
+  --ifm-heading-font-family: var(--sram-display);
+  --ifm-heading-font-weight: 700;
+  --ifm-h1-font-size: 2.1rem;
+  --ifm-h2-font-size: 1.5rem;
+  --ifm-h3-font-size: 1.15rem;
+  --ifm-code-font-size: 90%;
+  --ifm-font-color-base: var(--sram-text);
+  --ifm-background-color: var(--sram-bg);
+  --ifm-background-surface-color: var(--sram-panel);
+  --ifm-navbar-background-color: var(--sram-panel);
+  --ifm-navbar-shadow: none;
+  --ifm-footer-background-color: var(--ifm-color-emphasis-100);
+  --ifm-footer-color: inherit;
+  --ifm-footer-title-color: inherit;
+  --ifm-footer-link-color: var(--ifm-color-emphasis-700);
+  --ifm-toc-border-color: var(--sram-border-solid);
+  --ifm-hr-border-color: var(--sram-border-solid);
+  --ifm-table-border-color: var(--sram-border-solid);
+  --ifm-table-head-background: var(--sram-surface-solid);
+  --ifm-table-stripe-background: var(--sram-surface);
+  --ifm-global-radius: 6px;
+  --ifm-code-border-radius: 6px;
+  --doc-sidebar-width: 280px;
+  --docusaurus-highlighted-code-line-bg: rgb(36 85 184 / 10%);
+}
+
+[data-theme="dark"] {
+  --sram-sky: #8bb8f5;
+  --sram-bg: var(--sram-ink);
+  --sram-bg-elev: #17171a;
+  --sram-surface: #202024;
+  --sram-surface-solid: #26272d;
+  --sram-panel: var(--sram-ink-2);
+  --sram-border: #30323a;
+  --sram-border-solid: #353841;
+  --sram-text: #e5e7eb;
+  --sram-text-dim: #bdc2cc;
+  --sram-text-muted: #9ca4b3;
+  --sram-accent: var(--sram-sky);
+  --sram-accent-2: var(--sram-sky-soft);
+  --sram-on-accent: #101a2b;
+  --sram-sky-pale: #cfe6ff;
+  --sram-hero-top: #181e26;
+  --sram-signal: #ffd35c;
+
+  --ifm-color-primary: var(--sram-accent);
+  --ifm-color-primary-dark: #69a3f2;
+  --ifm-color-primary-darker: #5899f1;
+  --ifm-color-primary-darkest: #2681ec;
+  --ifm-color-primary-light: #adcdf8;
+  --ifm-color-primary-lighter: #bed7f9;
+  --ifm-color-primary-lightest: #e3edfc;
+  --ifm-font-color-base: var(--sram-text);
+  --ifm-background-color: var(--sram-bg);
+  --ifm-background-surface-color: var(--sram-panel);
+  --ifm-navbar-background-color: var(--sram-panel);
+  --docusaurus-highlighted-code-line-bg: rgb(139 184 245 / 12%);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
+
+/* Preserve literal operators in code (including -> and ::). */
+code,
+kbd,
+.prism-code {
+  font-variant-ligatures: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sram-accent);
+  outline-offset: 3px;
+}
+
+.navbar {
+  border-bottom: 1px solid var(--sram-border);
+}
+
+/* Match Argon's mark-only navbar. ThemedImage controls image visibility. */
+.navbar__logo {
+  height: 2.5rem;
+}
+
+.navbar__brand {
+  margin-right: 1.5rem;
+}
+
+.navbar__title,
+.navbar__link,
+.button {
+  font-family: var(--sram-display);
+  letter-spacing: -0.01em;
+}
+
+.navbar__link {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.navbar__title {
+  font-weight: 700;
+}
+
+.navbar__search-input {
+  font-family: var(--sram-mono);
+  font-size: 0.85rem;
+}
+
+.navbar__items--right > :last-child {
+  padding-left: 0;
+}
+
+.navbar__items--right > :last-child > div {
+  margin-left: 0.5rem;
+}
+
+/* Join the homepage's introduction to the navbar, as in Argon. */
+#__docusaurus:has(> .front-page) .navbar {
+  --ifm-navbar-background-color: var(--sram-hero-top);
+  border-bottom-color: transparent;
+}
+
+#__docusaurus:has(> .front-page) .navbar__search-input {
+  background-color: var(--sram-panel);
+}
+
+.theme-doc-sidebar-container {
+  border-right-color: var(--sram-border) !important;
+}
+
+.menu__link {
+  font-weight: 400;
+}
+
+.menu__link--active {
+  font-weight: 500;
+}
+
+.footer {
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+  padding: 1.5rem 0;
+}
+
+.footer__links {
+  margin-bottom: 0.5rem;
+}
+
+.footer__copyright {
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.9rem;
+}
+
+.markdown table {
+  display: table;
+  width: 100%;
+}
+
+.markdown table th,
+.markdown table td {
+  vertical-align: top;
+}
+
+[data-theme="dark"] .DocSearch-Hit a {
+  background: var(--sram-surface-solid);
+}
+
+@media (max-width: 700px) {
+  .markdown table {
+    display: block;
+    overflow-x: auto;
+  }
+}

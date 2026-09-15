@@ -370,10 +370,11 @@ fn gauss4(mut a: [[f64; 4]; 4], mut b: [f64; 4]) -> [f64; 4] {
         if d.abs() < 1e-14 {
             continue;
         }
+        let pivot_row = a[col];
         for row in (col + 1)..4 {
             let f = a[row][col] / d;
-            for k in col..4 {
-                a[row][k] -= f * a[col][k];
+            for (value, pivot_value) in a[row][col..].iter_mut().zip(&pivot_row[col..]) {
+                *value -= f * pivot_value;
             }
             b[row] -= f * b[col];
         }
@@ -521,8 +522,8 @@ impl LookupModel {
                         let avg_ratio = ratios.iter().sum::<f64>() / ratios.len() as f64;
                         for (dw, arr) in raw.iter_mut() {
                             if *dw > 768 {
-                                for j in 0..7 {
-                                    arr[j] = v1d_tt(*dw, j) * avg_ratio;
+                                for (j, value) in arr.iter_mut().enumerate() {
+                                    *value = v1d_tt(*dw, j) * avg_ratio;
                                 }
                             }
                         }
@@ -911,7 +912,7 @@ impl W {
                     let tpts: Vec<String> = vec.time_pts.iter().map(|v| fmtf(*v)).collect();
                     w.ln(&format!("index_3 (\"{}\");", tpts.join(", ")));
                     let curr: Vec<String> = vec.currents.iter().map(|v| fmtf(*v)).collect();
-                    w.ln(&format!("values ( \\"));
+                    w.ln("values ( \\");
                     w.indent += 1;
                     w.ln(&format!("\"{}\" \\", curr.join(", ")));
                     w.indent -= 1;

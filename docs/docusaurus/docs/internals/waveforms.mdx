@@ -1,0 +1,37 @@
+---
+title: Waveforms
+description: An illustrative simulated SRAM22 read and the internal control signals it exposes.
+---
+
+This simulated read illustrates the sequence of internal control signals. Use
+the macro's Liberty tables for [timing constraints](/docs/interface/timing/).
+
+<Figure
+  src="/figures/read_sim.png"
+  alt="Simulated SRAM read: CLK rises, PC_B disables precharge, WLEN and WL[0] pulse, BL[0] and BR[0] develop a differential, then SAEN rises and precharge resumes."
+  plate
+/>
+
+| Trace | Meaning |
+| --- | --- |
+| CLK | External clock; access starts after its rising edge |
+| PC_B | Active-low precharge control |
+| WLEN | Enable applied to the row-address gating |
+| WL[0] | Selected wordline after the decoder |
+| BL[0], BR[0] | Main-array bitline pair |
+| SAEN | Sense-amplifier enable |
+
+After CLK rises, PC_B rises to disable precharge. WLEN then asserts and the selected
+wordline rises after decoder delay. The main bitlines develop a differential.
+WLEN falls first; WL[0] falls near the subsequent SAEN transition. Finally PC_B
+falls and the bitlines return toward their precharged levels.
+
+## Replica timing
+
+Replica bitline detection resets the wordline-enable path during reads. A delay
+chain then sequences sensing and precharge. One row of replica cells is driven by
+`rwl`; the other replica wordlines are tied low and contribute load.
+
+The mechanism is intended to track array behavior across operating conditions.
+See [Algorithms](/docs/internals/algorithms/#self-timed-control) for the control
+sequence.

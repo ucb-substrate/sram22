@@ -2,8 +2,8 @@ use crate::blocks::sram::{Sram, SramConfig, SramParams};
 use crate::cli::progress::StepContext;
 use crate::paths::{out_gds, out_spice, out_verilog};
 use crate::verilog::save_1rw_verilog;
-use crate::{setup_ctx, Result};
-use anyhow::bail;
+use crate::{try_setup_ctx, Result};
+use anyhow::{bail, Context};
 use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
@@ -156,13 +156,19 @@ pub fn generate_plan(config: &SramConfig) -> Result<SramPlan> {
         ..
     } = config;
 
+    if write_size == 0 || data_width == 0 || num_words == 0 {
+        bail!("Word count, data width, and write size must be positive");
+    }
+    if !num_words.is_power_of_two() {
+        bail!("Number of words must be a power of two");
+    }
     if data_width % write_size != 0 {
         bail!("Data width must be a multiple of write size");
     }
 
     let params = SramParams::new(write_size, mux_ratio, num_words, data_width);
 
-    if 2usize.pow(params.row_bits().try_into().unwrap()) != params.rows() || params.rows() < 16 {
+    if params.rows() < 16 || !params.rows().is_power_of_two() {
         bail!("The number of rows (num words / mux ratio) must be a power of 2 greater than or equal to 16");
     }
 
@@ -204,20 +210,31 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
     std::fs::create_dir_all(work_dir)?;
 
     let name = &plan.sram_params.name();
-    let sctx = setup_ctx();
+    let sctx = try_setup_ctx()?;
 
     let spice_path = out_spice(work_dir, name);
-    sctx.write_schematic_to_file::<Sram>(&plan.sram_params, &spice_path)
-        .expect("failed to write schematic");
+    // Circuit exports use open device names; licensed signoff and timing tasks
+    // below continue to generate their own netlists using the commercial PDK.
+    #[cfg(feature = "commercial")]
+    let export_ctx = crate::try_setup_open_ctx()?;
+    #[cfg(feature = "commercial")]
+    let netlist_ctx = &export_ctx;
+    #[cfg(not(feature = "commercial"))]
+    let netlist_ctx = &sctx;
+    netlist_ctx
+        .write_schematic_to_file::<Sram>(&plan.sram_params, &spice_path)
+        .context("failed to write schematic")?;
+    crate::spice::make_portable(&spice_path)?;
     try_finish_task!(ctx, TaskKey::GenerateNetlist);
 
     let gds_path = out_gds(work_dir, name);
     sctx.write_layout::<Sram>(&plan.sram_params, &gds_path)
-        .expect("failed to write layout");
+        .context("failed to write layout")?;
     try_finish_task!(ctx, TaskKey::GenerateLayout);
 
     let verilog_path = out_verilog(work_dir, name);
-    save_1rw_verilog(&verilog_path, &plan.sram_params).expect("failed to write behavioral model");
+    save_1rw_verilog(&verilog_path, &plan.sram_params)
+        .context("failed to write behavioral model")?;
     try_finish_task!(ctx, TaskKey::GenerateVerilog);
 
     crate::abs::write_abstract(
@@ -225,7 +242,7 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
         &plan.sram_params,
         crate::paths::out_lef(work_dir, name),
     )
-    .expect("failed to write abstract");
+    .context("failed to write abstract")?;
     try_finish_task!(ctx, TaskKey::GenerateLef);
 
     #[cfg(feature = "commercial")]
@@ -434,4 +451,31 @@ fn generate_interpolated_lib(work_dir: &Path, sram_params: &SramParams) -> Resul
         })?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invalid_dimensions_return_errors_without_panicking_or_truncating() {
+        for (words, width, write_size) in [
+            (0, 8, 8),
+            (1, 8, 8),
+            (65, 8, 8),
+            (64, 0, 8),
+            (64, 8, 0),
+            (64, 8, 3),
+            (64, 2, 2),
+        ] {
+            let config: SramConfig = toml::from_str(&format!(
+                "num_words={words}\ndata_width={width}\nwrite_size={write_size}\nmux_ratio=4\n"
+            ))
+            .unwrap();
+            assert!(generate_plan(&config).is_err());
+        }
+        let config =
+            toml::from_str("num_words=64\ndata_width=8\nwrite_size=8\nmux_ratio=4\n").unwrap();
+        assert!(generate_plan(&config).is_ok());
+    }
 }

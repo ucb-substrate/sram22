@@ -1,7 +1,7 @@
 .PHONY: lint lint-fix format test alltest check install-all install
 
 lint:
-	cargo clippy --all-features --all-targets -- -D warnings
+	cargo clippy --locked --all-features --all-targets -- -D warnings
 
 lint-fix:
 	cargo clippy --fix --allow-staged --allow-dirty --all-features --all-targets

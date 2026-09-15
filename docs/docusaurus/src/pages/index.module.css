@@ -1,0 +1,369 @@
+/* Adapted from Argon's front page (BSD-3-Clause; static/licenses/argon.txt).
+   Page-level tokens first so both themes are defined in one place. */
+/* The hero gradient starts at --sram-hero-top (defined globally in custom.css)
+   so the navbar can share that color and blend into the band. */
+.main {
+  --hero-bg: linear-gradient(180deg, var(--sram-hero-top) 0%, #fafbfd 100%);
+  --band-bg: #f6f8fa;
+  --card-bg: #fff;
+  --card-border: #e2e7ee;
+  --icon-bg: #e9f0fb;
+  --shot-shadow: 0 30px 60px -20px rgb(20 40 80 / 28%);
+  padding-bottom: 5rem;
+}
+
+[data-theme='dark'] .main {
+  --hero-bg: linear-gradient(180deg, var(--sram-hero-top) 0%, #1b1b1d 100%);
+  --band-bg: #17171a;
+  --card-bg: #202024;
+  --card-border: #2f2f36;
+  --icon-bg: #243040;
+  --shot-shadow: 0 30px 60px -20px rgb(0 0 0 / 60%);
+}
+
+.container {
+  width: min(68rem, 100% - 3rem);
+  margin: 0 auto;
+}
+
+/* Hero */
+.hero {
+  padding: 5.5rem 0 11rem;
+  background: var(--hero-bg);
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  text-align: center;
+}
+
+.hero h1 {
+  margin: 0 0 .75rem;
+  font-size: clamp(3.25rem, 9vw, 5.5rem);
+  font-weight: 700;
+  letter-spacing: -.04em;
+  line-height: 1;
+}
+
+.tagline {
+  max-width: 44rem;
+  margin: 0 auto 2.25rem;
+  color: var(--ifm-color-emphasis-800);
+  font-size: clamp(1.1rem, 2.4vw, 1.35rem);
+  line-height: 1.45;
+  text-wrap: balance;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .75rem;
+}
+
+/* Argon's install strip: selectable command and a separate copy button. */
+.install {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  margin-top: 1.5rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 6px;
+  background: var(--ifm-background-surface-color);
+  text-align: left;
+}
+
+.install code {
+  min-width: 0;
+  overflow-x: auto;
+  padding: .5rem .9rem;
+  border: 0;
+  background: transparent;
+  color: var(--ifm-color-emphasis-800);
+  font-size: .85rem;
+  line-height: 1.5;
+  user-select: all;
+}
+
+.token {
+  white-space: nowrap;
+}
+
+.copy {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0 .7rem;
+  border: 0;
+  border-left: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 0 5px 5px 0;
+  background: transparent;
+  color: var(--ifm-color-emphasis-700);
+  cursor: pointer;
+  transition: color .15s ease, background-color .15s ease;
+}
+
+.copy:hover,
+.copy:focus-visible {
+  background: var(--ifm-color-emphasis-100);
+  color: var(--ifm-color-primary);
+}
+
+.copy svg {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+}
+
+.copied,
+.copied:hover {
+  color: var(--ifm-color-success);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  padding: .8rem 1.5rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-family: var(--sram-display);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.btn:hover {
+  text-decoration: none;
+}
+
+.btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.githubIcon {
+  width: 1.1em;
+  height: 1.1em;
+  fill: currentColor;
+}
+
+.btnPrimary {
+  background: var(--ifm-color-primary);
+  color: #fff;
+}
+
+.btnPrimary:hover {
+  background: var(--ifm-color-primary-dark);
+  color: #fff;
+}
+
+[data-theme='dark'] .btnPrimary,
+[data-theme='dark'] .btnPrimary:hover {
+  color: #11171d;
+}
+
+.btnSecondary {
+  border-color: var(--ifm-color-emphasis-400);
+  color: var(--ifm-font-color-base);
+}
+
+.btnSecondary:hover {
+  border-color: var(--ifm-color-primary);
+  color: var(--ifm-color-primary);
+}
+
+.btnSmall {
+  padding: .5rem .9rem;
+  font-size: .9rem;
+}
+
+/* Screenshot overlapping the hero band */
+.shotWrap {
+  margin-top: -8rem;
+}
+
+.shot {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.shot img {
+  width: 100%;
+  height: auto;
+  /* Leave display to ThemedImage so only the active theme is visible. */
+  vertical-align: bottom;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 10px;
+  box-shadow: var(--shot-shadow);
+}
+
+.shot figcaption {
+  margin-top: .9rem;
+  color: var(--ifm-color-emphasis-700);
+  font-size: .9rem;
+  text-align: center;
+}
+
+/* Sections */
+.section {
+  padding-top: 5rem;
+}
+
+.heading {
+  margin-bottom: 2rem;
+  font-size: 1.85rem;
+  letter-spacing: -.03em;
+}
+
+/* Comment-style prefix in the accent color, set in the code font so the
+   slashes are upright and span the heading's cap height rather than
+   Space Grotesk's tall, low-slung slash. */
+.heading::before {
+  content: '//';
+  display: inline-block;
+  margin-right: .45em;
+  color: var(--ifm-color-primary);
+  font-family: var(--ifm-font-family-monospace);
+  font-size: .78em;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: .06em;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2.5rem;
+}
+
+.details h3 {
+  margin-bottom: .5rem;
+  font-size: 1.25rem;
+}
+
+.details p {
+  margin: 0;
+  color: var(--ifm-color-emphasis-800);
+  line-height: 1.65;
+}
+
+.details p + p {
+  margin-top: .75rem;
+}
+
+/* Documentation band with cards */
+.band {
+  margin-top: 5rem;
+  padding-bottom: 5rem;
+  background: var(--band-bg);
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--card-bg);
+}
+
+.card h3 {
+  margin: 1rem 0 .4rem;
+  font-size: 1.15rem;
+}
+
+.card p {
+  flex: 1;
+  margin: 0 0 1.25rem;
+  color: var(--ifm-color-emphasis-800);
+  font-size: .95rem;
+  line-height: 1.6;
+}
+
+.card .btn {
+  align-self: flex-start;
+}
+
+.iconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 10px;
+  background: var(--icon-bg);
+  color: var(--ifm-color-primary);
+}
+
+.icon {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.involved {
+  margin: 0;
+  color: var(--ifm-color-emphasis-800);
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+/* The image remains a keyboard-accessible link into the existing viewer. */
+.shot > a {
+  display: block;
+  border-radius: 10px;
+}
+
+.card,
+.details > * {
+  min-width: 0;
+}
+
+.card .btn {
+  max-width: 100%;
+}
+
+/* Responsive */
+@media (max-width: 996px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .hero {
+    padding: 3.5rem 0 8rem;
+  }
+
+  .shotWrap {
+    margin-top: -6rem;
+  }
+
+  .section {
+    padding-top: 3.5rem;
+  }
+
+  .details,
+  .cards {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .copy {
+    transition: none;
+  }
+}

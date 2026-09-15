@@ -1,0 +1,84 @@
+.td {
+  margin: 1.4rem 0;
+  border: 1px solid var(--sram-border-solid);
+  border-radius: 12px;
+  padding: 14px 16px 6px;
+  background: var(--sram-panel);
+}
+.svg {
+  width: 100%;
+  min-width: 51.25rem;
+  height: auto;
+  display: block;
+  font-family: var(--sram-mono);
+}
+.viewport {
+  overflow-x: auto;
+}
+.label {
+  fill: var(--sram-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-anchor: end;
+}
+.wave {
+  fill: none;
+  stroke: var(--sram-sky);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.bus {
+  fill: color-mix(in srgb, var(--sram-sky) 12%, transparent);
+  stroke: var(--sram-cloud);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.busLabel {
+  fill: var(--sram-sky-pale);
+  font-size: 13px;
+  text-anchor: middle;
+}
+.invalid {
+  fill: rgba(140, 150, 170, 0.18);
+  stroke: rgba(140, 150, 170, 0.5);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+.invLabel {
+  fill: var(--sram-text-muted);
+  font-size: 13px;
+  text-anchor: middle;
+}
+.guide {
+  stroke: var(--sram-sky);
+  stroke-opacity: 0.35;
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+.region {
+  fill: var(--sram-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-anchor: middle;
+}
+.ann line {
+  stroke: var(--sram-signal);
+  stroke-width: 1.2;
+}
+.ann .dim {
+  stroke: var(--sram-signal);
+  stroke-width: 1.4;
+}
+.annText {
+  fill: var(--sram-signal);
+  font-size: 13px;
+  text-anchor: middle;
+}
+.td figcaption {
+  margin-top: 8px;
+  font-size: 0.875rem;
+  color: var(--sram-text-muted);
+  line-height: 1.5;
+}
