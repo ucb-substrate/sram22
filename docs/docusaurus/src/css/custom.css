@@ -22,10 +22,8 @@
   --sram-font:
     "Fira Sans", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif;
-  --sram-display: "Space Grotesk Variable", var(--sram-font);
-  --sram-mono:
-    "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas,
-    monospace;
+  --sram-display: var(--ifm-heading-font-family);
+  --sram-mono: var(--ifm-font-family-monospace);
 
   /* Light theme: neutral reading surfaces with blue accents. */
   --sram-bg: #ffffff;
@@ -54,8 +52,12 @@
   --ifm-color-primary-lighter: #2b63d5;
   --ifm-color-primary-lightest: #4677db;
   --ifm-font-family-base: var(--sram-font);
-  --ifm-font-family-monospace: var(--sram-mono);
-  --ifm-heading-font-family: var(--sram-display);
+  /* Keep font names on font-family properties so the production CSS optimizer
+     recognizes their use and preserves the corresponding @font-face rules. */
+  --ifm-font-family-monospace:
+    "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+  --ifm-heading-font-family: "Space Grotesk Variable", var(--sram-font);
   --ifm-heading-font-weight: 700;
   --ifm-h1-font-size: 2.1rem;
   --ifm-h2-font-size: 1.5rem;
