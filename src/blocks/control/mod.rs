@@ -18,7 +18,18 @@ pub struct ControlLogicParams {
     pub pc_set_delay_invs: usize,
     pub wrdrven_set_delay_invs: usize,
     pub wrdrven_rst_delay_invs: usize,
+    /// Which order the layout should route its nets in.
+    ///
+    /// The greedy router commits tracks as it goes, so a net attempted late can
+    /// find its channels already taken. Variant 0 is the original order and is
+    /// what every macro that already routes keeps using; the later orderings
+    /// only come into play after it has failed. See `order_routes`.
+    #[serde(default)]
+    pub routing_variant: usize,
 }
+
+/// Number of route orderings [`ControlLogicReplicaV2`] can be asked for.
+pub const ROUTING_VARIANTS: usize = 4;
 
 impl Component for ControlLogicReplicaV2 {
     type Params = ControlLogicParams;

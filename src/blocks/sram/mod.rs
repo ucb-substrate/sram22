@@ -1,7 +1,7 @@
 use self::schematic::fanout_buffer_stage;
 use crate::blocks::bitcell_array::replica::ReplicaCellArray;
 use crate::blocks::columns::ColumnsPhysicalDesignScript;
-use crate::blocks::control::{ControlLogicParams, ControlLogicReplicaV2};
+use crate::blocks::control::{ControlLogicParams, ControlLogicReplicaV2, ROUTING_VARIANTS};
 use crate::blocks::precharge::layout::ReplicaPrecharge;
 use crate::blocks::precharge::PrechargeParams;
 use arcstr::ArcStr;
@@ -379,13 +379,14 @@ impl Script for SramPhysicalDesignScript {
             .round() as usize
             * 2
             + 9;
-        let control = ControlLogicParams {
+        let mut control = ControlLogicParams {
             decoder_delay_invs,
             wlen_pulse_invs,
             pc_set_delay_invs: pc_b_delay_invs,
             wrdrven_set_delay_invs,
             wrdrven_rst_delay_invs: 0, // TODO: Implement delay to equalize sense amp and
-                                       // write driver rest delay
+            // write driver rest delay
+            routing_variant: 0,
         };
         let row_decoder = DecoderParams {
             pd: DecoderPhysicalDesignParams {
@@ -397,7 +398,26 @@ impl Script for SramPhysicalDesignScript {
             use_multi_finger_invs: true,
         };
 
-        let control_inst = ctx.instantiate_layout::<ControlLogicReplicaV2>(&control)?;
+        // A few delay-chain length combinations leave the control logic's greedy
+        // router with no route for a net it reaches late. Retry with the other
+        // route orderings before giving up; variant 0 is tried first, so macros
+        // that already route are generated exactly as before. The ordering that
+        // works is kept in `control` so the schematic and layout views agree.
+        let control_inst = {
+            let mut found = None;
+            for variant in 0..ROUTING_VARIANTS {
+                control.routing_variant = variant;
+                match ctx.instantiate_layout::<ControlLogicReplicaV2>(&control) {
+                    Ok(inst) => {
+                        found = Some(inst);
+                        break;
+                    }
+                    Err(e) if variant == ROUTING_VARIANTS - 1 => return Err(e),
+                    Err(_) => continue,
+                }
+            }
+            found.expect("at least one routing variant is attempted")
+        };
 
         let col_dec_inst = ctx.instantiate_layout::<Decoder>(&col_decoder)?;
         let pc_b_buffer_inst = ctx.instantiate_layout::<DecoderStage>(&pc_b_buffer)?;

@@ -1263,7 +1263,24 @@ impl SramInner {
 
         // Route wordline driver to bitcell array
         for i in 0..self.params.rows() {
-            let src = decoder.port(PortId::new("y", i))?.largest_rect(m1).unwrap();
+            // The decoder only brings its outputs up to m1 when the final stage is
+            // a multi-finger inverter; a single-finger one leaves them on li. That
+            // happens on the smallest arrays, which `generate_plan` rejects up
+            // front, so reaching this is a sizing change that outran that check
+            // rather than something a user can act on directly.
+            let src = decoder
+                .port(PortId::new("y", i))?
+                .largest_rect(m1)
+                .map_err(|_| {
+                    substrate::error::ErrorSource::Internal(format!(
+                        "row decoder output y[{i}] has no m1 shape: its final stage was \
+                         sized as a single-finger inverter, which leaves the output on li. \
+                         This array ({} rows x {} columns) is too small to drive the \
+                         decoder to a multi-finger output stage.",
+                        self.params.rows(),
+                        self.params.cols(),
+                    ))
+                })?;
             let src = src.with_hspan(Span::with_stop_and_length(src.right() + 600, 1_200));
             let dst = bitcells
                 .port(PortId::new("wl", i))?
