@@ -379,6 +379,7 @@ impl Component for TappedGate {
                 space: 160,
                 abut_layers: HashSet::from_iter([nwell, psdm, nsdm]),
             },
+            expose_y_on_m1: false,
         };
         let gate = ctx.instantiate::<DecoderGate>(&decoder_params)?;
         let tap = ctx.instantiate::<DecoderTap>(&decoder_params)?;

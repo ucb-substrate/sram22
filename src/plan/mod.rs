@@ -162,6 +162,12 @@ pub fn generate_plan(config: &SramConfig) -> Result<SramPlan> {
     if !num_words.is_power_of_two() {
         bail!("Number of words must be a power of two");
     }
+    // Narrow words still hit DRC and LVS errors in the column peripherals and the
+    // write driver, which reproduce on an unpatched build and are unrelated to the
+    // decoder. Every data width of 8 or more checks clean.
+    if data_width < 8 {
+        bail!("Data width must be at least 8, got {data_width}");
+    }
     if data_width % write_size != 0 {
         bail!("Data width must be a multiple of write size");
     }

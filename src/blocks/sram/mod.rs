@@ -1,7 +1,7 @@
 use self::schematic::fanout_buffer_stage;
 use crate::blocks::bitcell_array::replica::ReplicaCellArray;
 use crate::blocks::columns::ColumnsPhysicalDesignScript;
-use crate::blocks::control::{ControlLogicParams, ControlLogicReplicaV2};
+use crate::blocks::control::{ControlLogicParams, ControlLogicReplicaV2, RouteOrder};
 use crate::blocks::precharge::layout::ReplicaPrecharge;
 use crate::blocks::precharge::PrechargeParams;
 use arcstr::ArcStr;
@@ -281,6 +281,7 @@ impl Script for SramPhysicalDesignScript {
             use_multi_finger_invs: true,
             dont_connect_outputs: false,
             child_sizes: vec![],
+            require_m1_output: false,
         };
         let addr_gate_inst = ctx.instantiate_layout::<DecoderStage>(&addr_gate)?;
         let pc_b_cap = COL_CAPACITANCES.pc_b
@@ -327,6 +328,7 @@ impl Script for SramPhysicalDesignScript {
             // TODO use tgate mux input cap
             tree: DecoderTree::new(params.col_select_bits(), col_sel_cap + col_sel_b_cap),
             use_multi_finger_invs: true,
+            require_m1_output: false,
         };
         let mut sense_en_buffer = DecoderStageParams {
             max_width: None,
@@ -379,13 +381,14 @@ impl Script for SramPhysicalDesignScript {
             .round() as usize
             * 2
             + 9;
-        let control = ControlLogicParams {
+        let mut control = ControlLogicParams {
             decoder_delay_invs,
             wlen_pulse_invs,
             pc_set_delay_invs: pc_b_delay_invs,
             wrdrven_set_delay_invs,
             wrdrven_rst_delay_invs: 0, // TODO: Implement delay to equalize sense amp and
-                                       // write driver rest delay
+            // write driver rest delay
+            route_order: RouteOrder::default(),
         };
         let row_decoder = DecoderParams {
             pd: DecoderPhysicalDesignParams {
@@ -395,9 +398,27 @@ impl Script for SramPhysicalDesignScript {
             max_width: None,
             tree: row_decoder_tree,
             use_multi_finger_invs: true,
+            // The wordline router connects to these outputs on m1.
+            require_m1_output: true,
         };
 
-        let control_inst = ctx.instantiate_layout::<ControlLogicReplicaV2>(&control)?;
+        // A few delay-chain length combinations leave the control logic's greedy
+        // router with no route for a net it reaches late. Retry with the other
+        // route orderings before giving up; variant 0 is tried first, so macros
+        // that already route are generated exactly as before. The ordering that
+        // works is kept in `control` so the schematic and layout views agree.
+        let control_inst = {
+            let mut result = None;
+            for (i, order) in RouteOrder::ALL.into_iter().enumerate() {
+                control.route_order = order;
+                result = Some(ctx.instantiate_layout::<ControlLogicReplicaV2>(&control));
+                let last = i == RouteOrder::ALL.len() - 1;
+                if result.as_ref().is_some_and(|r| r.is_ok()) || last {
+                    break;
+                }
+            }
+            result.expect("RouteOrder::ALL is never empty")?
+        };
 
         let col_dec_inst = ctx.instantiate_layout::<Decoder>(&col_decoder)?;
         let pc_b_buffer_inst = ctx.instantiate_layout::<DecoderStage>(&pc_b_buffer)?;

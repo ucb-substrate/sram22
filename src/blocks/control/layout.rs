@@ -6,11 +6,10 @@ use substrate::component::{Component, NoParams};
 use substrate::data::SubstrateCtx;
 use substrate::index::IndexOwned;
 use substrate::layout::cell::{CellPort, Instance, Port, PortConflictStrategy, PortId};
-use substrate::layout::context::LayoutCtx;
 use substrate::layout::elements::via::{Via, ViaParams};
 use substrate::layout::group::Group;
 use substrate::layout::layers::selector::Selector;
-use substrate::layout::layers::LayerBoundBox;
+use substrate::layout::layers::{LayerBoundBox, LayerKey};
 use substrate::layout::placement::align::{AlignMode, AlignRect};
 use substrate::layout::placement::array::{ArrayTiler, ArrayTilerBuilder};
 use substrate::layout::placement::tile::LayerBbox;
@@ -23,9 +22,60 @@ use substrate::pdk::stdcell::StdCell;
 
 use crate::blocks::macros::{SvtInv2, SvtInv4};
 
-use super::{ControlLogicReplicaV2, EdgeDetector, InvChain, SrLatch, SvtInvChain};
+use super::{ControlLogicReplicaV2, EdgeDetector, InvChain, RouteOrder, SrLatch, SvtInvChain};
 use subgeom::transform::Translate;
 use subgeom::{Corner, Dir, Point, Rect, Side, Span};
+
+/// A single connection for the greedy router to make.
+struct RouteReq {
+    src_layer: LayerKey,
+    src: Rect,
+    dst_layer: LayerKey,
+    dst: Rect,
+    net: &'static str,
+}
+
+impl RouteReq {
+    fn new(
+        src_layer: LayerKey,
+        src: Rect,
+        dst_layer: LayerKey,
+        dst: Rect,
+        net: &'static str,
+    ) -> Self {
+        Self {
+            src_layer,
+            src,
+            dst_layer,
+            dst,
+            net,
+        }
+    }
+}
+
+/// Nets that have to reach a pin fixed on the edge of the block.
+///
+/// These have no freedom at one end, so when the router reaches them late the
+/// tracks leading to their pin can already be taken by nets that had somewhere
+/// else to go. Routing them earlier is what unblocks the shapes that otherwise
+/// fail.
+const EDGE_PIN_NETS: [&str; 7] = ["clk", "ce", "we", "rstb", "pc_b", "rbl", "wlen"];
+
+/// Reorder `routes` for the given attempt.
+fn order_routes(routes: &mut [RouteReq], order: RouteOrder, m2: LayerKey) {
+    // `wrdrven` is the net observed to starve: it terminates on an m2 pin on the
+    // block edge, so it has no freedom at one end, and by the time the router
+    // reaches it the tracks leading to that pin are already taken.
+    let on_m2 = |r: &RouteReq| r.src_layer == m2 || r.dst_layer == m2;
+    match order {
+        RouteOrder::AsWritten => return,
+        RouteOrder::M2PinsFirst => routes.sort_by_key(|r| !on_m2(r)),
+        RouteOrder::EdgePinsFirst => {
+            routes.sort_by_key(|r| !(on_m2(r) || EDGE_PIN_NETS.contains(&r.net)))
+        }
+        RouteOrder::Reversed => routes.reverse(),
+    }
+}
 
 impl ControlLogicReplicaV2 {
     pub(crate) fn layout(
@@ -1031,74 +1081,84 @@ impl ControlLogicReplicaV2 {
         ctx.draw_rect(m1, pc_setb_in);
         router.occupy(m1, pc_setb_in, "pc_set_b")?;
 
-        let route_pins = |ctx: &mut LayoutCtx,
-                          router: &mut GreedyRouter,
-                          pins: &[(&str, &[Rect])]|
-         -> substrate::error::Result<()> {
-            for (net, rects) in pins {
-                for dst in &rects[1..] {
-                    router.route_with_net(ctx, m1, rects[0], m1, *dst, net)?;
-                }
-            }
-            Ok(())
-        };
-        router.route_with_net(ctx, m1, clk_pin, m1, clk_in, "clk")?;
-        router.route_with_net(ctx, m1, ce_pin, m1, ce_in, "ce")?;
-        router.route_with_net(ctx, m1, pc_b0_out, m1, pc_b_in_buf, "pc_b0")?;
-        router.route_with_net(ctx, m1, pc_b_out, m1, pc_b_pin, "pc_b")?;
-        router.route_with_net(ctx, m1, resetb_pin, m1, resetb_in, "rstb")?;
-        router.route_with_net(ctx, m1, clkp_b_out, m1, clkp_b_in, "clkp_b")?;
-        router.route_with_net(ctx, m1, clkp_b_out, m1, clkp_b_in_1, "clkp_b")?;
-        router.route_with_net(ctx, m1, clkpd_out, m1, clkpd_in, "clkpd")?;
-        router.route_with_net(ctx, m1, pc_setb_out, m1, pc_setb_in, "pc_set_b")?;
+        // Collect every connection first, then route them in an order chosen by the
+        // variant. The greedy router commits tracks as it goes, so a net attempted
+        // late can find its channels already taken - which is exactly how the
+        // failures here show up.
+        let mut routes: Vec<RouteReq> = Vec::new();
+        routes.push(RouteReq::new(m1, clk_pin, m1, clk_in, "clk"));
+        routes.push(RouteReq::new(m1, ce_pin, m1, ce_in, "ce"));
+        routes.push(RouteReq::new(m1, pc_b0_out, m1, pc_b_in_buf, "pc_b0"));
+        routes.push(RouteReq::new(m1, pc_b_out, m1, pc_b_pin, "pc_b"));
+        routes.push(RouteReq::new(m1, resetb_pin, m1, resetb_in, "rstb"));
+        routes.push(RouteReq::new(m1, clkp_b_out, m1, clkp_b_in, "clkp_b"));
+        routes.push(RouteReq::new(m1, clkp_b_out, m1, clkp_b_in_1, "clkp_b"));
+        routes.push(RouteReq::new(m1, clkpd_out, m1, clkpd_in, "clkpd"));
+        routes.push(RouteReq::new(m1, pc_setb_out, m1, pc_setb_in, "pc_set_b"));
         for reset_in in resets {
-            router.route_with_net(ctx, m1, reset_out, m1, reset_in, "reset")?;
+            routes.push(RouteReq::new(m1, reset_out, m1, reset_in, "reset"));
         }
         for we_b_in in we_b_ins {
-            router.route_with_net(ctx, m1, we_b_out, m1, we_b_in, "we_b")?;
+            routes.push(RouteReq::new(m1, we_b_out, m1, we_b_in, "we_b"));
         }
-        route_pins(
-            ctx,
-            &mut router,
-            &[
-                ("decrepend", &decrepends),
-                ("wlen_q", &wlen_qs),
-                ("decrepstart", &decrepstarts),
-                ("wrdrven_grst_b", &wrdrven_grst_bs),
-                ("clkpd_b", &clkpd_bs),
-                ("saen_set_b", &saen_set_bs),
-            ],
-        )?;
-        router.route_with_net(ctx, m1, we_pin, m1, we_in, "we")?;
-        router.route_with_net(ctx, m1, we_pin, m1, we_in_1, "we")?;
-        router.route_with_net(ctx, m1, we_pin, m1, we_in_inv, "we")?;
-        router.route_with_net(ctx, m1, rbl_b_out, m1, rbl_b_in, "rbl_b")?;
-        router.route_with_net(ctx, m1, rbl_b_out, m1, rbl_b_in2, "rbl_b")?;
-        router.route_with_net(ctx, m1, rwl_out, m2, rwl_pin, "rwl")?;
-        router.route_with_net(ctx, m1, wlen_grstb_out, m1, wlen_grstb_in, "wlen_grst_b")?;
-        router.route_with_net(ctx, m1, clkp_out, m1, clkp_in, "clkp")?;
-        router.route_with_net(ctx, m1, clkp_grstb_out, m1, clkp_grstb_in, "clkp_grst_b")?;
-        router.route_with_net(ctx, m1, wlend_out, m1, wlend_in, "wlend")?;
-        router.route_with_net(ctx, m1, wlen_out, m1, wlen_pin, "wlen")?;
-        router.route_with_net(ctx, m1, saen_out, m2, saen_pin, "saen")?;
-        router.route_with_net(ctx, m2, wrdrven_pin, m1, wrdrven_out, "wrdrven")?;
-        router.route_with_net(ctx, m1, rbl_pin, m1, rbl_in, "rbl")?;
-        router.route_with_net(
-            ctx,
+        for (net, rects) in [
+            ("decrepend", &decrepends),
+            ("wlen_q", &wlen_qs),
+            ("decrepstart", &decrepstarts),
+            ("wrdrven_grst_b", &wrdrven_grst_bs),
+            ("clkpd_b", &clkpd_bs),
+            ("saen_set_b", &saen_set_bs),
+        ] {
+            for dst in &rects[1..] {
+                routes.push(RouteReq::new(m1, rects[0], m1, *dst, net));
+            }
+        }
+        routes.push(RouteReq::new(m1, we_pin, m1, we_in, "we"));
+        routes.push(RouteReq::new(m1, we_pin, m1, we_in_1, "we"));
+        routes.push(RouteReq::new(m1, we_pin, m1, we_in_inv, "we"));
+        routes.push(RouteReq::new(m1, rbl_b_out, m1, rbl_b_in, "rbl_b"));
+        routes.push(RouteReq::new(m1, rbl_b_out, m1, rbl_b_in2, "rbl_b"));
+        routes.push(RouteReq::new(m1, rwl_out, m2, rwl_pin, "rwl"));
+        routes.push(RouteReq::new(
+            m1,
+            wlen_grstb_out,
+            m1,
+            wlen_grstb_in,
+            "wlen_grst_b",
+        ));
+        routes.push(RouteReq::new(m1, clkp_out, m1, clkp_in, "clkp"));
+        routes.push(RouteReq::new(
+            m1,
+            clkp_grstb_out,
+            m1,
+            clkp_grstb_in,
+            "clkp_grst_b",
+        ));
+        routes.push(RouteReq::new(m1, wlend_out, m1, wlend_in, "wlend"));
+        routes.push(RouteReq::new(m1, wlen_out, m1, wlen_pin, "wlen"));
+        routes.push(RouteReq::new(m1, saen_out, m2, saen_pin, "saen"));
+        routes.push(RouteReq::new(m2, wrdrven_pin, m1, wrdrven_out, "wrdrven"));
+        routes.push(RouteReq::new(m1, rbl_pin, m1, rbl_in, "rbl"));
+        routes.push(RouteReq::new(
             m1,
             wrdrven_set_out,
             m1,
             wrdrven_set_in,
             "wrdrven_set_b",
-        )?;
-        router.route_with_net(
-            ctx,
+        ));
+        routes.push(RouteReq::new(
             m1,
             wlen_rst_decoderd_out,
             m1,
             wlen_rst_decoderd_in,
             "wlen_rst_decoderd",
-        )?;
+        ));
+
+        order_routes(&mut routes, self.params.route_order, m2);
+
+        for r in &routes {
+            router.route_with_net(ctx, r.src_layer, r.src, r.dst_layer, r.dst, r.net)?;
+        }
 
         ctx.draw(router)?;
 
