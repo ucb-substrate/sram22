@@ -31,6 +31,13 @@ pub struct DecoderParams {
     pub max_width: Option<i64>,
     pub tree: DecoderTree,
     pub use_multi_finger_invs: bool,
+    /// Require this decoder's outputs to be reachable on m1.
+    ///
+    /// Set by a caller that routes to the outputs on m1 - the row decoder, whose
+    /// outputs are the wordlines. Affects the layout only; the netlist is the same
+    /// either way. See [`DecoderGateParams::expose_y_on_m1`].
+    #[serde(default)]
+    pub require_m1_output: bool,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -44,6 +51,12 @@ pub struct DecoderStageParams {
     pub use_multi_finger_invs: bool,
     pub dont_connect_outputs: bool,
     pub child_sizes: Vec<usize>,
+    /// Require this stage's outputs to be reachable on m1.
+    ///
+    /// Affects the layout only; the gate chain and therefore the netlist are
+    /// unchanged. See [`DecoderGateParams::expose_y_on_m1`].
+    #[serde(default)]
+    pub require_m1_output: bool,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]

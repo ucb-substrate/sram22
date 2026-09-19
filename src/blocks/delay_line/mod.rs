@@ -272,6 +272,7 @@ impl Component for TristateInvDelayLine {
                 gate: super::gate::GateParams::Inv(self.params.inv),
                 filler: false,
                 dsn: (*dsn).clone(),
+                expose_y_on_m1: false,
             })?
             .with_orientation(Named::R90Cw);
 

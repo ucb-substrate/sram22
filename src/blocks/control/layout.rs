@@ -22,7 +22,7 @@ use substrate::pdk::stdcell::StdCell;
 
 use crate::blocks::macros::{SvtInv2, SvtInv4};
 
-use super::{ControlLogicReplicaV2, EdgeDetector, InvChain, SrLatch, SvtInvChain};
+use super::{ControlLogicReplicaV2, EdgeDetector, InvChain, RouteOrder, SrLatch, SvtInvChain};
 use subgeom::transform::Translate;
 use subgeom::{Corner, Dir, Point, Rect, Side, Span};
 
@@ -35,6 +35,24 @@ struct RouteReq {
     net: &'static str,
 }
 
+impl RouteReq {
+    fn new(
+        src_layer: LayerKey,
+        src: Rect,
+        dst_layer: LayerKey,
+        dst: Rect,
+        net: &'static str,
+    ) -> Self {
+        Self {
+            src_layer,
+            src,
+            dst_layer,
+            dst,
+            net,
+        }
+    }
+}
+
 /// Nets that have to reach a pin fixed on the edge of the block.
 ///
 /// These have no freedom at one end, so when the router reaches them late the
@@ -44,31 +62,19 @@ struct RouteReq {
 const EDGE_PIN_NETS: [&str; 7] = ["clk", "ce", "we", "rstb", "pc_b", "rbl", "wlen"];
 
 /// Reorder `routes` for the given attempt.
-///
-/// Attempt 0 leaves the original order untouched, so every macro that already
-/// routes is generated exactly as before. Later attempts pull progressively more
-/// of the constrained nets to the front, keeping relative order within each group
-/// so the result stays deterministic.
-fn order_routes(routes: &mut Vec<RouteReq>, attempt: usize, m2: LayerKey) {
-    let promote: Box<dyn Fn(&RouteReq) -> bool> = match attempt {
-        0 => return,
-        // The three nets that terminate on an m2 pin on the block edge; `wrdrven`
-        // is the one observed to starve.
-        1 => Box::new(move |r: &RouteReq| r.src_layer == m2 || r.dst_layer == m2),
-        // Same, plus the m1 edge pins.
-        2 => Box::new(move |r: &RouteReq| {
-            r.src_layer == m2 || r.dst_layer == m2 || EDGE_PIN_NETS.contains(&r.net)
-        }),
-        // Last resort: reverse the whole order, so the nets that normally go last
-        // get first pick of the tracks.
-        _ => {
-            routes.reverse();
-            return;
+fn order_routes(routes: &mut [RouteReq], order: RouteOrder, m2: LayerKey) {
+    // `wrdrven` is the net observed to starve: it terminates on an m2 pin on the
+    // block edge, so it has no freedom at one end, and by the time the router
+    // reaches it the tracks leading to that pin are already taken.
+    let on_m2 = |r: &RouteReq| r.src_layer == m2 || r.dst_layer == m2;
+    match order {
+        RouteOrder::AsWritten => return,
+        RouteOrder::M2PinsFirst => routes.sort_by_key(|r| !on_m2(r)),
+        RouteOrder::EdgePinsFirst => {
+            routes.sort_by_key(|r| !(on_m2(r) || EDGE_PIN_NETS.contains(&r.net)))
         }
-    };
-    let (first, rest): (Vec<_>, Vec<_>) = std::mem::take(routes).into_iter().partition(&*promote);
-    routes.extend(first);
-    routes.extend(rest);
+        RouteOrder::Reversed => routes.reverse(),
+    }
 }
 
 impl ControlLogicReplicaV2 {
@@ -1080,30 +1086,20 @@ impl ControlLogicReplicaV2 {
         // late can find its channels already taken - which is exactly how the
         // failures here show up.
         let mut routes: Vec<RouteReq> = Vec::new();
-        let mut push = |src_layer, src, dst_layer, dst, net: &'static str| {
-            routes.push(RouteReq {
-                src_layer,
-                src,
-                dst_layer,
-                dst,
-                net,
-            });
-        };
-
-        push(m1, clk_pin, m1, clk_in, "clk");
-        push(m1, ce_pin, m1, ce_in, "ce");
-        push(m1, pc_b0_out, m1, pc_b_in_buf, "pc_b0");
-        push(m1, pc_b_out, m1, pc_b_pin, "pc_b");
-        push(m1, resetb_pin, m1, resetb_in, "rstb");
-        push(m1, clkp_b_out, m1, clkp_b_in, "clkp_b");
-        push(m1, clkp_b_out, m1, clkp_b_in_1, "clkp_b");
-        push(m1, clkpd_out, m1, clkpd_in, "clkpd");
-        push(m1, pc_setb_out, m1, pc_setb_in, "pc_set_b");
+        routes.push(RouteReq::new(m1, clk_pin, m1, clk_in, "clk"));
+        routes.push(RouteReq::new(m1, ce_pin, m1, ce_in, "ce"));
+        routes.push(RouteReq::new(m1, pc_b0_out, m1, pc_b_in_buf, "pc_b0"));
+        routes.push(RouteReq::new(m1, pc_b_out, m1, pc_b_pin, "pc_b"));
+        routes.push(RouteReq::new(m1, resetb_pin, m1, resetb_in, "rstb"));
+        routes.push(RouteReq::new(m1, clkp_b_out, m1, clkp_b_in, "clkp_b"));
+        routes.push(RouteReq::new(m1, clkp_b_out, m1, clkp_b_in_1, "clkp_b"));
+        routes.push(RouteReq::new(m1, clkpd_out, m1, clkpd_in, "clkpd"));
+        routes.push(RouteReq::new(m1, pc_setb_out, m1, pc_setb_in, "pc_set_b"));
         for reset_in in resets {
-            push(m1, reset_out, m1, reset_in, "reset");
+            routes.push(RouteReq::new(m1, reset_out, m1, reset_in, "reset"));
         }
         for we_b_in in we_b_ins {
-            push(m1, we_b_out, m1, we_b_in, "we_b");
+            routes.push(RouteReq::new(m1, we_b_out, m1, we_b_in, "we_b"));
         }
         for (net, rects) in [
             ("decrepend", &decrepends),
@@ -1114,33 +1110,51 @@ impl ControlLogicReplicaV2 {
             ("saen_set_b", &saen_set_bs),
         ] {
             for dst in &rects[1..] {
-                push(m1, rects[0], m1, *dst, net);
+                routes.push(RouteReq::new(m1, rects[0], m1, *dst, net));
             }
         }
-        push(m1, we_pin, m1, we_in, "we");
-        push(m1, we_pin, m1, we_in_1, "we");
-        push(m1, we_pin, m1, we_in_inv, "we");
-        push(m1, rbl_b_out, m1, rbl_b_in, "rbl_b");
-        push(m1, rbl_b_out, m1, rbl_b_in2, "rbl_b");
-        push(m1, rwl_out, m2, rwl_pin, "rwl");
-        push(m1, wlen_grstb_out, m1, wlen_grstb_in, "wlen_grst_b");
-        push(m1, clkp_out, m1, clkp_in, "clkp");
-        push(m1, clkp_grstb_out, m1, clkp_grstb_in, "clkp_grst_b");
-        push(m1, wlend_out, m1, wlend_in, "wlend");
-        push(m1, wlen_out, m1, wlen_pin, "wlen");
-        push(m1, saen_out, m2, saen_pin, "saen");
-        push(m2, wrdrven_pin, m1, wrdrven_out, "wrdrven");
-        push(m1, rbl_pin, m1, rbl_in, "rbl");
-        push(m1, wrdrven_set_out, m1, wrdrven_set_in, "wrdrven_set_b");
-        push(
+        routes.push(RouteReq::new(m1, we_pin, m1, we_in, "we"));
+        routes.push(RouteReq::new(m1, we_pin, m1, we_in_1, "we"));
+        routes.push(RouteReq::new(m1, we_pin, m1, we_in_inv, "we"));
+        routes.push(RouteReq::new(m1, rbl_b_out, m1, rbl_b_in, "rbl_b"));
+        routes.push(RouteReq::new(m1, rbl_b_out, m1, rbl_b_in2, "rbl_b"));
+        routes.push(RouteReq::new(m1, rwl_out, m2, rwl_pin, "rwl"));
+        routes.push(RouteReq::new(
+            m1,
+            wlen_grstb_out,
+            m1,
+            wlen_grstb_in,
+            "wlen_grst_b",
+        ));
+        routes.push(RouteReq::new(m1, clkp_out, m1, clkp_in, "clkp"));
+        routes.push(RouteReq::new(
+            m1,
+            clkp_grstb_out,
+            m1,
+            clkp_grstb_in,
+            "clkp_grst_b",
+        ));
+        routes.push(RouteReq::new(m1, wlend_out, m1, wlend_in, "wlend"));
+        routes.push(RouteReq::new(m1, wlen_out, m1, wlen_pin, "wlen"));
+        routes.push(RouteReq::new(m1, saen_out, m2, saen_pin, "saen"));
+        routes.push(RouteReq::new(m2, wrdrven_pin, m1, wrdrven_out, "wrdrven"));
+        routes.push(RouteReq::new(m1, rbl_pin, m1, rbl_in, "rbl"));
+        routes.push(RouteReq::new(
+            m1,
+            wrdrven_set_out,
+            m1,
+            wrdrven_set_in,
+            "wrdrven_set_b",
+        ));
+        routes.push(RouteReq::new(
             m1,
             wlen_rst_decoderd_out,
             m1,
             wlen_rst_decoderd_in,
             "wlen_rst_decoderd",
-        );
+        ));
 
-        order_routes(&mut routes, self.params.routing_variant, m2);
+        order_routes(&mut routes, self.params.route_order, m2);
 
         for r in &routes {
             router.route_with_net(ctx, r.src_layer, r.src, r.dst_layer, r.dst, r.net)?;

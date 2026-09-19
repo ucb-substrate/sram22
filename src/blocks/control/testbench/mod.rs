@@ -201,7 +201,7 @@ impl Component for ControlLogicTestbench {
             pc_set_delay_invs: 8,
             wrdrven_set_delay_invs: 2,
             wrdrven_rst_delay_invs: 0,
-            routing_variant: 0,
+            route_order: Default::default(),
         })?
         .with_connections([
             ("vdd", vdd),

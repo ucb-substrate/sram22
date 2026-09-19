@@ -21,15 +21,40 @@ pub struct ControlLogicParams {
     /// Which order the layout should route its nets in.
     ///
     /// The greedy router commits tracks as it goes, so a net attempted late can
-    /// find its channels already taken. Variant 0 is the original order and is
-    /// what every macro that already routes keeps using; the later orderings
-    /// only come into play after it has failed. See `order_routes`.
+    /// find its channels already taken. [`RouteOrder::AsWritten`] is the original
+    /// order and is what every macro that already routes keeps using; the others
+    /// only come into play after it has failed.
     #[serde(default)]
-    pub routing_variant: usize,
+    pub route_order: RouteOrder,
 }
 
-/// Number of route orderings [`ControlLogicReplicaV2`] can be asked for.
-pub const ROUTING_VARIANTS: usize = 4;
+/// The orders in which the control logic will try to route its nets.
+///
+/// Each successive order hands more of the constrained nets first pick of the
+/// tracks. Relative order within a group is preserved, so the result stays
+/// deterministic.
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub enum RouteOrder {
+    /// Source order. Anything that already routes is generated exactly as before.
+    #[default]
+    AsWritten,
+    /// Nets terminating on an m2 pin on the block edge go first.
+    M2PinsFirst,
+    /// Those, plus the nets terminating on an m1 edge pin.
+    EdgePinsFirst,
+    /// Reversed, so the nets that normally go last get first pick.
+    Reversed,
+}
+
+impl RouteOrder {
+    /// Every order, in the sequence they should be attempted.
+    pub const ALL: [Self; 4] = [
+        Self::AsWritten,
+        Self::M2PinsFirst,
+        Self::EdgePinsFirst,
+        Self::Reversed,
+    ];
+}
 
 impl Component for ControlLogicReplicaV2 {
     type Params = ControlLogicParams;

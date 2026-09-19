@@ -1,7 +1,7 @@
 use self::schematic::fanout_buffer_stage;
 use crate::blocks::bitcell_array::replica::ReplicaCellArray;
 use crate::blocks::columns::ColumnsPhysicalDesignScript;
-use crate::blocks::control::{ControlLogicParams, ControlLogicReplicaV2, ROUTING_VARIANTS};
+use crate::blocks::control::{ControlLogicParams, ControlLogicReplicaV2, RouteOrder};
 use crate::blocks::precharge::layout::ReplicaPrecharge;
 use crate::blocks::precharge::PrechargeParams;
 use arcstr::ArcStr;
@@ -281,6 +281,7 @@ impl Script for SramPhysicalDesignScript {
             use_multi_finger_invs: true,
             dont_connect_outputs: false,
             child_sizes: vec![],
+            require_m1_output: false,
         };
         let addr_gate_inst = ctx.instantiate_layout::<DecoderStage>(&addr_gate)?;
         let pc_b_cap = COL_CAPACITANCES.pc_b
@@ -327,6 +328,7 @@ impl Script for SramPhysicalDesignScript {
             // TODO use tgate mux input cap
             tree: DecoderTree::new(params.col_select_bits(), col_sel_cap + col_sel_b_cap),
             use_multi_finger_invs: true,
+            require_m1_output: false,
         };
         let mut sense_en_buffer = DecoderStageParams {
             max_width: None,
@@ -386,7 +388,7 @@ impl Script for SramPhysicalDesignScript {
             wrdrven_set_delay_invs,
             wrdrven_rst_delay_invs: 0, // TODO: Implement delay to equalize sense amp and
             // write driver rest delay
-            routing_variant: 0,
+            route_order: RouteOrder::default(),
         };
         let row_decoder = DecoderParams {
             pd: DecoderPhysicalDesignParams {
@@ -396,6 +398,8 @@ impl Script for SramPhysicalDesignScript {
             max_width: None,
             tree: row_decoder_tree,
             use_multi_finger_invs: true,
+            // The wordline router connects to these outputs on m1.
+            require_m1_output: true,
         };
 
         // A few delay-chain length combinations leave the control logic's greedy
@@ -404,19 +408,16 @@ impl Script for SramPhysicalDesignScript {
         // that already route are generated exactly as before. The ordering that
         // works is kept in `control` so the schematic and layout views agree.
         let control_inst = {
-            let mut found = None;
-            for variant in 0..ROUTING_VARIANTS {
-                control.routing_variant = variant;
-                match ctx.instantiate_layout::<ControlLogicReplicaV2>(&control) {
-                    Ok(inst) => {
-                        found = Some(inst);
-                        break;
-                    }
-                    Err(e) if variant == ROUTING_VARIANTS - 1 => return Err(e),
-                    Err(_) => continue,
+            let mut result = None;
+            for (i, order) in RouteOrder::ALL.into_iter().enumerate() {
+                control.route_order = order;
+                result = Some(ctx.instantiate_layout::<ControlLogicReplicaV2>(&control));
+                let last = i == RouteOrder::ALL.len() - 1;
+                if result.as_ref().is_some_and(|r| r.is_ok()) || last {
+                    break;
                 }
             }
-            found.expect("at least one routing variant is attempted")
+            result.expect("RouteOrder::ALL is never empty")?
         };
 
         let col_dec_inst = ctx.instantiate_layout::<Decoder>(&col_decoder)?;

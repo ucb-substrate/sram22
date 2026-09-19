@@ -70,6 +70,7 @@ impl Decoder {
             use_multi_finger_invs: self.params.use_multi_finger_invs,
             dont_connect_outputs: true,
             child_sizes,
+            require_m1_output: self.params.require_m1_output,
         };
         let stage_dsn = ctx
             .inner()
@@ -100,6 +101,7 @@ impl Decoder {
                 ),
                 tree: super::DecoderTree { root: node.clone() },
                 use_multi_finger_invs: false,
+                require_m1_output: false,
             })?;
             child.place(Corner::UpperRight, Point::new(x, -340));
             x -= (child.brect().width() as usize)
@@ -197,11 +199,15 @@ impl DecoderStage {
         let m1 = layers.get(Selector::Metal(1))?;
         let m2 = layers.get(Selector::Metal(2))?;
 
-        for (gate, &folding_factor) in gate_params.iter().zip(folding_factors.iter()) {
+        for (stage, (gate, &folding_factor)) in
+            gate_params.iter().zip(folding_factors.iter()).enumerate()
+        {
             let decoder_params = DecoderGateParams {
                 gate: gate.scale(1. / (folding_factor as f64)),
                 filler: false,
                 dsn: dsn.clone(),
+                // Only the last gate in the chain drives the stage's output.
+                expose_y_on_m1: self.params.require_m1_output && stage == num_stages - 1,
             };
             let gate = ctx.instantiate::<DecoderGate>(&decoder_params)?;
             let filler_gate = ctx.instantiate::<DecoderGate>(&DecoderGateParams {
@@ -752,6 +758,15 @@ pub struct DecoderGateParams {
     pub gate: GateParams,
     pub filler: bool,
     pub dsn: DecoderPhysicalDesign,
+    /// Also present this gate's output on m1.
+    ///
+    /// Only the multi-finger inverter layout brings `y` up to m1; every other gate
+    /// leaves it on li. A stage driving a light enough load is sized with no buffer
+    /// inverters at all, so it ends on a bare AND gate and its output never reaches
+    /// the layer the wordline router connects to. Setting this straps the existing
+    /// li output up to m1 and vias the two together: the same net on one more
+    /// layer, no devices and no connectivity change, so the netlist is unaffected.
+    pub expose_y_on_m1: bool,
 }
 
 pub struct DecoderGate {
@@ -833,6 +848,34 @@ impl Component for DecoderGate {
         gate.place_center_x(dsn.width / 2);
         if !self.params.filler && !is_multi_finger_inv {
             ctx.add_ports(gate.ports()).unwrap();
+
+            if self.params.expose_y_on_m1 {
+                // Strap the li output up to m1, shaped like the multi-finger
+                // inverter's own m1 output so it lands on the track the wordline
+                // router expects. The gate keeps its devices and its li port, so
+                // this adds no connectivity and the netlist is unchanged.
+                let y_shapes = || {
+                    gate.port("y")
+                        .into_iter()
+                        .flat_map(|port| port.shapes(dsn.li).filter_map(|shape| shape.as_rect()))
+                };
+                let y_rect = y_shapes()
+                    .map(|rect| rect.bbox())
+                    .reduce(|a, b| a.union(b))
+                    .ok_or_else(|| {
+                        substrate::error::ErrorSource::Internal(
+                            "decoder gate has no li output to strap up to m1".to_string(),
+                        )
+                    })?
+                    .into_rect();
+                let y_rect =
+                    y_rect.with_hspan(Span::with_stop_and_length(y_rect.hspan().stop(), 240));
+                ctx.draw_rect(m1, y_rect);
+                for rect in y_shapes() {
+                    draw_via(dsn.li, rect, m1, y_rect, ctx)?;
+                }
+                ctx.merge_port(CellPort::with_shape("y", m1, y_rect));
+            }
         }
         let mut gate_group = gate.draw_ref()?;
 

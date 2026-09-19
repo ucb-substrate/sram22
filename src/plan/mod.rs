@@ -162,10 +162,9 @@ pub fn generate_plan(config: &SramConfig) -> Result<SramPlan> {
     if !num_words.is_power_of_two() {
         bail!("Number of words must be a power of two");
     }
-    // Narrower words drive the generator into corners it does not handle: the row
-    // decoder's last stage ends up unbuffered and leaves its output off m1, and the
-    // column peripherals and write driver pick up DRC and LVS errors of their own.
-    // Every data width of 8 or more checks clean.
+    // Narrow words still hit DRC and LVS errors in the column peripherals and the
+    // write driver, which reproduce on an unpatched build and are unrelated to the
+    // decoder. Every data width of 8 or more checks clean.
     if data_width < 8 {
         bail!("Data width must be at least 8, got {data_width}");
     }
