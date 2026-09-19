@@ -232,7 +232,7 @@ pub mod test {
     use crate::setup_ctx;
     use crate::tests::test_work_dir;
 
-    use super::{ControlLogicParams, ControlLogicReplicaV2, EdgeDetector, SrLatch};
+    use super::{ControlLogicParams, ControlLogicReplicaV2, EdgeDetector, RouteOrder, SrLatch};
 
     const CONTROL_LOGIC_PARAMS: ControlLogicParams = ControlLogicParams {
         decoder_delay_invs: 12,
@@ -240,6 +240,7 @@ pub mod test {
         pc_set_delay_invs: 14,
         wrdrven_set_delay_invs: 4,
         wrdrven_rst_delay_invs: 0,
+        route_order: RouteOrder::AsWritten,
     };
 
     #[test]

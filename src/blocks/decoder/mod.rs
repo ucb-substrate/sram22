@@ -796,6 +796,7 @@ mod tests {
             max_width: None,
             tree,
             use_multi_finger_invs: true,
+            require_m1_output: false,
         };
 
         ctx.write_schematic_to_file::<Decoder>(&params, out_spice(work_dir, "netlist"))
@@ -835,6 +836,7 @@ mod tests {
             use_multi_finger_invs: true,
             dont_connect_outputs: false,
             child_sizes: vec![2, 2],
+            require_m1_output: false,
         };
 
         ctx.write_schematic_to_file::<DecoderStage>(&params, out_spice(&work_dir, "netlist"))
@@ -891,6 +893,7 @@ mod tests {
             }),
             filler: false,
             dsn: (*dsn).clone(),
+            expose_y_on_m1: false,
         };
 
         ctx.write_layout::<DecoderGate>(&params, out_gds(work_dir, "layout"))

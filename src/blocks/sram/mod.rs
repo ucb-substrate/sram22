@@ -404,20 +404,45 @@ impl Script for SramPhysicalDesignScript {
 
         // A few delay-chain length combinations leave the control logic's greedy
         // router with no route for a net it reaches late. Retry with the other
-        // route orderings before giving up; variant 0 is tried first, so macros
-        // that already route are generated exactly as before. The ordering that
-        // works is kept in `control` so the schematic and layout views agree.
+        // route orderings before giving up. `RouteOrder::AsWritten` is tried
+        // first, so macros that already route are generated exactly as before.
         let control_inst = {
-            let mut result = None;
-            for (i, order) in RouteOrder::ALL.into_iter().enumerate() {
+            let mut last_err = None;
+            let mut found = None;
+            for order in RouteOrder::ALL {
                 control.route_order = order;
-                result = Some(ctx.instantiate_layout::<ControlLogicReplicaV2>(&control));
-                let last = i == RouteOrder::ALL.len() - 1;
-                if result.as_ref().is_some_and(|r| r.is_ok()) || last {
-                    break;
+                match ctx.instantiate_layout::<ControlLogicReplicaV2>(&control) {
+                    Ok(inst) => {
+                        found = Some(inst);
+                        break;
+                    }
+                    Err(e) => last_err = Some(e),
                 }
             }
-            result.expect("RouteOrder::ALL is never empty")?
+            match found {
+                Some(inst) => inst,
+                None => {
+                    return Err(ErrorSource::Internal(format!(
+                        "could not route the control logic for this SRAM in any of the {} \
+                         available net orderings (delay chains: decoder {}, wordline pulse {}, \
+                         precharge set {}, write driver set {}). Each ordering hands a different \
+                         group of nets first pick of the routing tracks, and this shape needs one \
+                         that is not implemented yet. Add a variant to `RouteOrder` in \
+                         blocks::control, or report this configuration at \
+                         https://github.com/ucb-substrate/sram22/issues so the ordering can be \
+                         added. Underlying router error: {}",
+                        RouteOrder::ALL.len(),
+                        control.decoder_delay_invs,
+                        control.wlen_pulse_invs,
+                        control.pc_set_delay_invs,
+                        control.wrdrven_set_delay_invs,
+                        last_err
+                            .map(|e| e.to_string())
+                            .unwrap_or_else(|| "none".to_string()),
+                    ))
+                    .into());
+                }
+            }
         };
 
         let col_dec_inst = ctx.instantiate_layout::<Decoder>(&col_decoder)?;

@@ -68,7 +68,7 @@ fn order_routes(routes: &mut [RouteReq], order: RouteOrder, m2: LayerKey) {
     // reaches it the tracks leading to that pin are already taken.
     let on_m2 = |r: &RouteReq| r.src_layer == m2 || r.dst_layer == m2;
     match order {
-        RouteOrder::AsWritten => return,
+        RouteOrder::AsWritten => {}
         RouteOrder::M2PinsFirst => routes.sort_by_key(|r| !on_m2(r)),
         RouteOrder::EdgePinsFirst => {
             routes.sort_by_key(|r| !(on_m2(r) || EDGE_PIN_NETS.contains(&r.net)))
@@ -1085,16 +1085,17 @@ impl ControlLogicReplicaV2 {
         // variant. The greedy router commits tracks as it goes, so a net attempted
         // late can find its channels already taken - which is exactly how the
         // failures here show up.
-        let mut routes: Vec<RouteReq> = Vec::new();
-        routes.push(RouteReq::new(m1, clk_pin, m1, clk_in, "clk"));
-        routes.push(RouteReq::new(m1, ce_pin, m1, ce_in, "ce"));
-        routes.push(RouteReq::new(m1, pc_b0_out, m1, pc_b_in_buf, "pc_b0"));
-        routes.push(RouteReq::new(m1, pc_b_out, m1, pc_b_pin, "pc_b"));
-        routes.push(RouteReq::new(m1, resetb_pin, m1, resetb_in, "rstb"));
-        routes.push(RouteReq::new(m1, clkp_b_out, m1, clkp_b_in, "clkp_b"));
-        routes.push(RouteReq::new(m1, clkp_b_out, m1, clkp_b_in_1, "clkp_b"));
-        routes.push(RouteReq::new(m1, clkpd_out, m1, clkpd_in, "clkpd"));
-        routes.push(RouteReq::new(m1, pc_setb_out, m1, pc_setb_in, "pc_set_b"));
+        let mut routes: Vec<RouteReq> = vec![
+            RouteReq::new(m1, clk_pin, m1, clk_in, "clk"),
+            RouteReq::new(m1, ce_pin, m1, ce_in, "ce"),
+            RouteReq::new(m1, pc_b0_out, m1, pc_b_in_buf, "pc_b0"),
+            RouteReq::new(m1, pc_b_out, m1, pc_b_pin, "pc_b"),
+            RouteReq::new(m1, resetb_pin, m1, resetb_in, "rstb"),
+            RouteReq::new(m1, clkp_b_out, m1, clkp_b_in, "clkp_b"),
+            RouteReq::new(m1, clkp_b_out, m1, clkp_b_in_1, "clkp_b"),
+            RouteReq::new(m1, clkpd_out, m1, clkpd_in, "clkpd"),
+            RouteReq::new(m1, pc_setb_out, m1, pc_setb_in, "pc_set_b"),
+        ];
         for reset_in in resets {
             routes.push(RouteReq::new(m1, reset_out, m1, reset_in, "reset"));
         }

@@ -1263,20 +1263,19 @@ impl SramInner {
 
         // Route wordline driver to bitcell array
         for i in 0..self.params.rows() {
-            // The decoder only brings its outputs up to m1 when the final stage is
-            // a multi-finger inverter; a single-finger one leaves them on li. That
-            // happens on the smallest arrays, which `generate_plan` rejects up
-            // front, so reaching this is a sizing change that outran that check
-            // rather than something a user can act on directly.
+            // The row decoder is built with `require_m1_output`, so its outputs are
+            // strapped up to m1 whatever its final stage turns out to be. Reaching
+            // this means that guarantee was lost somewhere, not that the array is
+            // too small.
             let src = decoder
                 .port(PortId::new("y", i))?
                 .largest_rect(m1)
                 .map_err(|_| {
                     substrate::error::ErrorSource::Internal(format!(
-                        "row decoder output y[{i}] has no m1 shape: its final stage was \
-                         sized as a single-finger inverter, which leaves the output on li. \
-                         This array ({} rows x {} columns) is too small to drive the \
-                         decoder to a multi-finger output stage.",
+                        "row decoder output y[{i}] has no m1 shape, though the row decoder \
+                         is built with require_m1_output set. Check that DecoderParams and \
+                         DecoderStageParams still carry that flag through to the final \
+                         DecoderGate of this decoder ({} rows x {} columns).",
                         self.params.rows(),
                         self.params.cols(),
                     ))
