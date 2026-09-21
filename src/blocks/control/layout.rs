@@ -77,6 +77,49 @@ fn order_routes(routes: &mut [RouteReq], order: RouteOrder, m2: LayerKey) {
     }
 }
 
+/// Block grid points that sit too close to `rect` for any net to use.
+///
+/// `occupy` reserves the tracks a rect fully covers and leaves the rest available.
+/// A rect whose edge stops inside the gap between two tracks leaves its neighbour
+/// neither occupied nor blocked, so the router is free to put a wire there closer
+/// than the spacing rule allows. That is what `ExpandToGridStrategy::Corner`
+/// produces whenever a via's metal runs past the track it was snapped to.
+///
+/// Every track within one space of the rect, other than those it fully covers, is
+/// blocked for every net. That includes the rect's own net: a wire on the
+/// neighbouring track would not touch this metal, only sit near it, so it notches
+/// whether or not the two are the same net. Spacing is geometric, not electrical.
+///
+/// A track-aligned rect fully covers every track it touches and its nearest
+/// neighbour is exactly one space away, so nothing is blocked and nothing changes.
+fn block_unclean_tracks(router: &mut GreedyRouter, layer: LayerKey, dir: Dir, rect: Rect) {
+    let tracks = router.track_info(layer).tracks().clone();
+    let space = tracks.space;
+    let perp = rect.span(!dir);
+    let along = rect.span(dir);
+    let lo = tracks.track_with_loc(TrackLocator::StartsBefore, perp.start() - space);
+    let hi = tracks.track_with_loc(TrackLocator::EndsAfter, perp.stop() + space);
+    for i in lo..=hi {
+        let t = tracks.index(i);
+        if perp.start() <= t.start() && t.stop() <= perp.stop() {
+            continue; // fully covered: this is the rect's own track
+        }
+        let gap = if t.stop() <= perp.start() {
+            perp.start() - t.stop()
+        } else if perp.stop() <= t.start() {
+            t.start() - perp.stop()
+        } else {
+            0 // partially covered
+        };
+        if gap < space {
+            router.block(
+                layer,
+                Rect::span_builder().with(dir, along).with(!dir, t).build(),
+            );
+        }
+    }
+}
+
 impl ControlLogicReplicaV2 {
     pub(crate) fn layout(
         &self,
@@ -307,6 +350,7 @@ impl ControlLogicReplicaV2 {
         vss_rect.align_right(vss);
         vss_rect = router.expand_to_grid(vss_rect, ExpandToGridStrategy::Minimum);
         router.occupy(m1, vss_rect, "vss")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, vss_rect);
         ctx.draw_rect(m1, vss_rect);
 
         for layer in [m1, m2] {
@@ -403,12 +447,16 @@ impl ControlLogicReplicaV2 {
 
         let clk_pin = left_pins[0];
         router.occupy(m1, clk_pin, "clk")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, clk_pin);
         let ce_pin = left_pins[1];
         router.occupy(m1, ce_pin, "ce")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, ce_pin);
         let we_pin = left_pins[2];
         router.occupy(m1, we_pin, "we")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, we_pin);
         let resetb_pin = left_pins[3];
         router.occupy(m1, resetb_pin, "rstb")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, resetb_pin);
 
         // Move RWL to be inline with buffer output.
         let vtrack = vtracks.index(
@@ -425,18 +473,24 @@ impl ControlLogicReplicaV2 {
         let rwl_pin = top_pins[0].with_hspan(vtrack);
         ctx.draw_rect(m2, rwl_pin);
         router.occupy(m2, rwl_pin, "rwl")?;
+        block_unclean_tracks(&mut router, m2, Dir::Vert, rwl_pin);
 
         let wrdrven_pin = bot_pins[0];
         router.occupy(m2, wrdrven_pin, "wrdrven")?;
+        block_unclean_tracks(&mut router, m2, Dir::Vert, wrdrven_pin);
         let saen_pin = bot_pins[1];
         router.occupy(m2, saen_pin, "saen")?;
+        block_unclean_tracks(&mut router, m2, Dir::Vert, saen_pin);
 
         let wlen_pin = right_pins[0];
         router.occupy(m1, wlen_pin, "wlen")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wlen_pin);
         let rbl_pin = right_pins[1];
         router.occupy(m1, rbl_pin, "rbl")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, rbl_pin);
         let pc_b_pin = right_pins[2];
         router.occupy(m1, pc_b_pin, "pc_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, pc_b_pin);
 
         // rstb -> reset_inv.y
         let resetb_in = group.port_map().port("reset_inv_a")?.largest_rect(m1)?;
@@ -444,6 +498,7 @@ impl ControlLogicReplicaV2 {
             router.expand_to_grid(resetb_in, ExpandToGridStrategy::Corner(Corner::LowerLeft));
         ctx.draw_rect(m1, resetb_in);
         router.occupy(m1, resetb_in, "rstb")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, resetb_in);
 
         // clk -> clk_delay.din
         let clk_in = group.port_map().port("clk_delay_din")?.largest_rect(m0)?;
@@ -456,6 +511,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, clk_in);
         router.occupy(m1, clk_in, "clk")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, clk_in);
 
         // ce -> clk_gate.b
         let ce_in = group.port_map().port("clk_gate_b")?.largest_rect(m0)?;
@@ -468,6 +524,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, ce_in);
         router.occupy(m1, ce_in, "ce")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, ce_in);
 
         // rbl -> inv_rbl.a
         let pin = group.port_map().port("inv_rbl_a")?.largest_rect(m0)?;
@@ -480,6 +537,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, rbl_in);
         router.occupy(m1, rbl_in, "rbl")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, rbl_in);
 
         // reset out
         let reset_out = group.port_map().port("reset_inv_y")?.largest_rect(m1)?;
@@ -487,6 +545,7 @@ impl ControlLogicReplicaV2 {
             router.expand_to_grid(reset_out, ExpandToGridStrategy::Corner(Corner::UpperRight));
         ctx.draw_rect(m1, reset_out);
         router.occupy(m1, reset_out, "reset")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, reset_out);
 
         let clk_gate_out = group.port_map().port("clk_delay_dout")?.largest_rect(m0)?;
         let clk_pulse_in = group.port_map().port("clk_gate_a")?.largest_rect(m0)?;
@@ -537,6 +596,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, rbl_b_in2);
         router.occupy(m1, rbl_b_in2, "rbl_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, rbl_b_in2);
 
         // nand_wlendb_web.y -> and_wlen.b
         let wlend_out = group
@@ -552,6 +612,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, wlend_out);
         router.occupy(m1, wlend_out, "wlend")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wlend_out);
 
         let wlend_in = group.port_map().port("and_wlen_b")?.largest_rect(m0)?;
         let mut via = via01.clone();
@@ -564,6 +625,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, wlend_in);
         router.occupy(m1, wlend_in, "wlend")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wlend_in);
 
         // and_wlen.a
         let pin = group.port_map().port("and_wlen_a")?.largest_rect(m0)?;
@@ -576,6 +638,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, wlen_q_in);
         router.occupy(m1, wlen_q_in, "wlen_q")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wlen_q_in);
 
         // clk_pulse.dout -> clk_pulse_buf.a
         let src = group.port_map().port("clk_pulse_dout")?.largest_rect(m0)?;
@@ -594,6 +657,7 @@ impl ControlLogicReplicaV2 {
             router.expand_to_grid(clkp_b_out, ExpandToGridStrategy::Corner(Corner::UpperRight));
         ctx.draw_rect(m1, clkp_b_out);
         router.occupy(m1, clkp_b_out, "clkp_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, clkp_b_out);
 
         let clkp_b_in = group.port_map().port("clkp_delay_din")?.largest_rect(m0)?;
         let mut via = via01.clone();
@@ -605,6 +669,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, clkp_b_in);
         router.occupy(m1, clkp_b_in, "clkp_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, clkp_b_in);
 
         // decoder_replica.dout
         let decrepend_out = group
@@ -620,6 +685,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, decrepend_out);
         router.occupy(m1, decrepend_out, "decrepend")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, decrepend_out);
 
         // clkp_b -> pc_ctl.rb
         let pin = group.port_map().port("pc_ctl_rb")?.largest_rect(m0)?;
@@ -632,6 +698,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, clkp_b_in_1);
         router.occupy(m1, clkp_b_in_1, "clkp_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, clkp_b_in_1);
 
         // clkp_delay.dout -> wrdrven_set.a
         let clkpd_out = group.port_map().port("clkp_delay_dout")?.largest_rect(m0)?;
@@ -644,6 +711,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, clkpd_out);
         router.occupy(m1, clkpd_out, "clkpd")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, clkpd_out);
 
         let clkpd_in = group.port_map().port("wrdrven_set_a")?.largest_rect(m0)?;
         let mut via = via01.clone();
@@ -655,6 +723,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, clkpd_in);
         router.occupy(m1, clkpd_in, "clkpd")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, clkpd_in);
 
         let port = group.port_map().port("wl_ctl_q")?.largest_rect(m0)?;
         let mut via = via01.clone();
@@ -666,6 +735,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, wl_ctl_q_out);
         router.occupy(m1, wl_ctl_q_out, "wlen_q")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wl_ctl_q_out);
 
         let mut snap_pins = |net: &str, pins: &[&str]| -> substrate::error::Result<Vec<Rect>> {
             let mut out_pins = Vec::with_capacity(pins.len());
@@ -680,6 +750,7 @@ impl ControlLogicReplicaV2 {
                 ctx.draw(via)?;
                 ctx.draw_rect(m1, port);
                 router.occupy(m1, port, net)?;
+                block_unclean_tracks(&mut router, m1, Dir::Horiz, port);
                 out_pins.push(port);
             }
             Ok(out_pins)
@@ -731,6 +802,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, we_in_1);
         router.occupy(m1, we_in_1, "we")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, we_in_1);
 
         // wrdrven_set_delay.dout -> wrdrven_ctl.sb
         let wrdrven_set_out = group
@@ -746,6 +818,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, wrdrven_set_out);
         router.occupy(m1, wrdrven_set_out, "wrdrven_set_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wrdrven_set_out);
 
         let wrdrven_set_in = group.port_map().port("wrdrven_ctl_sb")?.largest_rect(m0)?;
         let mut via = via01.clone();
@@ -757,6 +830,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, wrdrven_set_in);
         router.occupy(m1, wrdrven_set_in, "wrdrven_set_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wrdrven_set_in);
 
         // clk_pulse_buf.x -> clk_pulse_inv.a
         let src = group.port_map().port("clk_pulse_buf_x")?.largest_rect(m1)?;
@@ -815,12 +889,14 @@ impl ControlLogicReplicaV2 {
         ctx.draw(clkpdd_in_via)?;
         ctx.draw_rect(m1, rect);
         router.occupy(m1, rect, "clkpdd")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, rect);
 
         // rwl_buf.x
         let pin = group.port_map().port("rwl_buf_x")?.largest_rect(m1)?;
         let rwl_out = router.expand_to_grid(pin, ExpandToGridStrategy::Corner(Corner::UpperRight));
         ctx.draw_rect(m1, rwl_out);
         router.occupy(m1, rwl_out, "rwl")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, rwl_out);
 
         // and_wlen.x
         let pin = group.port_map().port("and_wlen_x")?.largest_rect(m0)?;
@@ -832,12 +908,14 @@ impl ControlLogicReplicaV2 {
         );
         ctx.draw_rect(m1, wlen_out);
         router.occupy(m1, wlen_out, "wlen")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wlen_out);
         let wlen_out = router.expand_to_grid(
             via.layer_bbox(m1).into_rect(),
             ExpandToGridStrategy::Corner(Corner::LowerRight),
         );
         ctx.draw_rect(m1, wlen_out);
         router.occupy(m1, wlen_out, "wlen")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wlen_out);
         ctx.draw(via)?;
 
         // saen_ctl.q
@@ -851,6 +929,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, saen_out);
         router.occupy(m1, saen_out, "saen")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, saen_out);
 
         // wrdrven_ctl.q
         let pin = group.port_map().port("wrdrven_ctl_q")?.largest_rect(m0)?;
@@ -863,6 +942,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, wrdrven_out);
         router.occupy(m1, wrdrven_out, "wrdrven")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wrdrven_out);
 
         // pc_ctl.qb
         let pin = group.port_map().port("pc_ctl_qb")?.largest_rect(m0)?;
@@ -875,6 +955,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, pc_b0_out);
         router.occupy(m1, pc_b0_out, "pc_b0")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, pc_b0_out);
         let pc_b_in_buf = group.port_map().port("pc_b_buf_a")?.largest_rect(m0)?;
         let mut via = via01.clone();
         via.align_centers_gridded(pc_b_in_buf.bbox(), grid);
@@ -885,11 +966,13 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, pc_b_in_buf);
         router.occupy(m1, pc_b_in_buf, "pc_b0")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, pc_b_in_buf);
         let pc_b_out = group.port_map().port("pc_b_buf_x")?.largest_rect(m1)?;
         let pc_b_out =
             router.expand_to_grid(pc_b_out, ExpandToGridStrategy::Corner(Corner::UpperRight));
         ctx.draw_rect(m1, pc_b_out);
         router.occupy(m1, pc_b_out, "pc_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, pc_b_out);
 
         // inv_we.a
         let we_in_inv = group.port_map().port("inv_we_a")?.largest_rect(m0)?;
@@ -902,6 +985,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, we_in_inv);
         router.occupy(m1, we_in_inv, "we")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, we_in_inv);
 
         // inv_we.y
         let port = group.port_map().port("inv_we_y")?.largest_rect(m0)?;
@@ -914,6 +998,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, we_b_out);
         router.occupy(m1, we_b_out, "we_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, we_b_out);
 
         // we -> mux_wlen_rst.s
         let we_in = group.port_map().port("mux_wlen_rst_s")?.largest_rect(m0)?;
@@ -926,6 +1011,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, we_in);
         router.occupy(m1, we_in, "we")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, we_in);
 
         // inv_rbl.y -> mux_wlen_rst.a0
         let rbl_b_out = group.port_map().port("inv_rbl_y")?.largest_rect(m0)?;
@@ -938,6 +1024,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(rbl_b_out_via)?;
         ctx.draw_rect(m1, rbl_b_out);
         router.occupy(m1, rbl_b_out, "rbl_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, rbl_b_out);
 
         let rbl_b_in = group.port_map().port("mux_wlen_rst_a0")?.largest_rect(m0)?;
         let mut rbl_b_in_via = via01.clone();
@@ -949,6 +1036,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(rbl_b_in_via)?;
         ctx.draw_rect(m1, rbl_b_in);
         router.occupy(m1, rbl_b_in, "rbl_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, rbl_b_in);
 
         // TODO mux_wlen_rst.x -> decrepstart
         // TODO decrepend -> decoder_replica_delay.din
@@ -964,6 +1052,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(wlen_grstb_out_via)?;
         ctx.draw_rect(m1, wlen_grstb_out);
         router.occupy(m1, wlen_grstb_out, "wlen_grst_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wlen_grstb_out);
         let wlen_grstb_in = group.port_map().port("wl_ctl_rb")?.largest_rect(m0)?;
         let mut wlen_grstb_in_via = via01.clone();
         wlen_grstb_in_via.align_centers_gridded(wlen_grstb_in.bbox(), grid);
@@ -974,6 +1063,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(wlen_grstb_in_via)?;
         ctx.draw_rect(m1, wlen_grstb_in);
         router.occupy(m1, wlen_grstb_in, "wlen_grst_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wlen_grstb_in);
 
         // wlen_rst_decoderd
         let wlen_rst_decoderd_out = group
@@ -989,6 +1079,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(wlen_rst_decoderd_out_via)?;
         ctx.draw_rect(m1, wlen_rst_decoderd_out);
         router.occupy(m1, wlen_rst_decoderd_out, "wlen_rst_decoderd")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wlen_rst_decoderd_out);
 
         let wlen_rst_decoderd_in = group.port_map().port("pc_set_a")?.largest_rect(m0)?;
         let mut wlen_rst_decoderd_in_via = via01.clone();
@@ -1000,6 +1091,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(wlen_rst_decoderd_in_via)?;
         ctx.draw_rect(m1, wlen_rst_decoderd_in);
         router.occupy(m1, wlen_rst_decoderd_in, "wlen_rst_decoderd")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, wlen_rst_decoderd_in);
 
         // reset
         let mut resets = Vec::new();
@@ -1014,6 +1106,7 @@ impl ControlLogicReplicaV2 {
             ctx.draw(via)?;
             ctx.draw_rect(m1, in_pin);
             router.occupy(m1, in_pin, "reset")?;
+            block_unclean_tracks(&mut router, m1, Dir::Horiz, in_pin);
             resets.push(in_pin);
         }
 
@@ -1023,6 +1116,7 @@ impl ControlLogicReplicaV2 {
             router.expand_to_grid(clkp_out, ExpandToGridStrategy::Corner(Corner::UpperRight));
         ctx.draw_rect(m1, clkp_out);
         router.occupy(m1, clkp_out, "clkp")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, clkp_out);
 
         let clkp_in = group.port_map().port("clkp_grst_a")?.largest_rect(m0)?;
         let mut clkp_in_via = via01.clone();
@@ -1034,6 +1128,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(clkp_in_via)?;
         ctx.draw_rect(m1, clkp_in);
         router.occupy(m1, clkp_in, "clkp")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, clkp_in);
 
         // clkp_grst_b
         let clkp_grstb_out = group.port_map().port("clkp_grst_y")?.largest_rect(m0)?;
@@ -1046,6 +1141,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, clkp_grstb_out);
         router.occupy(m1, clkp_grstb_out, "clkp_grst_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, clkp_grstb_out);
 
         let clkp_grstb_in = group.port_map().port("saen_ctl_rb")?.largest_rect(m0)?;
         let mut via = via01.clone();
@@ -1057,6 +1153,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, clkp_grstb_in);
         router.occupy(m1, clkp_grstb_in, "clkp_grst_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, clkp_grstb_in);
 
         // pc_set_b
         let pc_setb_out = group.port_map().port("pc_set_y")?.largest_rect(m0)?;
@@ -1069,6 +1166,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(pc_setb_out_via)?;
         ctx.draw_rect(m1, pc_setb_out);
         router.occupy(m1, pc_setb_out, "pc_set_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, pc_setb_out);
 
         let pin = group.port_map().port("pc_ctl_sb")?.largest_rect(m0)?;
         let mut via = via01.clone();
@@ -1080,6 +1178,7 @@ impl ControlLogicReplicaV2 {
         ctx.draw(via)?;
         ctx.draw_rect(m1, pc_setb_in);
         router.occupy(m1, pc_setb_in, "pc_set_b")?;
+        block_unclean_tracks(&mut router, m1, Dir::Horiz, pc_setb_in);
 
         // Collect every connection first, then route them in an order chosen by the
         // variant. The greedy router commits tracks as it goes, so a net attempted
