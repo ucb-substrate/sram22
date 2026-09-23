@@ -171,12 +171,8 @@ pub fn generate_plan(config: &SramConfig) -> Result<SramPlan> {
 
     let params = SramParams::new(write_size, mux_ratio, num_words, data_width);
 
-    if params.rows() < 16 || !params.rows().is_power_of_two() {
-        bail!("The number of rows (num words / mux ratio) must be a power of 2 greater than or equal to 16");
-    }
-
-    if params.cols() < 16 {
-        bail!("The number of columns (data width * mux ratio) must be at least 16");
+    if params.rows() < 16 {
+        bail!("The number of rows (num words / mux ratio) must be at least 16");
     }
 
     Ok(SramPlan {
