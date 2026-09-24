@@ -84,7 +84,7 @@ output latch. Input data and write-mask bits use flip-flops.
 Increasing M reduces the number of rows and the bitline load while increasing the
 number of cells across a wordline. This makes the array wider and shorter and
 increases mux overhead. SRAM22 supports M=4 and M=8, with at least 16 rows and
-a data width of at least 8.
+16 columns.
 
 `write_size` sets the number of data bits controlled by each mask bit. A whole-word
 write still has a scalar `wmask`; drive it high to permit writes.

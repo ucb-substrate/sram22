@@ -50,7 +50,7 @@
     "data_width must be an integer multiple of write_size.",
     "The number of rows, num_words / mux_ratio, must be a power of two.",
     "At least 16 rows (num_words / mux_ratio ≥ 16).",
-    "data_width must be at least 8.",
+    "At least 16 columns (data_width · mux_ratio ≥ 16).",
     "pex_level, if set, must be one of \"r\", \"c\", \"rc\", or \"rcc\" (ignored without commercial plugins)."
   ],
   "derived": [

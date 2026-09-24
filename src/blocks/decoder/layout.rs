@@ -10,7 +10,9 @@ use substrate::index::IndexOwned;
 use subgeom::bbox::BoundBox;
 use subgeom::orientation::Named;
 use subgeom::{Corner, Dir, Point, Rect, Side, Sign, Span};
-use substrate::layout::cell::{CellPort, Element, Flatten, Port, PortConflictStrategy, PortId};
+use substrate::layout::cell::{
+    CellPort, Element, Flatten, Instance, Port, PortConflictStrategy, PortId,
+};
 use substrate::layout::context::LayoutCtx;
 use substrate::layout::elements::via::{Via, ViaExpansion, ViaParams};
 use substrate::layout::group::elements::ElementGroup;
@@ -812,6 +814,101 @@ pub(crate) fn span_to_straps(span: Span, line: i64, space: i64, grid: i64) -> Ve
     }
 }
 
+/// How far the wordline router's m1 via reaches back from the far end of a
+/// decoder output's m1 pad (see the wordline routing in `sram::layout`).
+const Y_M1_PAD_MIN_LENGTH: i64 = 600;
+
+impl DecoderGate {
+    /// Strap the li output up to m1 for [`DecoderGateParams::expose_y_on_m1`].
+    ///
+    /// The pad covers only the end of the output beyond the PMOS diffusion, which
+    /// is where the wordline router lands. When the stripe metal is m1, the vdd and
+    /// vss straps cross the gate over its diffusion spans, so an m1 pad spanning the
+    /// whole li output would short them together. The pad stops one space short of
+    /// every strap. The gate keeps its devices and its li port, so this adds no
+    /// connectivity and the netlist is unchanged.
+    fn draw_y_m1_pad(
+        &self,
+        gate: &Instance,
+        spans: &[(Span, &str)],
+        ctx: &mut LayoutCtx,
+    ) -> Result<()> {
+        let dsn = &self.params.dsn;
+        let m1 = ctx.layers().get(Selector::Metal(1))?;
+        let internal = |msg: &str| substrate::error::ErrorSource::Internal(msg.to_string());
+
+        let y_rects = gate
+            .port("y")?
+            .shapes(dsn.li)
+            .filter_map(|shape| shape.as_rect())
+            .collect::<Vec<_>>();
+        let y_rect = y_rects
+            .iter()
+            .map(|rect| rect.bbox())
+            .reduce(|a, b| a.union(b))
+            .ok_or_else(|| internal("decoder gate has no li output to strap up to m1"))?
+            .into_rect();
+
+        let diff_span = |name: &str| {
+            spans
+                .iter()
+                .filter(|(_, port)| *port == name)
+                .map(|(span, _)| *span)
+                .reduce(|a, b| a.union(b))
+        };
+        let (vdd, vss) = diff_span("vdd")
+            .zip(diff_span("vss"))
+            .ok_or_else(|| internal("decoder gate has no vdd or vss diffusion span"))?;
+
+        let keepouts = if dsn.stripe_metal == m1 {
+            spans
+                .iter()
+                .flat_map(|(span, _)| {
+                    span_to_straps(*span, dsn.line, dsn.space, ctx.pdk().layout_grid())
+                })
+                .map(|strap| strap.expand_all(dsn.space))
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+
+        let y = y_rect.vspan();
+        let pad = if vdd.center() > vss.center() {
+            let start = keepouts
+                .iter()
+                .filter(|k| k.start() < y.stop())
+                .map(|k| k.stop())
+                .fold(y.start(), i64::max);
+            Span::new(start, y.stop())
+        } else {
+            let stop = keepouts
+                .iter()
+                .filter(|k| k.stop() > y.start())
+                .map(|k| k.start())
+                .fold(y.stop(), i64::min);
+            Span::new(y.start(), stop)
+        };
+        if pad.stop() - pad.start() < Y_M1_PAD_MIN_LENGTH {
+            return Err(internal(&format!(
+                "decoder output has only {} nm of li clear of the m1 power straps; \
+                 the wordline router needs {Y_M1_PAD_MIN_LENGTH} nm",
+                pad.stop() - pad.start()
+            ))
+            .into());
+        }
+
+        let pad = Rect::from_spans(Span::with_stop_and_length(y_rect.hspan().stop(), 240), pad);
+        ctx.draw_rect(m1, pad);
+        for rect in y_rects {
+            if rect.vspan().intersects(&pad.vspan()) {
+                draw_via(dsn.li, rect, m1, pad, ctx)?;
+            }
+        }
+        ctx.merge_port(CellPort::with_shape("y", m1, pad));
+        Ok(())
+    }
+}
+
 impl Component for DecoderGate {
     type Params = DecoderGateParams;
     fn new(
@@ -848,34 +945,6 @@ impl Component for DecoderGate {
         gate.place_center_x(dsn.width / 2);
         if !self.params.filler && !is_multi_finger_inv {
             ctx.add_ports(gate.ports()).unwrap();
-
-            if self.params.expose_y_on_m1 {
-                // Strap the li output up to m1, shaped like the multi-finger
-                // inverter's own m1 output so it lands on the track the wordline
-                // router expects. The gate keeps its devices and its li port, so
-                // this adds no connectivity and the netlist is unchanged.
-                let y_shapes = || {
-                    gate.port("y")
-                        .into_iter()
-                        .flat_map(|port| port.shapes(dsn.li).filter_map(|shape| shape.as_rect()))
-                };
-                let y_rect = y_shapes()
-                    .map(|rect| rect.bbox())
-                    .reduce(|a, b| a.union(b))
-                    .ok_or_else(|| {
-                        substrate::error::ErrorSource::Internal(
-                            "decoder gate has no li output to strap up to m1".to_string(),
-                        )
-                    })?
-                    .into_rect();
-                let y_rect =
-                    y_rect.with_hspan(Span::with_stop_and_length(y_rect.hspan().stop(), 240));
-                ctx.draw_rect(m1, y_rect);
-                for rect in y_shapes() {
-                    draw_via(dsn.li, rect, m1, y_rect, ctx)?;
-                }
-                ctx.merge_port(CellPort::with_shape("y", m1, y_rect));
-            }
         }
         let mut gate_group = gate.draw_ref()?;
 
@@ -903,6 +972,10 @@ impl Component for DecoderGate {
                     .or_insert(Vec::new())
                     .push(elem.brect().vspan());
             }
+        }
+
+        if self.params.expose_y_on_m1 && !self.params.filler && !is_multi_finger_inv {
+            self.draw_y_m1_pad(&gate, &spans, ctx)?;
         }
 
         if is_multi_finger_inv {

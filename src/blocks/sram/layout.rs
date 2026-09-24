@@ -39,6 +39,9 @@ use crate::blocks::precharge::layout::ReplicaPrecharge;
 
 use super::{SramInner, SramPhysicalDesignScript};
 
+/// Minimum m2 spacing (sky130 `m2.2`).
+const M2_SPACE: i64 = 140;
+
 /// Returns the layer used for routing in the provided direction.
 ///
 /// The SRAM top level only uses m1 and m2 for vertical and horizontal routing, respectively.
@@ -99,6 +102,76 @@ fn draw_routing_via(
     )?;
     ctx.draw_ref(&via)?;
     Ok(via)
+}
+
+/// Picks the m2 track above the DFFs for each column select route.
+///
+/// Route `k` runs up from its DFF port on m1 (`dff[k]`) to its m2 track, along the
+/// track to its m1 track (`m1[k]`), and up that track toward the column decoder.
+/// Routes whose m1 track is left of their DFF port count down from the top of the
+/// `m1.len()` tracks starting at `base`, and the rest count up from the bottom. That
+/// original assignment is kept whenever it is legal, which it is for every layout
+/// where all routes fall on the same side.
+///
+/// A narrow word puts the column select DFFs under their m1 tracks, which mixes the
+/// two orders. They then share tracks, and a route's m1 track can land in the
+/// column of another route's DFF port. The riser from that DFF port then runs into
+/// the other route's m1 track unless the DFF route's m2 track is the lower of the
+/// two. Either case shorts the two nets. In that case the tracks are reordered so
+/// every such pair is stacked the right way round.
+fn assign_col_sel_tracks(m1: &[Span], dff: &[Span], base: i64) -> Result<Vec<i64>> {
+    let n = m1.len();
+    // `above[b]` lists routes whose m2 track must sit above route `b`'s.
+    let above = dff
+        .iter()
+        .enumerate()
+        .map(|(b, dff)| {
+            (0..n)
+                .filter(|&a| a != b && m1[a].intersects(dff))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let legal = |tracks: &[i64]| {
+        let hull = |k: usize| m1[k].union(dff[k]);
+        (0..n).all(|a| {
+            (0..n).all(|b| {
+                let shared = tracks[a] == tracks[b] && hull(a).intersects(&hull(b));
+                let riser_hits_track = above[b].contains(&a) && tracks[b] >= tracks[a];
+                a == b || (!shared && !riser_hits_track)
+            })
+        })
+    };
+
+    let original = (0..n)
+        .map(|k| {
+            if m1[k].start() < dff[k].start() {
+                base + (n - 1 - k) as i64
+            } else {
+                base + k as i64
+            }
+        })
+        .collect::<Vec<_>>();
+    if legal(&original) {
+        return Ok(original);
+    }
+
+    // Stack the routes bottom to top, taking the lowest-indexed route that no
+    // unplaced route has to sit below.
+    let mut tracks = vec![0; n];
+    let mut placed = vec![false; n];
+    for level in 0..n {
+        let next = (0..n)
+            .find(|&k| !placed[k] && (0..n).all(|b| placed[b] || !above[b].contains(&k)))
+            .ok_or_else(|| {
+                substrate::error::ErrorSource::Internal(
+                    "column select routes need each other's m2 track to be lower".to_string(),
+                )
+            })?;
+        tracks[next] = base + level as i64;
+        placed[next] = true;
+    }
+    debug_assert!(legal(&tracks));
+    Ok(tracks)
 }
 
 /// Draws a route from `start` to `end` using the provided `tracks`.
@@ -1614,14 +1687,30 @@ impl SramInner {
             m1_tracks.track_with_loc(TrackLocator::StartsAfter, control.brect().right() + 140);
         let m1_sense_en_track_idx = m1_write_driver_en_track_idx + 1;
 
-        for (port, track, buf) in [
+        let buffer_routes = [
             ("saen", m1_sense_en_track_idx, &sense_en_buffer),
             (
                 "wrdrven",
                 m1_write_driver_en_track_idx,
                 &write_driver_en_buffer,
             ),
-        ] {
+        ];
+        // The m2 each route draws at its control port: the port widened out to the
+        // route's m1 track, or straight across to the buffer when they line up.
+        let control_stubs = buffer_routes
+            .iter()
+            .map(|(port, track, buf)| {
+                let buffer_port = buf.port("predecode_0_0")?.largest_rect(m1).unwrap();
+                let control_port = control.port(*port)?.largest_rect(m2).unwrap();
+                let reach = if buffer_port.vspan().contains(control_port.vspan()) {
+                    buffer_port.hspan()
+                } else {
+                    m1_tracks.index(*track)
+                };
+                Ok(control_port.with_hspan(control_port.hspan().union(reach)))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        for (k, (port, track, buf)) in buffer_routes.into_iter().enumerate() {
             let buffer_port = buf.port("predecode_0_0")?.largest_rect(m1).unwrap();
             let control_port = control.port(port)?.largest_rect(m2).unwrap();
 
@@ -1631,11 +1720,37 @@ impl SramInner {
                 draw_rect(m2, m2_rect, &mut router, ctx);
                 draw_via(m1, buffer_port, m2, m2_rect, ctx)?;
             } else {
-                let m2_track_idx = if buffer_port.vspan().start() > control_port.vspan().start() {
+                let mut m2_track_idx = if buffer_port.vspan().start() > control_port.vspan().start()
+                {
                     m2_tracks.track_with_loc(TrackLocator::StartsAfter, buffer_port.bottom())
                 } else {
                     m2_tracks.track_with_loc(TrackLocator::EndsBefore, buffer_port.top())
                 };
+                // The control ports sit off the m2 grid and close together, so this
+                // route's track can land within one space of the other route's stub
+                // where the two overlap. Step the track away from that stub.
+                let track_hspan = m1_tracks.index(track).union(buffer_port.hspan());
+                while let Some(stub) = control_stubs.iter().enumerate().find_map(|(o, stub)| {
+                    let m2_track = m2_tracks.index(m2_track_idx);
+                    let gap = (stub.bottom() - m2_track.stop()).max(m2_track.start() - stub.top());
+                    (o != k && stub.hspan().intersects(&track_hspan) && gap < M2_SPACE)
+                        .then_some(stub)
+                }) {
+                    m2_track_idx += if stub.center().y > m2_tracks.index(m2_track_idx).center() {
+                        -1
+                    } else {
+                        1
+                    };
+                    if !m2_tracks
+                        .index(m2_track_idx)
+                        .intersects(&buffer_port.vspan())
+                    {
+                        return Err(substrate::error::ErrorSource::Internal(format!(
+                            "no m2 track reaches the {port} buffer clear of the other control port"
+                        ))
+                        .into());
+                    }
+                }
                 draw_route(
                     m1,
                     buffer_port,
@@ -1646,34 +1761,70 @@ impl SramInner {
                     &mut router,
                     ctx,
                 )?;
+                // The control port is not on the m2 grid. When it lands less than one
+                // space from the m2 track, the route's own track and end stub face
+                // each other across a notch. Fill it where they meet on the m1 track.
+                let m2_track = m2_tracks.index(m2_track_idx);
+                let gap = if control_port.bottom() >= m2_track.stop() {
+                    Span::new(m2_track.stop(), control_port.bottom())
+                } else {
+                    Span::new(control_port.top(), m2_track.start())
+                };
+                if gap.start() < gap.stop() && gap.length() < M2_SPACE {
+                    draw_rect(
+                        m2,
+                        Rect::from_spans(m1_tracks.index(track), gap),
+                        &mut router,
+                        ctx,
+                    );
+                }
             }
         }
 
         // Route column select bits.
+        let col_sel_dff = |i: usize, j: usize| -> Result<(Rect, Span)> {
+            let dff_idx = dsn.num_dffs - i - 3;
+            let rect = if j == 0 {
+                dffs.port(PortId::new("q_n", dff_idx))?
+                    .first_rect(m0, Side::Left)?
+            } else {
+                dffs.port(PortId::new("q", dff_idx))?
+                    .largest_rect(m0)
+                    .unwrap()
+            };
+            let (loc, side) = if j == 0 {
+                (TrackLocator::StartsAfter, Side::Left)
+            } else {
+                (TrackLocator::EndsBefore, Side::Right)
+            };
+            let track_span = m1_tracks
+                .index(m1_tracks.track_with_loc(loc, rect.side(side) - 140 * side.sign().as_int()));
+            Ok((rect, track_span))
+        };
+        let col_sel_m1_track_idx = |idx: usize| m1_write_driver_en_track_idx + 2 + idx as i64;
+        let col_sel_m2_track_b_idx = {
+            let mut m1_tracks_x = Vec::new();
+            let mut dff_tracks_x = Vec::new();
+            for i in 0..self.params.col_select_bits() {
+                for j in 0..2 {
+                    m1_tracks_x.push(m1_tracks.index(col_sel_m1_track_idx(2 * i + j)));
+                    dff_tracks_x.push(col_sel_dff(i, j)?.1);
+                }
+            }
+            assign_col_sel_tracks(
+                &m1_tracks_x,
+                &dff_tracks_x,
+                dff_m2_track_idx + 2 * self.params.row_bits() as i64,
+            )?
+        };
         for i in 0..self.params.col_select_bits() {
             for j in 0..2 {
                 let idx = 2 * i + j;
-                let dff_idx = dsn.num_dffs - i - 3;
                 let port_rect = col_dec
                     .port(format!("predecode_{i}_{j}"))?
                     .largest_rect(m1)
                     .unwrap();
-                let rect = if j == 0 {
-                    dffs.port(PortId::new("q_n", dff_idx))?
-                        .first_rect(m0, Side::Left)?
-                } else {
-                    dffs.port(PortId::new("q", dff_idx))?
-                        .largest_rect(m0)
-                        .unwrap()
-                };
-                let (loc, side) = if j == 0 {
-                    (TrackLocator::StartsAfter, Side::Left)
-                } else {
-                    (TrackLocator::EndsBefore, Side::Right)
-                };
-                let track_span = m1_tracks.index(
-                    m1_tracks.track_with_loc(loc, rect.side(side) - 140 * side.sign().as_int()),
-                );
+                let (rect, track_span) = col_sel_dff(i, j)?;
                 let m0_rect = rect.with_hspan(track_span);
                 let via = draw_via(m0, m0_rect, m1, m0_rect, ctx)?;
                 let dff_port = Rect::from_spans(track_span, via.layer_bbox(m1).into_rect().vspan());
@@ -1682,13 +1833,8 @@ impl SramInner {
                 let m2_track_a_idx = m2_tracks
                     .track_with_loc(TrackLocator::StartsAfter, port_rect.bottom())
                     + idx as i64;
-                let m1_track_idx = m1_write_driver_en_track_idx + 2 + idx as i64;
-                let m1_track = m1_tracks.index(m1_track_idx);
-                let m2_track_b_idx = if m1_track.start() < dff_port.left() {
-                    dff_m2_track_idx + 2 * self.params.addr_width() as i64 - 1 - idx as i64
-                } else {
-                    dff_m2_track_idx + 2 * self.params.row_bits() as i64 + idx as i64
-                };
+                let m1_track_idx = col_sel_m1_track_idx(idx);
+                let m2_track_b_idx = col_sel_m2_track_b_idx[idx];
 
                 draw_route(
                     m1,
@@ -2085,5 +2231,49 @@ impl SramInner {
 
         ctx.draw(router)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn track(x: i64) -> Span {
+        Span::new(x, x + 320)
+    }
+
+    #[test]
+    fn col_sel_tracks_keep_the_original_order_when_it_is_legal() {
+        // Every m1 track left of its DFF port, as in the published macros.
+        let m1 = [0, 680, 1360, 2040].map(track);
+        let dff = [6800, 7480, 8160, 8840].map(track);
+        assert_eq!(
+            assign_col_sel_tracks(&m1, &dff, 10).unwrap(),
+            vec![13, 12, 11, 10]
+        );
+        // Every m1 track right of its DFF port.
+        assert_eq!(
+            assign_col_sel_tracks(&dff, &m1, 10).unwrap(),
+            vec![10, 11, 12, 13]
+        );
+    }
+
+    #[test]
+    fn col_sel_tracks_stack_a_dff_riser_below_the_m1_track_in_its_column() {
+        // 128x4m8w4: route 0's m1 track is route 3's DFF column.
+        let m1 = [-51840, -51160, -50480, -49800, -49120, -48440].map(track);
+        let dff = [-47080, -45720, -53200, -51840, -59320, -57960].map(track);
+        let tracks = assign_col_sel_tracks(&m1, &dff, 0).unwrap();
+        assert!(tracks[3] < tracks[0]);
+        let mut sorted = tracks.clone();
+        sorted.sort();
+        assert_eq!(sorted, (0..6).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn col_sel_tracks_reject_routes_that_each_need_the_other_lower() {
+        let m1 = [track(0), track(680)];
+        let dff = [track(680), track(0)];
+        assert!(assign_col_sel_tracks(&m1, &dff, 0).is_err());
     }
 }
