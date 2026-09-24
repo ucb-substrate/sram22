@@ -1,0 +1,37 @@
+# Security updates only, batched into one PR per ecosystem.
+#
+# `open-pull-requests-limit: 0` turns off routine version-bump PRs; security
+# updates ignore that limit and still open, but the `applies-to:
+# security-updates` groups collapse them into a single PR per directory
+# instead of one PR per vulnerable package.
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 0
+    groups:
+      cargo-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/docs/docusaurus"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 0
+    groups:
+      docs-npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 0
+    groups:
+      actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
