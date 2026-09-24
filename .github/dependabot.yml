@@ -1,37 +1,66 @@
-# Security updates only, batched into one PR per ecosystem.
-#
-# `open-pull-requests-limit: 0` turns off routine version-bump PRs; security
-# updates ignore that limit and still open, but the `applies-to:
-# security-updates` groups collapse them into a single PR per directory
-# instead of one PR per vulnerable package.
 version: 2
 updates:
+  # Rust dependencies
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 0
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
     groups:
+      cargo-updates:
+        patterns:
+          - "*"
       cargo-security:
         applies-to: security-updates
-        patterns: ["*"]
+        patterns:
+          - "*"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
 
+  # Documentation website
   - package-ecosystem: "npm"
     directory: "/docs/docusaurus"
     schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 0
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
     groups:
-      docs-npm-security:
+      npm-updates:
+        patterns:
+          - "*"
+      npm-security:
         applies-to: security-updates
-        patterns: ["*"]
+        patterns:
+          - "*"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "javascript"
+    commit-message:
+      prefix: "docs"
+      include: "scope"
 
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 0
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
     groups:
-      actions-security:
-        applies-to: security-updates
-        patterns: ["*"]
+      github-actions-updates:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
