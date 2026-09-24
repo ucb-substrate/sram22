@@ -168,10 +168,12 @@ pub fn generate_plan(config: &SramConfig) -> Result<SramPlan> {
 
     let params = SramParams::new(write_size, mux_ratio, num_words, data_width);
 
-    if params.rows() < 16 || !params.rows().is_power_of_two() {
-        bail!("The number of rows (num words / mux ratio) must be a power of 2 greater than or equal to 16");
+    if params.rows() < 16 {
+        bail!("The number of rows (num words / mux ratio) must be at least 16");
     }
 
+    // Below 16 columns the row decoder's m1 outputs no longer fit between its power
+    // straps, among other layout limits.
     if params.cols() < 16 {
         bail!("The number of columns (data width * mux ratio) must be at least 16");
     }
@@ -474,8 +476,12 @@ mod tests {
             .unwrap();
             assert!(generate_plan(&config).is_err());
         }
-        let config =
-            toml::from_str("num_words=64\ndata_width=8\nwrite_size=8\nmux_ratio=4\n").unwrap();
-        assert!(generate_plan(&config).is_ok());
+        for (words, width, write_size, mux) in [(64, 8, 8, 4), (64, 4, 4, 4), (128, 2, 1, 8)] {
+            let config: SramConfig = toml::from_str(&format!(
+                "num_words={words}\ndata_width={width}\nwrite_size={write_size}\nmux_ratio={mux}\n"
+            ))
+            .unwrap();
+            assert!(generate_plan(&config).is_ok());
+        }
     }
 }

@@ -190,6 +190,7 @@ impl Script for ColumnsPhysicalDesignScript {
                 use_multi_finger_invs: false,
                 dont_connect_outputs: false,
                 child_sizes: vec![1, 1],
+                require_m1_output: false,
             },
         })
     }

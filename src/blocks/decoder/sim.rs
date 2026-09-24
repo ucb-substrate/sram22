@@ -65,6 +65,7 @@ impl Component for DecoderCriticalPathTb {
             max_width: None,
             tree,
             use_multi_finger_invs: true,
+            require_m1_output: false,
         };
         ctx.instantiate::<Decoder>(&decoder_params)?
             .with_connections([

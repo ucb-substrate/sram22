@@ -1,7 +1,7 @@
 use self::schematic::fanout_buffer_stage;
 use crate::blocks::bitcell_array::replica::ReplicaCellArray;
 use crate::blocks::columns::ColumnsPhysicalDesignScript;
-use crate::blocks::control::{ControlLogicParams, ControlLogicReplicaV2};
+use crate::blocks::control::{ControlLogicParams, ControlLogicReplicaV2, RouteOrder};
 use crate::blocks::precharge::layout::ReplicaPrecharge;
 use crate::blocks::precharge::PrechargeParams;
 use arcstr::ArcStr;
@@ -281,6 +281,7 @@ impl Script for SramPhysicalDesignScript {
             use_multi_finger_invs: true,
             dont_connect_outputs: false,
             child_sizes: vec![],
+            require_m1_output: false,
         };
         let addr_gate_inst = ctx.instantiate_layout::<DecoderStage>(&addr_gate)?;
         let pc_b_cap = COL_CAPACITANCES.pc_b
@@ -327,6 +328,7 @@ impl Script for SramPhysicalDesignScript {
             // TODO use tgate mux input cap
             tree: DecoderTree::new(params.col_select_bits(), col_sel_cap + col_sel_b_cap),
             use_multi_finger_invs: true,
+            require_m1_output: false,
         };
         let mut sense_en_buffer = DecoderStageParams {
             max_width: None,
@@ -379,13 +381,14 @@ impl Script for SramPhysicalDesignScript {
             .round() as usize
             * 2
             + 9;
-        let control = ControlLogicParams {
+        let mut control = ControlLogicParams {
             decoder_delay_invs,
             wlen_pulse_invs,
             pc_set_delay_invs: pc_b_delay_invs,
             wrdrven_set_delay_invs,
             wrdrven_rst_delay_invs: 0, // TODO: Implement delay to equalize sense amp and
-                                       // write driver rest delay
+            // write driver rest delay
+            route_order: RouteOrder::default(),
         };
         let row_decoder = DecoderParams {
             pd: DecoderPhysicalDesignParams {
@@ -395,9 +398,52 @@ impl Script for SramPhysicalDesignScript {
             max_width: None,
             tree: row_decoder_tree,
             use_multi_finger_invs: true,
+            // The wordline router connects to these outputs on m1.
+            require_m1_output: true,
         };
 
-        let control_inst = ctx.instantiate_layout::<ControlLogicReplicaV2>(&control)?;
+        // A few delay-chain length combinations leave the control logic's greedy
+        // router with no route for a net it reaches late. Retry with the other
+        // route orderings before giving up. `RouteOrder::AsWritten` is tried
+        // first, so macros that already route are generated exactly as before.
+        let control_inst = {
+            let mut last_err = None;
+            let mut found = None;
+            for order in RouteOrder::ALL {
+                control.route_order = order;
+                match ctx.instantiate_layout::<ControlLogicReplicaV2>(&control) {
+                    Ok(inst) => {
+                        found = Some(inst);
+                        break;
+                    }
+                    Err(e) => last_err = Some(e),
+                }
+            }
+            match found {
+                Some(inst) => inst,
+                None => {
+                    return Err(ErrorSource::Internal(format!(
+                        "could not route the control logic for this SRAM in any of the {} \
+                         available net orderings (delay chains: decoder {}, wordline pulse {}, \
+                         precharge set {}, write driver set {}). Each ordering hands a different \
+                         group of nets first pick of the routing tracks, and this shape needs one \
+                         that is not implemented yet. Add a variant to `RouteOrder` in \
+                         blocks::control, or report this configuration at \
+                         https://github.com/ucb-substrate/sram22/issues so the ordering can be \
+                         added. Underlying router error: {}",
+                        RouteOrder::ALL.len(),
+                        control.decoder_delay_invs,
+                        control.wlen_pulse_invs,
+                        control.pc_set_delay_invs,
+                        control.wrdrven_set_delay_invs,
+                        last_err
+                            .map(|e| e.to_string())
+                            .unwrap_or_else(|| "none".to_string()),
+                    ))
+                    .into());
+                }
+            }
+        };
 
         let col_dec_inst = ctx.instantiate_layout::<Decoder>(&col_decoder)?;
         let pc_b_buffer_inst = ctx.instantiate_layout::<DecoderStage>(&pc_b_buffer)?;

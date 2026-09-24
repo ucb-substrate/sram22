@@ -239,6 +239,10 @@ impl Precharge {
             gate_x.expand_dir(Dir::Vert, -4 * LI_VIA_SHRINK),
         );
         let via = ctx.instantiate::<Via>(&via0)?;
+        // How far the gate contact's routing-layer metal reaches. It is sized from
+        // the gate strap rather than from the contact stack above it, so for some
+        // strap widths it ends up the higher of the two.
+        let gate_li_m1_top = via.layer_bbox(dsn.v_metal).into_rect().top();
         ctx.draw(via)?;
 
         let stripe = Rect::from_spans(stripe_span, dsn.power_stripe);
@@ -287,20 +291,22 @@ impl Precharge {
             .layer(dsn.v_metal)
             .build()
             .unwrap();
+        // The jog steps `v_space` past its anchor, so the anchor has to clear every
+        // piece of metal below it. That is usually the m1-m2 contact, but the gate
+        // contact's own metal can end higher, and then the step lands closer to it
+        // than the spacing rule allows.
+        let jog_src = std::cmp::max(gate_ct_top, gate_li_m1_top);
         for i in [0, 2] {
             ctx.draw_rect(
                 dsn.v_metal,
-                Rect::from_spans(
-                    dsn.out_tracks.index(i),
-                    Span::new(jog.dst_pos(), gate_ct_top),
-                ),
+                Rect::from_spans(dsn.out_tracks.index(i), Span::new(jog.dst_pos(), jog_src)),
             );
         }
         ctx.draw(jog)?;
 
         let jog = SimpleJog::builder()
             .dir(Dir::Vert)
-            .src_pos(gate_ct_top)
+            .src_pos(jog_src)
             .src([dsn.out_tracks.index(0), dsn.out_tracks.index(2)])
             .dst([dsn.in_tracks.index(1), dsn.in_tracks.index(2)])
             .line(dsn.v_line)

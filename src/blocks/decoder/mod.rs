@@ -31,6 +31,13 @@ pub struct DecoderParams {
     pub max_width: Option<i64>,
     pub tree: DecoderTree,
     pub use_multi_finger_invs: bool,
+    /// Require this decoder's outputs to be reachable on m1.
+    ///
+    /// Set by a caller that routes to the outputs on m1 - the row decoder, whose
+    /// outputs are the wordlines. Affects the layout only; the netlist is the same
+    /// either way. See [`DecoderGateParams::expose_y_on_m1`].
+    #[serde(default)]
+    pub require_m1_output: bool,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -44,6 +51,12 @@ pub struct DecoderStageParams {
     pub use_multi_finger_invs: bool,
     pub dont_connect_outputs: bool,
     pub child_sizes: Vec<usize>,
+    /// Require this stage's outputs to be reachable on m1.
+    ///
+    /// Affects the layout only; the gate chain and therefore the netlist are
+    /// unchanged. See [`DecoderGateParams::expose_y_on_m1`].
+    #[serde(default)]
+    pub require_m1_output: bool,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -783,6 +796,7 @@ mod tests {
             max_width: None,
             tree,
             use_multi_finger_invs: true,
+            require_m1_output: false,
         };
 
         ctx.write_schematic_to_file::<Decoder>(&params, out_spice(work_dir, "netlist"))
@@ -822,6 +836,7 @@ mod tests {
             use_multi_finger_invs: true,
             dont_connect_outputs: false,
             child_sizes: vec![2, 2],
+            require_m1_output: false,
         };
 
         ctx.write_schematic_to_file::<DecoderStage>(&params, out_spice(&work_dir, "netlist"))
@@ -878,6 +893,7 @@ mod tests {
             }),
             filler: false,
             dsn: (*dsn).clone(),
+            expose_y_on_m1: false,
         };
 
         ctx.write_layout::<DecoderGate>(&params, out_gds(work_dir, "layout"))

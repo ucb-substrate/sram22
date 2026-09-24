@@ -18,6 +18,42 @@ pub struct ControlLogicParams {
     pub pc_set_delay_invs: usize,
     pub wrdrven_set_delay_invs: usize,
     pub wrdrven_rst_delay_invs: usize,
+    /// Which order the layout should route its nets in.
+    ///
+    /// The greedy router commits tracks as it goes, so a net attempted late can
+    /// find its channels already taken. [`RouteOrder::AsWritten`] is the original
+    /// order and is what every macro that already routes keeps using; the others
+    /// only come into play after it has failed.
+    #[serde(default)]
+    pub route_order: RouteOrder,
+}
+
+/// The orders in which the control logic will try to route its nets.
+///
+/// Each successive order hands more of the constrained nets first pick of the
+/// tracks. Relative order within a group is preserved, so the result stays
+/// deterministic.
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub enum RouteOrder {
+    /// Source order. Anything that already routes is generated exactly as before.
+    #[default]
+    AsWritten,
+    /// Nets terminating on an m2 pin on the block edge go first.
+    M2PinsFirst,
+    /// Those, plus the nets terminating on an m1 edge pin.
+    EdgePinsFirst,
+    /// Reversed, so the nets that normally go last get first pick.
+    Reversed,
+}
+
+impl RouteOrder {
+    /// Every order, in the sequence they should be attempted.
+    pub const ALL: [Self; 4] = [
+        Self::AsWritten,
+        Self::M2PinsFirst,
+        Self::EdgePinsFirst,
+        Self::Reversed,
+    ];
 }
 
 impl Component for ControlLogicReplicaV2 {
@@ -196,7 +232,7 @@ pub mod test {
     use crate::setup_ctx;
     use crate::tests::test_work_dir;
 
-    use super::{ControlLogicParams, ControlLogicReplicaV2, EdgeDetector, SrLatch};
+    use super::{ControlLogicParams, ControlLogicReplicaV2, EdgeDetector, RouteOrder, SrLatch};
 
     const CONTROL_LOGIC_PARAMS: ControlLogicParams = ControlLogicParams {
         decoder_delay_invs: 12,
@@ -204,6 +240,7 @@ pub mod test {
         pc_set_delay_invs: 14,
         wrdrven_set_delay_invs: 4,
         wrdrven_rst_delay_invs: 0,
+        route_order: RouteOrder::AsWritten,
     };
 
     #[test]
