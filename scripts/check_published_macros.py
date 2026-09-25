@@ -18,7 +18,8 @@ SPICE    the top subcircuit's ports, and a census of flattened transistor finger
          the text cannot match exactly.
 Liberty  not checked; it comes from a separate characterization flow. Open-source
          builds interpolate it from timingdata/, which covers only some shapes; a
-         missing table is reported as a note. Any other generator error fails.
+         missing table is reported as a note (a temporary exception; see the TODO
+         in generate()). Any other generator error fails.
 
 --self-test regenerates one macro, then checks that the comparisons flag a deleted
 shape, a 1 nm shift, a renamed label, a moved LEF rectangle, a renamed Verilog port and
@@ -219,6 +220,12 @@ def generate(sram22, name, out_dir):
         # Liberty is written last and is not compared. Open-source builds only have
         # timing tables for some shapes (timingdata/), so a missing table is noted,
         # not failed; any other error is a failure.
+        #
+        # TODO: this exception is temporary, not an accepted state. Six published
+        # macros (the 8-bit m8w1 shapes, 64x22m4w22 and 128x40m4w20) currently fail
+        # to generate a .lib because timingdata/ has no table for their write-mask
+        # granularity. Once they are covered, remove this branch so that any non-zero
+        # exit fails the check.
         if "no timing data for" not in p.stderr + p.stdout:
             return None, f"sram22 exited with status {p.returncode} (see gen.log)", secs
         return prefix, "no .lib written (no timing data for this shape)", secs

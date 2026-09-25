@@ -129,5 +129,5 @@ calibre_rundir
 __pycache__/
 *.pyc
 
-# Catalog checkout used by the published-macros workflow
+# Catalog checkout used by the published-macros CI job
 /published-macros/
