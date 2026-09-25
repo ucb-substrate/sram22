@@ -63,6 +63,9 @@ jobs:
     # scripts/check_published_macros.py for exactly what is compared.
     name: Published macros unchanged
     runs-on: ubuntu-22.04
+    env:
+      # Show the check's progress as it happens, not when the step ends.
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
       - name: Check out the published macros

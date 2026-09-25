@@ -34,13 +34,47 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import klayout.db as db
 
 NAME_RE = re.compile(r"^sram22_(\d+)x(\d+)m(\d+)w(\d+)$")
 GEOM_RE = re.compile(r"^\s*(RECT|POLYGON)\b")
+
+
+_log_lock = threading.Lock()
+_last_log = time.time()
+# name -> (phase, start time) for macros in progress, for the heartbeat.
+_active = {}
+
+
+def log(msg=""):
+    # Flush every line: CI captures stdout through a pipe, which Python buffers.
+    global _last_log
+    with _log_lock:
+        print(msg, flush=True)
+        _last_log = time.time()
+
+
+def set_phase(name, phase):
+    with _log_lock:
+        if phase is None:
+            _active.pop(name, None)
+        else:
+            _active[name] = (phase, time.time())
+
+
+def heartbeat(stop, every=60):
+    """Every `every` seconds without other output, say what is still running."""
+    while not stop.wait(5):
+        with _log_lock:
+            quiet = time.time() - _last_log >= every
+            now = time.time()
+            busy = ", ".join(f"{n} ({ph} {now - t:.0f}s)" for n, (ph, t) in sorted(_active.items()))
+        if quiet and busy:
+            log(f"         still running: {busy}")
 
 
 # GDS
@@ -233,10 +267,20 @@ def generate(sram22, name, out_dir):
 
 
 def check_one(args, name):
-    prefix, note, secs = generate(args.sram22, name, args.out)
-    if prefix is None:
-        return name, [note], None, secs
-    return name, compare(prefix, os.path.join(args.catalog, name, name), name), note, secs
+    log(f"started  {name}")
+    set_phase(name, "generating")
+    try:
+        prefix, note, gen_secs = generate(args.sram22, name, args.out)
+        if prefix is None:
+            return name, [note], None, gen_secs, 0.0
+        # Flattening and XORing a large macro can take a few minutes; say so.
+        log(f"compare  {name} (generated in {gen_secs:.0f}s)")
+        set_phase(name, "comparing")
+        start = time.time()
+        problems = compare(prefix, os.path.join(args.catalog, name, name), name)
+        return name, problems, note, gen_secs, time.time() - start
+    finally:
+        set_phase(name, None)
 
 
 def macros(catalog, only):
@@ -253,17 +297,32 @@ def macros(catalog, only):
 
 def run(args):
     names = macros(args.catalog, args.only)
-    failed = 0
+    log(f"checking {len(names)} published macros with {args.jobs} jobs")
+    results = {}
+    stop = threading.Event()
+    threading.Thread(target=heartbeat, args=(stop,), daemon=True).start()
     with ThreadPoolExecutor(max_workers=args.jobs) as ex:
-        for name, problems, note, secs in ex.map(lambda n: check_one(args, n), names):
+        futures = [ex.submit(check_one, args, n) for n in names]
+        # Report each macro as soon as it finishes.
+        for done, fut in enumerate(as_completed(futures), 1):
+            name, problems, note, gen_secs, cmp_secs = fut.result()
+            results[name] = (problems, note)
             status = "ok" if not problems else "DIFFERS"
-            print(f"{name:<24} {status:<8} {secs:6.1f}s", flush=True)
+            log(f"[{done:>2}/{len(names)}] {name:<24} {status:<8} "
+                f"generate {gen_secs:5.0f}s  compare {cmp_secs:5.0f}s")
             for p in problems:
-                print(f"    {p}", flush=True)
+                log(f"    {p}")
             if note:
-                print(f"    note: {note}", flush=True)
-            failed += bool(problems)
-    print(f"\n{len(names) - failed}/{len(names)} published macros unchanged")
+                log(f"    note: {note}")
+    stop.set()
+    failed = sorted(n for n, (problems, _) in results.items() if problems)
+    noted = sorted(n for n, (problems, note) in results.items() if note and not problems)
+    log()
+    if noted:
+        log(f"{len(noted)} with notes: {', '.join(noted)}")
+    if failed:
+        log(f"{len(failed)} DIFFER: {', '.join(failed)}")
+    log(f"{len(names) - len(failed)}/{len(names)} published macros unchanged")
     return 1 if failed else 0
 
 
@@ -331,12 +390,14 @@ MUTATIONS = ["gds_delete_shape", "gds_shift_1nm", "gds_label_rename", "lef_move_
 
 def self_test(args):
     name = (args.only or ["sram22_64x32m4w8"])[0]
-    prefix, note, _ = generate(args.sram22, name, args.out)
+    log(f"self-test: generating {name}")
+    prefix, note, secs = generate(args.sram22, name, args.out)
     if prefix is None:
         raise SystemExit(f"self-test: {note}")
     ref = os.path.join(args.catalog, name, name)
+    log(f"generated in {secs:.1f}s; comparing against the catalog")
     base = compare(prefix, ref, name)
-    print(f"unmodified {name:<28} {'ok' if not base else 'DIFFERS: ' + '; '.join(base)}")
+    log(f"unmodified {name:<28} {'ok' if not base else 'DIFFERS: ' + '; '.join(base)}")
     missed = bool(base)
     for m in MUTATIONS:
         # Compare the catalog against a mutated copy of the regenerated macro.
@@ -344,9 +405,10 @@ def self_test(args):
         with gzip.open(dst + ".gds.gz", "wb") as f:
             f.write(open(dst + ".gds", "rb").read())
         problems = compare(prefix, dst, name)
-        print(f"mutation {m:<30} {'caught: ' + problems[0] if problems else 'MISSED'}")
+        log(f"mutation {m:<30} {'caught: ' + problems[0] if problems else 'MISSED'}")
         missed |= not problems
-    print("\nself-test", "FAILED" if missed else "passed")
+    log()
+    log(f"self-test {'FAILED' if missed else 'passed'}")
     return 1 if missed else 0
 
 
