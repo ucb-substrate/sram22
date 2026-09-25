@@ -124,3 +124,10 @@ $RECYCLE.BIN/
 *.db
 calibre_run_dir
 calibre_rundir
+
+# Python
+__pycache__/
+*.pyc
+
+# Catalog checkout used by the published-macros workflow
+/published-macros/
