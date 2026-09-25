@@ -370,7 +370,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "codegen"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#dddc7eaf531273577fa44b2a71be0eaf92d065db"
 dependencies = [
  "darling 0.14.4",
  "itertools",
@@ -956,12 +956,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fuchsia-cprng"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
-
-[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -970,14 +964,14 @@ checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
 [[package]]
 name = "gds21"
 version = "0.2.1"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#dddc7eaf531273577fa44b2a71be0eaf92d065db"
 dependencies = [
  "arcstr",
  "byteorder",
  "chrono",
  "derive_builder 0.9.0",
  "derive_more",
- "num-derive",
+ "num-derive 0.4.2",
  "num-traits",
  "serde",
  "serde_derive",
@@ -1276,7 +1270,7 @@ dependencies = [
  "enum_dispatch",
  "fstrings",
  "layout21utils",
- "num-derive",
+ "num-derive 0.3.3",
  "num-traits",
  "once_cell",
  "rust_decimal",
@@ -1385,7 +1379,7 @@ dependencies = [
 [[package]]
 name = "ngspice"
 version = "0.0.1"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#dddc7eaf531273577fa44b2a71be0eaf92d065db"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -1464,6 +1458,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "num-derive"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
 ]
 
 [[package]]
@@ -1671,7 +1676,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
 dependencies = [
  "phf_shared",
- "rand 0.8.8",
+ "rand",
 ]
 
 [[package]]
@@ -1858,26 +1863,13 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
 name = "rand"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "552840b97013b1a26992c11eac34bdd778e464601a4c2054b5f0bff7c6761293"
-dependencies = [
- "fuchsia-cprng",
- "libc",
- "rand_core 0.3.1",
- "rdrand",
- "winapi",
-]
-
-[[package]]
-name = "rand"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e058c7de0b26af77780c769414d6257830bb240f3c38477dbc2c16e5f54d6d4c"
 dependencies = [
  "libc",
  "rand_chacha",
- "rand_core 0.6.4",
+ "rand_core",
 ]
 
 [[package]]
@@ -1887,23 +1879,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
- "rand_core 0.6.4",
+ "rand_core",
 ]
-
-[[package]]
-name = "rand_core"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a6fdeb83b075e8266dcc8762c22776f6877a63111121f5f8c7411e5be7eed4b"
-dependencies = [
- "rand_core 0.4.2",
-]
-
-[[package]]
-name = "rand_core"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c33a3c44ca05fa6f1807d8e6743f3824e8509beca625669633be0acbdf509dc"
 
 [[package]]
 name = "rand_core"
@@ -1912,15 +1889,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom 0.2.16",
-]
-
-[[package]]
-name = "rdrand"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "678054eb77286b51581ba43620cc911abf02758c91f93f479767aed0f90458b2"
-dependencies = [
- "rand_core 0.3.1",
 ]
 
 [[package]]
@@ -1962,15 +1930,6 @@ name = "regex-syntax"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
-
-[[package]]
-name = "remove_dir_all"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3acd125665422973a33ac9d3dd2df85edad0f4ae9b00dafb1a05e43a9f5ef8e7"
-dependencies = [
- "winapi",
-]
 
 [[package]]
 name = "rend"
@@ -2020,7 +1979,7 @@ dependencies = [
  "borsh",
  "bytes",
  "num-traits",
- "rand 0.8.8",
+ "rand",
  "rkyv",
  "serde",
  "serde_json",
@@ -2250,7 +2209,7 @@ checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 [[package]]
 name = "sky130_common_pdk"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#dddc7eaf531273577fa44b2a71be0eaf92d065db"
 dependencies = [
  "arcstr",
  "subgeom",
@@ -2260,7 +2219,7 @@ dependencies = [
 [[package]]
 name = "sky130_open_pdk"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#dddc7eaf531273577fa44b2a71be0eaf92d065db"
 dependencies = [
  "arcstr",
  "sky130_common_pdk",
@@ -2302,7 +2261,7 @@ checksum = "b7c388c1b5e93756d0c740965c41e8822f866621d41acbdf6336a6a168f8840c"
 [[package]]
 name = "spice_rawfile"
 version = "0.0.1"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#dddc7eaf531273577fa44b2a71be0eaf92d065db"
 dependencies = [
  "nom",
  "serde",
@@ -2380,7 +2339,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 [[package]]
 name = "subgeom"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#dddc7eaf531273577fa44b2a71be0eaf92d065db"
 dependencies = [
  "array_map",
  "enum_dispatch",
@@ -2392,7 +2351,7 @@ dependencies = [
 [[package]]
 name = "sublut"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#dddc7eaf531273577fa44b2a71be0eaf92d065db"
 dependencies = [
  "derive_builder 0.12.0",
  "serde",
@@ -2402,7 +2361,7 @@ dependencies = [
 [[package]]
 name = "subspice"
 version = "0.0.2"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#dddc7eaf531273577fa44b2a71be0eaf92d065db"
 dependencies = [
  "anyhow",
  "nom",
@@ -2413,7 +2372,7 @@ dependencies = [
 [[package]]
 name = "substrate"
 version = "0.1.0"
-source = "git+https://github.com/ucb-substrate/substrate?branch=main#14d4597b4cfcedf43f1802ff8e14c0d4146d9548"
+source = "git+https://github.com/ucb-substrate/substrate?branch=main#dddc7eaf531273577fa44b2a71be0eaf92d065db"
 dependencies = [
  "anyhow",
  "arcstr",
@@ -2439,7 +2398,7 @@ dependencies = [
  "subgeom",
  "sublut",
  "subspice",
- "tempdir",
+ "tempfile",
  "thiserror 1.0.69",
  "toml 0.7.8",
 ]
@@ -2473,16 +2432,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
-name = "tempdir"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
-dependencies = [
- "rand 0.4.6",
- "remove_dir_all",
-]
-
-[[package]]
 name = "tempfile"
 version = "3.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2509,7 +2458,7 @@ dependencies = [
  "percent-encoding",
  "pest",
  "pest_derive",
- "rand 0.8.8",
+ "rand",
  "regex",
  "serde",
  "serde_json",
