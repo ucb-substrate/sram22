@@ -8,23 +8,23 @@ repository = "https://github.com/rahulk29/sram22"
 license = "BSD-3-Clause"
 
 [dependencies]
-derive_builder = "0.12"
+derive_builder = "0.20"
 grid = "1"
-thiserror = "1"
+thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_repr = "0.1"
 serde_json = "1"
-toml = "0.5"
+toml = "1"
 log = "0.4"
-indicatif = "0.17"
+indicatif = "0.18"
 clap = { version = "4", features = ["derive"] }
-itertools = "0.10"
+itertools = "0.15"
 psfparser = { git = "https://github.com/rahulk29/psfparser.git", branch = "master" }
 arcstr = "1"
 anyhow = "1"
-tera = "1"
+tera = { version = "2", features = ["glob_fs"] }
 lazy_static = "1"
-colored = "2"
+colored = "3"
 approx = "0.5"
 lef21 = { git = "https://github.com/dan-fritchman/Layout21.git", branch = "main" }
 plotters = "0.3"

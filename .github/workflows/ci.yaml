@@ -19,7 +19,7 @@ jobs:
     name: Build, format, lint, and test
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       - name: Install ngspice
         run: |
           sudo apt-get update
@@ -67,9 +67,9 @@ jobs:
       # Show the check's progress as it happens, not when the step ends.
       PYTHONUNBUFFERED: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check out the published macros
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ucb-substrate/sram22_sky130_macros
           path: published-macros
@@ -80,7 +80,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ steps.toolchain.outputs.cachekey }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install KLayout
@@ -99,7 +99,7 @@ jobs:
           --out "$RUNNER_TEMP/macros" --jobs "$(nproc)"
       - name: Upload generator logs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: published-macro-logs
           path: ${{ runner.temp }}/macros/*/gen.log

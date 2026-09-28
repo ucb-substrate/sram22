@@ -41,13 +41,13 @@ pub const BUILD_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/build");
 pub const LIB_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/lib");
 
 lazy_static! {
-    pub static ref TEMPLATES: Tera = match Tera::new(
-        assets::path("templates/*")
-            .to_str()
-            .expect("invalid temporary path")
-    ) {
-        Ok(t) => t,
-        Err(e) => panic!("Error parsing templates: {e}"),
+    pub static ref TEMPLATES: Tera = {
+        let mut tera = Tera::new();
+        let glob = assets::path("templates/*");
+        if let Err(e) = tera.load_from_glob(glob.to_str().expect("invalid temporary path")) {
+            panic!("Error parsing templates: {e}");
+        }
+        tera
     };
 }
 
