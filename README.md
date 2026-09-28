@@ -1,7 +1,7 @@
 # SRAM22
 
 SRAM22 is a configurable single-port SRAM generator for SKY130, developed at UC
-Berkeley. It is a research tool; validate generated macros in your integration flow.
+Berkeley.
 
 ## Installation
 
