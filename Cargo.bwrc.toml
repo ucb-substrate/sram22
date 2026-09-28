@@ -9,7 +9,7 @@ license = "BSD-3-Clause"
 
 [dependencies]
 derive_builder = "0.12"
-grid = "0.9"
+grid = "1"
 thiserror = "1"
 serde = { version = "1", features = ["derive"] }
 serde_repr = "0.1"
@@ -30,7 +30,7 @@ lazy_static = "1"
 colored = "2"
 approx = "0.5"
 lef21 = { git = "https://github.com/dan-fritchman/Layout21.git", branch = "main" }
-plotters = "0.3.7"
+plotters = "0.3"
 tempfile = "3"
 
 # Substrate dependencies
