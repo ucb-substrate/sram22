@@ -797,7 +797,7 @@ impl W {
             w.indent += 1;
             for (i, row) in rows.iter().enumerate() {
                 let vals: Vec<String> = row.iter().map(|v| fmtf(*v)).collect();
-                let trail = if i < 6 { " \\" } else { "" };
+                let trail = if i < 6 { ", \\" } else { "" };
                 w.ln(&format!("\"{}\"{}", vals.join(", "), trail));
             }
             w.indent -= 1;
