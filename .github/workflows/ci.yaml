@@ -47,15 +47,10 @@ jobs:
         run: make lint
       - name: Test
         run: make test
-      - name: Fetch simulation models
-        shell: bash
-        run: |
-          git clone --no-checkout --filter=blob:none https://github.com/ucb-substrate/skywater-pdk.git "$RUNNER_TEMP/sky130-models"
-          git -C "$RUNNER_TEMP/sky130-models" checkout 6fcd983f8be885bd831551a8daad7b4f1657f33e
-          git -C "$RUNNER_TEMP/sky130-models" submodule update --init libraries/sky130_fd_pr/latest
-          echo "SKY130_OPEN_PDK_ROOT=$RUNNER_TEMP/sky130-models" >> "$GITHUB_ENV"
-      - name: Simulate with external models
-        run: cargo test --locked --release --lib blocks::coarse_tdc::tests::test_coarse_tdc_sim -- --ignored --exact
+      # The slow ngspice simulation (blocks::coarse_tdc::tests::test_coarse_tdc_sim) is
+      # `#[ignore]`d and not run in CI: it takes about two hours. To run it locally,
+      # point SKY130_OPEN_PDK_ROOT at a skywater-pdk checkout with sky130_fd_pr and run
+      #   cargo test --release --lib blocks::coarse_tdc::tests::test_coarse_tdc_sim -- --ignored --exact
 
   published-macros:
     # Regenerates every macro in ucb-substrate/sram22_sky130_macros and checks that its
