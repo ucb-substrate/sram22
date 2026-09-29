@@ -2347,6 +2347,7 @@ dependencies = [
  "clap",
  "codegen",
  "colored",
+ "console",
  "derive_builder 0.12.0",
  "grid",
  "indicatif",

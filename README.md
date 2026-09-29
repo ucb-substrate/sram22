@@ -39,10 +39,43 @@ the `[[sram]]` header is also accepted.
 ```text
 -c, --config <CONFIG>          TOML file (default: sram22.toml)
 -o, --output-dir <OUTPUT_DIR>  Output directory
+-f, --force                    Regenerate even if outputs already exist
 -p, --parallel <PARALLEL>      Maximum concurrent macros (default: no limit)
+    --progress <MODE>          auto, plain, or off (default: auto)
+    --color <WHEN>             auto, always, or never (default: auto)
+-v, --verbose                  Show plans, stages, and artifact directories
+-q, --quiet                    Show only errors
 -h, --help                     Show available options
 -V, --version                  Show version
 ```
+
+On an interactive terminal, a live table at the bottom shows each SRAM's SPICE,
+GDS, Verilog, LEF, and LIB stages. Requested DRC, LVS, and PEX stages appear in
+commercial builds. `✓` means complete, an animated spinner means running,
+`·` pending, `✗` failed, `!` blocked by an earlier failure, and `—` not requested.
+LIB reports completed
+timing corners out of three. SRAMs waiting for a worker are labeled `queued`;
+use `--parallel 2`, for example, to run two SRAMs at a time.
+
+The table updates in place. Completion and error messages appear above it and
+remain in scrollback; the table clears when the final summary is printed.
+Narrow terminals wrap stages beneath each SRAM name. Large batches prioritize
+running SRAMs, then queued SRAMs, and report how many of each are hidden. Use
+`--verbose` to print the complete batch plan before execution.
+
+Redirected output automatically uses plain start/completion lines, with all
+status output on stderr. `--progress plain` selects this format explicitly;
+`--progress off` keeps startup information, errors, and the final summary.
+`--quiet` suppresses everything except errors and, if any SRAM failed, the
+final summary. Automatic color respects `NO_COLOR`; `--color always` and
+`--color never` override detection.
+
+Existing complete outputs are reported as `Reused`. Generation continues for
+other SRAMs if one fails, and exits unsuccessfully if any failed. Rerunning the
+same command retries incomplete SRAMs while reusing completed ones; `--force`
+regenerates every SRAM regardless. Duplicate
+output names and unsupported interpolated timing configurations are rejected
+before any generation starts.
 
 With the BWRC manifest, `--liberate` selects Liberate MX characterization;
 `--drc` and `--lvs` run Calibre verification. Setting `pex_level` to `r`, `c`, `rc`,

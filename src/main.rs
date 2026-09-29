@@ -1,8 +1,17 @@
-use anyhow::Result;
-use sram22::cli::run;
+use std::process::ExitCode;
 
-fn main() -> Result<()> {
+use sram22::cli::{run, ReportedError};
+
+fn main() -> ExitCode {
     let result = run();
     sram22::assets::cleanup();
-    result
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            if !error.is::<ReportedError>() {
+                eprintln!("error: {error:#}");
+            }
+            ExitCode::FAILURE
+        }
+    }
 }

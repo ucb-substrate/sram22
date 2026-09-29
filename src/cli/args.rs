@@ -1,5 +1,19 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum ProgressMode {
+    Auto,
+    Plain,
+    Off,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum ColorMode {
+    Auto,
+    Always,
+    Never,
+}
 
 // TODO: Add option to run Spectre simulations.
 #[derive(Parser, Debug)]
@@ -41,8 +55,28 @@ pub struct Args {
     #[arg(short, long)]
     pub all: bool,
 
+    /// Regenerate every SRAM, even if its outputs already exist.
+    #[arg(short, long)]
+    pub force: bool,
+
     /// Maximum number of SRAMs to generate concurrently. Defaults to no limit
     /// (all at once). This limit also applies when PEX or Liberate MX is selected.
     #[arg(short = 'p', long)]
     pub parallel: Option<usize>,
+
+    /// Progress display: live table on terminals, plain lines when redirected.
+    #[arg(long, value_enum, default_value = "auto")]
+    pub progress: ProgressMode,
+
+    /// When to use colored output. Auto respects NO_COLOR.
+    #[arg(long, value_enum, default_value = "auto")]
+    pub color: ColorMode,
+
+    /// Print the full batch plan, stage transitions, and artifact directories.
+    #[arg(short, long, conflicts_with = "quiet")]
+    pub verbose: bool,
+
+    /// Show only errors.
+    #[arg(short, long)]
+    pub quiet: bool,
 }
