@@ -147,6 +147,39 @@ impl ColPeripherals {
         wmask_peripherals.align(AlignMode::Left, bbox, pc_design.tap_width / 2);
         ctx.draw_ref(&wmask_peripherals)?;
 
+        let we_center_y = wmask_peripherals.port("we")?.largest_rect(m1)?.center().y;
+        let cell_bottom = ctx.brect().bottom();
+        let layout_grid = ctx.pdk().layout_grid();
+        // The m1 rect each dout and din jog lands on below the grid, the m2 rect that
+        // carries it, and the via from the column's own pin down onto that m2.
+        let dout_din_jog = |port_rect: Rect| {
+            let out_rect = Rect::from_spans(
+                Span::from_center_span_gridded(port_rect.center().x, 140, layout_grid),
+                Span::new(cell_bottom, we_center_y - 2000),
+            );
+            let m2_rect =
+                port_rect.with_vspan(Span::new(port_rect.bottom() + 300, out_rect.top() - 300));
+            let pin_via = ViaParams::builder()
+                .layers(m1, m2)
+                .geometry(port_rect, m2_rect)
+                .expand(ViaExpansion::LongerDirection)
+                .build();
+            (out_rect, m2_rect, pin_via)
+        };
+        // Measure every column's dout and din pin vias up front, so the we strap
+        // below can be kept clear of them.
+        let mut dout_din_via_m1 = Vec::new();
+        for i in 0..groups {
+            for port in ["dout", "din"] {
+                let port_rect = grid_tiler
+                    .port_map()
+                    .port(PortId::new(port, i))?
+                    .largest_rect(m1)?;
+                let (_, _, pin_via) = dout_din_jog(port_rect);
+                dout_din_via_m1.push(ctx.instantiate::<Via>(&pin_via)?.layer_bbox(m1).into_rect());
+            }
+        }
+
         // Connect we and we_b to AND gate.
         for i in 0..self.params.wmask_bits() {
             let wmask_out_left = wmask_peripherals
@@ -189,21 +222,7 @@ impl ColPeripherals {
                 .build()
                 .unwrap();
             let we_ib_via = draw_via(m0, jog.r2(), m1, jog.r2(), ctx)?;
-            for j in 0..self.params.wmask_granularity {
-                // we
-                let we_in = grid_tiler
-                    .port_map()
-                    .port(PortId::new("we", self.params.wmask_granularity * i + j))?
-                    .largest_rect(m1)?;
-                let m1_rect = we_i_via.layer_bbox(m1).into_rect();
-                let m1_rect = m1_rect.with_hspan(m1_rect.hspan().union(we_in.hspan()));
-                let m1_track_rect = we_in.with_vspan(
-                    Span::with_start_and_length(we_in.bottom(), 300).union(m1_rect.vspan()),
-                );
-                ctx.draw_rect(m1, m1_rect);
-                ctx.draw_rect(m1, m1_track_rect);
-
-                // we_b
+            let we_b_rects = |j: usize| -> Result<(Rect, Rect, Rect)> {
                 let we_in = grid_tiler
                     .port_map()
                     .port(PortId::new("we_b", self.params.wmask_granularity * i + j))?
@@ -213,6 +232,38 @@ impl ColPeripherals {
                 let m2_rect = we_in.with_vspan(
                     Span::with_start_and_length(we_in.bottom(), 300).union(m1_rect.vspan()),
                 );
+                Ok((we_in, m1_rect, m2_rect))
+            };
+            // The we strap runs under this group's dout, din and we_b pin vias, at a
+            // height set by the size of the wmask AND gate. Keep it one m1 space
+            // clear of all of them.
+            let mut we_keepouts = dout_din_via_m1.clone();
+            for j in 0..self.params.wmask_granularity {
+                let (we_in, _, m2_rect) = we_b_rects(j)?;
+                let pin_via = ViaParams::builder()
+                    .layers(m1, m2)
+                    .geometry(we_in, m2_rect)
+                    .expand(ViaExpansion::LongerDirection)
+                    .build();
+                we_keepouts.push(ctx.instantiate::<Via>(&pin_via)?.layer_bbox(m1).into_rect());
+            }
+            for j in 0..self.params.wmask_granularity {
+                // we
+                let we_in = grid_tiler
+                    .port_map()
+                    .port(PortId::new("we", self.params.wmask_granularity * i + j))?
+                    .largest_rect(m1)?;
+                let m1_rect = we_i_via.layer_bbox(m1).into_rect();
+                let m1_rect = m1_rect.with_hspan(m1_rect.hspan().union(we_in.hspan()));
+                let m1_rect = clear_below(m1_rect, &we_keepouts, M1_SPACE)?;
+                let m1_track_rect = we_in.with_vspan(
+                    Span::with_start_and_length(we_in.bottom(), 300).union(m1_rect.vspan()),
+                );
+                ctx.draw_rect(m1, m1_rect);
+                ctx.draw_rect(m1, m1_track_rect);
+
+                // we_b
+                let (we_in, m1_rect, m2_rect) = we_b_rects(j)?;
                 draw_via(m1, m1_rect, m2, m2_rect, ctx)?;
                 draw_via(m1, we_in, m2, m2_rect, ctx)?;
                 ctx.draw_rect(m1, m1_rect);
@@ -229,27 +280,10 @@ impl ColPeripherals {
                     .port_map()
                     .port(port_id.clone())?
                     .largest_rect(m1)?;
-                let out_rect = Rect::from_spans(
-                    Span::from_center_span_gridded(
-                        port_rect.center().x,
-                        140,
-                        ctx.pdk().layout_grid(),
-                    ),
-                    Span::new(
-                        ctx.brect().bottom(),
-                        wmask_peripherals.port("we")?.largest_rect(m1)?.center().y - 2000,
-                    ),
-                );
-                let m2_rect =
-                    port_rect.with_vspan(Span::new(port_rect.bottom() + 300, out_rect.top() - 300));
+                let (out_rect, m2_rect, pin_via) = dout_din_jog(port_rect);
                 m2_area = m2_rect.area() + 20 * 260; // Add extra for vias on either end.
 
-                let viap = ViaParams::builder()
-                    .layers(m1, m2)
-                    .geometry(port_rect, m2_rect)
-                    .expand(ViaExpansion::LongerDirection)
-                    .build();
-                let via = ctx.instantiate::<Via>(&viap)?;
+                let via = ctx.instantiate::<Via>(&pin_via)?;
                 ctx.draw(via)?;
                 let viap = ViaParams::builder()
                     .layers(m1, m2)
@@ -1238,5 +1272,34 @@ impl Component for TappedColumn {
         ctx.draw(right)?;
 
         Ok(())
+    }
+}
+
+/// Minimum m1 spacing (sky130 `m1.2`).
+const M1_SPACE: i64 = 140;
+/// Minimum m1 width (sky130 `m1.1`).
+const M1_WIDTH: i64 = 140;
+
+/// Lowers the top of `rect` until it is at least `space` below every rect in
+/// `above` that overlaps it horizontally and starts above its bottom. Leaves it
+/// untouched when it is already clear.
+fn clear_below(rect: Rect, above: &[Rect], space: i64) -> Result<Rect> {
+    let limit = above
+        .iter()
+        .filter(|r| r.hspan().intersects(&rect.hspan()) && r.bottom() > rect.bottom())
+        .map(|r| r.bottom() - space)
+        .min();
+    match limit {
+        Some(limit) if limit < rect.top() => {
+            if limit - rect.bottom() < M1_WIDTH {
+                return Err(substrate::error::ErrorSource::Internal(format!(
+                    "no room for an m1 strap below {limit} nm starting at {} nm",
+                    rect.bottom()
+                ))
+                .into());
+            }
+            Ok(rect.with_vspan(Span::new(rect.bottom(), limit)))
+        }
+        _ => Ok(rect),
     }
 }

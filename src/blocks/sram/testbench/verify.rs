@@ -418,10 +418,10 @@ pub fn verify_simulation(work_dir: impl AsRef<Path>, data: &TranData, tb: &TbPar
                     let rx_bit = data
                         .data
                         .get(&name)
-                        .ok_or_else(|| anyhow!("Unable to find signal {}", &name))?
+                        .ok_or_else(|| anyhow!("Unable to find signal {}", name))?
                         .get(idx)
                         .ok_or_else(|| {
-                            anyhow!("Index {} was out of range for signal {}", idx, &name)
+                            anyhow!("Index {} was out of range for signal {}", idx, name)
                         })?;
                     let rx_bit = to_bit(rx_bit, tb.vdd)?;
                     let ex_bit = expected.bit(i);

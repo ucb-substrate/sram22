@@ -43,6 +43,7 @@ impl Decoder {
             use_multi_finger_invs: self.params.use_multi_finger_invs,
             dont_connect_outputs: true,
             child_sizes,
+            require_m1_output: self.params.require_m1_output,
         };
         let mut inst = ctx
             .instantiate::<DecoderStage>(&params)?
@@ -72,6 +73,7 @@ impl Decoder {
                     ),
                     tree: super::DecoderTree { root: node.clone() },
                     use_multi_finger_invs: false,
+                    require_m1_output: false,
                 })?
                 .with_connections([("vdd", vdd), ("vss", vss)]);
 

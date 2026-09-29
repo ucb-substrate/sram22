@@ -1,7 +1,7 @@
 # SRAM22
 
 SRAM22 is a configurable single-port SRAM generator for SKY130, developed at UC
-Berkeley. It is a research tool; validate generated macros in your integration flow.
+Berkeley.
 
 ## Installation
 
@@ -117,9 +117,9 @@ export SKY130_OPEN_PDK_ROOT=/path/to/skywater-pdk
 ## Configuration
 
 Rows = `num_words / mux_ratio`; columns = `data_width * mux_ratio`.
-Valid configurations require positive `num_words`, `data_width`, and `write_size`,
-a power-of-two `num_words`, a mux ratio of 4 or 8, data width divisible by write
-size, at least 16 rows, and at least 16 columns. Address width is `log2(num_words)`;
+Valid configurations require a positive `write_size`, 
+a power-of-two `num_words`, a mux ratio of 4 or 8, a data width divisible by `write_size`,
+at least 16 rows, and at least 16 columns. Address width is `log2(num_words)`;
 write-mask width is `data_width / write_size`.
 
 With `write_size == data_width`, `wmask` is a scalar whole-word write mask. Drive

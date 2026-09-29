@@ -1,4 +1,4 @@
-{% set bits_per_mask = data_width / wmask_width -%}
+{% set bits_per_mask = data_width // wmask_width -%}
 // SRAM22 SRAM model
 // Words: {{num_words}}
 // Word size: {{data_width}}

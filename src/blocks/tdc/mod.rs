@@ -488,6 +488,7 @@ impl Component for TdcCell {
             gate: GateParams::Inv(self.params.inv),
             filler: false,
             dsn,
+            expose_y_on_m1: false,
         };
 
         let inv = ctx.instantiate::<Inv>(&self.params.inv)?;

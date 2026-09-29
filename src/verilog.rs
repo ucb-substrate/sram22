@@ -40,7 +40,7 @@ pub fn generate_1rw_verilog(params: &SramParams) -> Result<String> {
         wmask_width: params.wmask_width(),
     };
 
-    Ok(TEMPLATES.render(template, &Context::from_serialize(template_params)?)?)
+    Ok(TEMPLATES.render(template, &Context::from_serialize(&template_params)?)?)
 }
 
 pub fn save_1rw_verilog(path: impl AsRef<Path>, params: &SramParams) -> Result<()> {
@@ -63,7 +63,7 @@ pub fn generate_tdc_verilog(params: &TdcParams) -> Result<String> {
     );
     let template = "tdc.v";
 
-    Ok(TEMPLATES.render(template, &Context::from_serialize(params)?)?)
+    Ok(TEMPLATES.render(template, &Context::from_serialize(&params)?)?)
 }
 
 pub fn generate_delay_line_verilog(params: &DelayLineParams) -> Result<String> {
@@ -74,7 +74,7 @@ pub fn generate_delay_line_verilog(params: &DelayLineParams) -> Result<String> {
     );
     let template = "delay_line.v";
 
-    Ok(TEMPLATES.render(template, &Context::from_serialize(params)?)?)
+    Ok(TEMPLATES.render(template, &Context::from_serialize(&params)?)?)
 }
 
 pub fn save_tdc_verilog(path: impl AsRef<Path>, params: &TdcParams) -> Result<()> {

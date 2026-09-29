@@ -45,7 +45,7 @@ pub fn generate_tdc_lib(params: &TdcParams) -> Result<String> {
     );
     let template = "tdc.fake.lib";
 
-    Ok(TEMPLATES.render(template, &Context::from_serialize(params)?)?)
+    Ok(TEMPLATES.render(template, &Context::from_serialize(&params)?)?)
 }
 
 pub fn generate_delay_line_lib(params: &DelayLineParams) -> Result<String> {
@@ -56,5 +56,5 @@ pub fn generate_delay_line_lib(params: &DelayLineParams) -> Result<String> {
     );
     let template = "delay_line.fake.lib";
 
-    Ok(TEMPLATES.render(template, &Context::from_serialize(params)?)?)
+    Ok(TEMPLATES.render(template, &Context::from_serialize(&params)?)?)
 }
