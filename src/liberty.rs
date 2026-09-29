@@ -108,8 +108,6 @@ pub enum PinRole {
 /// Plug-in point for timing equations.
 /// `[[f64;7];7]` tables: rows index slew, columns index load or clock-slew.
 pub trait TimingModel: Send + Sync {
-    fn area(&self, p: &SramParams) -> f64;
-
     fn hold_rise(&self, p: &SramParams, pin: PinRole) -> [[f64; 7]; 7];
     fn hold_fall(&self, p: &SramParams, pin: PinRole) -> [[f64; 7]; 7];
     fn setup_rise(&self, p: &SramParams, pin: PinRole) -> [[f64; 7]; 7];
@@ -143,9 +141,6 @@ pub trait TimingModel: Send + Sync {
 pub struct PlaceholderModel;
 
 impl TimingModel for PlaceholderModel {
-    fn area(&self, _: &SramParams) -> f64 {
-        0.0
-    }
     fn hold_rise(&self, _: &SramParams, _: PinRole) -> [[f64; 7]; 7] {
         [[0.0; 7]; 7]
     }
@@ -582,10 +577,6 @@ impl LookupModel {
 }
 
 impl TimingModel for LookupModel {
-    fn area(&self, _: &SramParams) -> f64 {
-        0.0
-    }
-
     fn hold_rise(&self, p: &SramParams, pin: PinRole) -> [[f64; 7]; 7] {
         let dw = p.data_width() as f64;
         let tbl = match pin {
@@ -726,12 +717,14 @@ pub struct LibGenParams<'a> {
     pub sram: &'a SramParams,
     pub pvt: PvtCorner,
     pub model: &'a dyn TimingModel,
+    /// Cell area in square microns: the layout bounding box, the same size the LEF reports.
+    pub area: f64,
     pub output: PathBuf,
 }
 
 /// Mirrors `liberate_mx::generate_sram_lib` — writes a `.lib` file and returns its path.
 pub fn generate_sram_lib(params: &LibGenParams) -> Result<PathBuf> {
-    let content = write_liberty(params.sram, &params.pvt, params.model);
+    let content = write_liberty(params.sram, &params.pvt, params.model, params.area);
     if let Some(parent) = params.output.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -1018,7 +1011,7 @@ fn write_control_pin(w: &mut W, p: &SramParams, m: &dyn TimingModel, name: &str,
 
 // ── TOP-LEVEL LIBERTY SERIALIZER ──────────────────────────────────────────────
 
-fn write_liberty(p: &SramParams, pvt: &PvtCorner, m: &dyn TimingModel) -> String {
+fn write_liberty(p: &SramParams, pvt: &PvtCorner, m: &dyn TimingModel, area: f64) -> String {
     let mut w = W::new();
     let cell_name = p.name();
     let cell = cell_name.as_str();
@@ -1148,7 +1141,7 @@ fn write_liberty(p: &SramParams, pvt: &PvtCorner, m: &dyn TimingModel) -> String
 
         // ── Cell ─────────────────────────────────────────────────────────────
         w.block(&format!("cell ({})", cell), |w| {
-            w.attr_f("area", m.area(p));
+            w.attr_f("area", area);
             w.attr("cell_leakage_power", "0");
             w.attr("dont_touch", "true");
             w.attr("dont_use", "true");
