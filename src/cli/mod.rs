@@ -14,7 +14,8 @@ use crate::cli::args::Args;
 use crate::cli::progress::{Event, Job, Level, Options, Reporter, StepContext};
 use crate::paths::{out_gds, out_lef, out_lib, out_spice, out_verilog};
 use crate::plan::{
-    execute_plan, generate_plan, interpolated_timing_data, ExecutePlanParams, SramPlan, TaskKey,
+    execute_plan, generate_plan, interpolated_timing_data, ExecutePlanParams, SramPlan,
+    StageFailures, TaskKey,
 };
 use crate::Result;
 
@@ -113,8 +114,8 @@ pub fn run() -> Result<()> {
     .collect();
 
     let mut reused = Vec::new();
-    let mut errors = Vec::new();
-    for (id, (plan, _config)) in plans.iter().zip(&configs).enumerate() {
+    let mut warnings = Vec::new();
+    for (plan, _config) in plans.iter().zip(&configs) {
         let name = plan.sram_params.name();
         #[cfg(not(feature = "commercial"))]
         let must_run = args.force;
@@ -131,17 +132,13 @@ pub fn run() -> Result<()> {
         let interpolate = true;
         #[cfg(feature = "commercial")]
         let interpolate = !args.liberate;
+        // Only LIB depends on timing data; the other views are still generated.
         if !reuse && interpolate {
             if let Err(error) = interpolated_timing_data(&plan.sram_params) {
-                errors.push(format!("entry {} ({name}), LIB: {error:#}", id + 1));
+                warnings.push(format!("{name}: LIB cannot be generated: {error:#}"));
             }
         }
     }
-    anyhow::ensure!(
-        errors.is_empty(),
-        "Cannot generate requested collateral:\n  {}",
-        errors.join("\n  ")
-    );
 
     // Preflight runs before creating output directories or starting any work.
     std::fs::create_dir_all(&build_dir)
@@ -173,6 +170,9 @@ pub fn run() -> Result<()> {
         .min(work_items.len());
     let mut reporter = Reporter::new(jobs, Options::from_args(&args));
     reporter.announce(&config_path, &build_dir, num_workers);
+    for warning in &warnings {
+        reporter.message("Warning", warning, Level::Warning);
+    }
     reporter.redraw();
 
     let _panic_hook = WorkerPanicHook::install();
@@ -262,8 +262,14 @@ fn run_job(
     let started = Instant::now();
     let _ = events.send(Event::Started { id, at: started });
     let mut ctx = StepContext::new(id, events.clone());
-    let result = catch_generation(|| run(&mut ctx))
-        .map_err(|error| format!("{}: {error:#}", ctx.current_stage()));
+    let result = catch_generation(|| run(&mut ctx)).map_err(|error| {
+        if error.is::<StageFailures>() {
+            // Each failure already names its stage; the other views were written.
+            error.to_string()
+        } else {
+            format!("{}: {error:#}", ctx.current_stage())
+        }
+    });
     let _ = events.send(Event::Finished {
         id,
         elapsed: started.elapsed(),

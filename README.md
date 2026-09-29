@@ -52,7 +52,8 @@ the `[[sram]]` header is also accepted.
 On an interactive terminal, a live table at the bottom shows each SRAM's SPICE,
 GDS, Verilog, LEF, and LIB stages. Requested DRC, LVS, and PEX stages appear in
 commercial builds. `✓` means complete, an animated spinner means running,
-`·` pending, `✗` failed, `!` blocked by an earlier failure, and `—` not requested.
+`·` pending, `✗` failed, `!` skipped because the SRAM failed during setup, and `—`
+not requested.
 LIB reports completed
 timing corners out of three. SRAMs waiting for a worker are labeled `queued`;
 use `--parallel 2`, for example, to run two SRAMs at a time.
@@ -70,12 +71,16 @@ status output on stderr. `--progress plain` selects this format explicitly;
 final summary. Automatic color respects `NO_COLOR`; `--color always` and
 `--color never` override detection.
 
-Existing complete outputs are reported as `Reused`. Generation continues for
+Existing complete outputs are reported as `Reused`. Each view is generated
+independently: if one stage fails, the remaining stages still run, and the SRAM
+is reported as failed with every stage error and the list of views that were
+written. Only a failure during setup skips all stages. Generation continues for
 other SRAMs if one fails, and exits unsuccessfully if any failed. Rerunning the
 same command retries incomplete SRAMs while reusing completed ones; `--force`
-regenerates every SRAM regardless. Duplicate
-output names and unsupported interpolated timing configurations are rejected
-before any generation starts.
+regenerates every SRAM regardless. Duplicate output names and invalid
+configurations are rejected before any generation starts. A configuration
+without interpolated timing data gets a warning up front; its SPICE, GDS,
+Verilog, and LEF are still written and only LIB fails.
 
 With the BWRC manifest, `--liberate` selects Liberate MX characterization;
 `--drc` and `--lvs` run Calibre verification. Setting `pex_level` to `r`, `c`, `rc`,

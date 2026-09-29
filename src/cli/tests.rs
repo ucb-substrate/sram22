@@ -229,6 +229,58 @@ fn batch_generation_reuse_and_partial_failure_have_readable_output() {
 }
 
 #[test]
+fn missing_timing_data_warns_and_still_writes_other_views() {
+    let run = tempfile::tempdir().unwrap();
+    let config = run.path().join("sram22.toml");
+    let output = run.path().join("build");
+    // 64m4w4 has no interpolated timing table; every other view still generates.
+    fs::write(
+        &config,
+        "[[sram]]\nnum_words=64\ndata_width=8\nmux_ratio=4\nwrite_size=4\n",
+    )
+    .unwrap();
+    let result = cli(&config, &output)
+        .args(["--progress", "plain"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(!result.status.success(), "{stderr}");
+    let name = "sram22_64x8m4w4";
+    assert!(
+        stderr.contains(&message(
+            "Warning",
+            &format!("{name}: LIB cannot be generated: no timing data for 64m4w4")
+        )),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains(&message("Started", name))
+            && stderr.contains(&message("Failed", &format!("{name} after"))),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("LIB: no timing data for 64m4w4"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("Completed: SPICE, GDS, Verilog, LEF"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("0 generated · 0 reused · 1 failed"),
+        "{stderr}"
+    );
+    let dir = output.join(name);
+    for extension in ["spice", "gds", "v", "lef"] {
+        assert!(
+            dir.join(format!("{name}.{extension}")).exists(),
+            "{extension}"
+        );
+    }
+    assert!(!dir.join(format!("{name}_tt_025C_1v80.lib")).exists());
+}
+
+#[test]
 fn invalid_batches_fail_before_creating_outputs() {
     let run = tempfile::tempdir().unwrap();
     let config = run.path().join("batch.toml");
@@ -236,10 +288,6 @@ fn invalid_batches_fail_before_creating_outputs() {
     let single = "[[sram]]\nnum_words=64\ndata_width=8\nmux_ratio=4\nwrite_size=8\n";
     for (contents, expected) in [
         (format!("{single}{single}"), "duplicates entry 1"),
-        (
-            single.replace("num_words=64", "num_words=4096"),
-            "no timing data",
-        ),
         (single.replace("mux_ratio=4", "mux_ratio=3"), "mux_ratio"),
         ("sram=[]\n".into(), "must not be empty"),
         (

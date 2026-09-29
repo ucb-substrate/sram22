@@ -390,7 +390,7 @@ fn legend_omits_the_spinner_and_marks_unused_stages_only_when_columns_differ() {
     let lines: Vec<_> = frame.lines().collect();
     assert_eq!(
         lines[lines.len() - 1],
-        "✓ done  · pending  ✗ failed  ! blocked"
+        "✓ done  · pending  ✗ failed  ! skipped"
     );
     assert_eq!(lines[lines.len() - 2], "", "{frame}");
     assert!(!frame.contains("running  "), "{frame}");
@@ -448,6 +448,14 @@ fn failure_details_align_under_the_message_text() {
         id: 0,
         at: Instant::now(),
     });
+    r.handle(Event::StageFinished {
+        id: 0,
+        key: TaskKey::GenerateNetlist,
+    });
+    r.handle(Event::StageFailed {
+        id: 0,
+        key: TaskKey::GenerateLayout,
+    });
     r.handle(Event::Finished {
         id: 0,
         elapsed: Duration::from_secs(1),
@@ -467,8 +475,63 @@ fn failure_details_align_under_the_message_text() {
     );
     assert_eq!(lines[first + 2].find("second line"), column, "{contents}");
     assert_eq!(
-        lines[first + 3].find("Work directory:"),
+        lines[first + 3].find("Completed: SPICE"),
         column,
         "{contents}"
     );
+    assert_eq!(
+        lines[first + 4].find("Work directory:"),
+        column,
+        "{contents}"
+    );
+}
+
+#[test]
+fn a_failed_stage_keeps_the_job_running_until_it_finishes() {
+    let mut r = reporter(1);
+    r.handle(Event::Started {
+        id: 0,
+        at: Instant::now(),
+    });
+    for key in [TaskKey::GenerateNetlist, TaskKey::GenerateLayout] {
+        r.handle(Event::StageStarted { id: 0, key });
+    }
+    r.handle(Event::StageFinished {
+        id: 0,
+        key: TaskKey::GenerateNetlist,
+    });
+    r.handle(Event::StageFailed {
+        id: 0,
+        key: TaskKey::GenerateLayout,
+    });
+    assert_eq!(r.jobs[0].status, JobStatus::Running);
+    assert_eq!(
+        r.jobs[0].stage(TaskKey::GenerateLayout),
+        Some(StageState::Failed)
+    );
+    assert!(r.render(120, 24).contains('✗'));
+    r.handle(Event::StageStarted {
+        id: 0,
+        key: TaskKey::GenerateLib,
+    });
+    r.handle(Event::StageFinished {
+        id: 0,
+        key: TaskKey::GenerateLib,
+    });
+    r.handle(Event::Finished {
+        id: 0,
+        elapsed: Duration::from_secs(2),
+        result: Err("GDS: layout failed".into()),
+    });
+    assert_eq!(r.jobs[0].status, JobStatus::Failed);
+    assert_eq!(
+        r.jobs[0].stage(TaskKey::GenerateLib),
+        Some(StageState::Done)
+    );
+    // Never started, so it did not run: shown as skipped.
+    assert_eq!(
+        r.jobs[0].stage(TaskKey::GenerateVerilog),
+        Some(StageState::Blocked)
+    );
+    assert!(r.render(120, 24).contains("failed"));
 }

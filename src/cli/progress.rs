@@ -68,6 +68,10 @@ pub(crate) enum Event {
         id: usize,
         key: TaskKey,
     },
+    StageFailed {
+        id: usize,
+        key: TaskKey,
+    },
     CornerFinished {
         id: usize,
         corner: String,
@@ -104,6 +108,13 @@ impl StepContext {
 
     pub fn finish(&mut self, key: TaskKey) {
         let _ = self.events.send(Event::StageFinished { id: self.id, key });
+        if self.current == Some(key) {
+            self.current = None;
+        }
+    }
+
+    pub fn fail(&mut self, key: TaskKey) {
+        let _ = self.events.send(Event::StageFailed { id: self.id, key });
         if self.current == Some(key) {
             self.current = None;
         }
@@ -409,6 +420,16 @@ impl Reporter {
                 }
             }
             Event::StageFinished { id, key } => self.jobs[id].set_stage(key, StageState::Done),
+            Event::StageFailed { id, key } => {
+                self.jobs[id].set_stage(key, StageState::Failed);
+                if self.options.updates() && self.options.verbose {
+                    self.message(
+                        stage_name(key),
+                        &format!("{}: failed", self.jobs[id].name),
+                        Level::Error,
+                    );
+                }
+            }
             Event::CornerFinished { id, corner } => {
                 let job = &mut self.jobs[id];
                 job.corners.insert(corner.clone());
@@ -454,6 +475,8 @@ impl Reporter {
                     }
                     Err(error) => {
                         job.status = JobStatus::Failed;
+                        // Stages still pending never ran: the SRAM failed
+                        // during setup, or its worker died.
                         for (_, state) in &mut job.stages {
                             *state = match *state {
                                 StageState::Running => StageState::Failed,
@@ -461,10 +484,21 @@ impl Reporter {
                                 state => state,
                             };
                         }
+                        let completed = job
+                            .stages
+                            .iter()
+                            .filter(|(_, state)| *state == StageState::Done)
+                            .map(|(key, _)| stage_name(*key))
+                            .collect::<Vec<_>>();
+                        let completed = if completed.is_empty() {
+                            String::new()
+                        } else {
+                            format!("\nCompleted: {}", completed.join(", "))
+                        };
                         self.message(
                             "Failed",
                             &format!(
-                                "{} after {}\n{error}\nWork directory: {}",
+                                "{} after {}\n{error}{completed}\nWork directory: {}",
                                 self.jobs[id].name,
                                 duration(elapsed),
                                 self.jobs[id].work_dir.display()
@@ -644,9 +678,9 @@ impl Reporter {
             .iter()
             .any(|job| columns.iter().any(|&key| job.stage(key).is_none()));
         let legend = if unused {
-            "✓ done  · pending  ✗ failed  ! blocked  — not requested"
+            "✓ done  · pending  ✗ failed  ! skipped  — not requested"
         } else {
-            "✓ done  · pending  ✗ failed  ! blocked"
+            "✓ done  · pending  ✗ failed  ! skipped"
         };
         // The legend takes two lines: a separating blank line and itself.
         let show_legend = width >= measure_text_width(legend) && height >= lines.len() + 5;
