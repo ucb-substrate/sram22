@@ -7,6 +7,7 @@ use anyhow::{bail, Context};
 use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
+use substrate::data::SubstrateCtx;
 
 static TIMING_DATA: &[(usize, usize, usize, &[u8])] = &[
     (
@@ -398,7 +399,7 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
                     .collect::<Result<Vec<_>, _>>()
                     .expect("failed to join threads");
             } else {
-                generate_interpolated_lib(work_dir, &plan.sram_params)?;
+                generate_interpolated_lib(&sctx, work_dir, &plan.sram_params)?;
             }
             try_finish_task!(ctx, TaskKey::GenerateLib);
         }
@@ -406,15 +407,20 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
 
     #[cfg(not(feature = "commercial"))]
     if params.tasks.contains(&TaskKey::GenerateLib) {
-        generate_interpolated_lib(work_dir, &plan.sram_params)?;
+        generate_interpolated_lib(&sctx, work_dir, &plan.sram_params)?;
         try_finish_task!(ctx, TaskKey::GenerateLib);
     }
 
     Ok(())
 }
 
-fn generate_interpolated_lib(work_dir: &Path, sram_params: &SramParams) -> Result<()> {
+fn generate_interpolated_lib(
+    ctx: &SubstrateCtx,
+    work_dir: &Path,
+    sram_params: &SramParams,
+) -> Result<()> {
     use crate::liberty::{LibGenParams, LookupModel, PvtCorner};
+    use subgeom::bbox::BoundBox;
     if sram_params.data_width() > 128 {
         anyhow::bail!(
             "open-source lib generation requires data_width ≤ 128 (got {})",
@@ -439,6 +445,9 @@ fn generate_interpolated_lib(work_dir: &Path, sram_params: &SramParams) -> Resul
                 ws
             )
         })?;
+    // Same bounding box as the LEF SIZE; layout coordinates are in nm.
+    let brect = ctx.instantiate_layout::<Sram>(sram_params)?.brect();
+    let area = brect.width() as f64 * brect.height() as f64 / 1e6;
     let name = sram_params.name();
     for pvt in [PvtCorner::tt(), PvtCorner::ss(), PvtCorner::ff()] {
         let model = LookupModel::from_json(json_bytes, &pvt.name)?;
@@ -449,6 +458,7 @@ fn generate_interpolated_lib(work_dir: &Path, sram_params: &SramParams) -> Resul
             sram: sram_params,
             pvt,
             model: &model,
+            area,
             output: lib_path,
         })?;
     }
