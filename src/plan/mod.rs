@@ -7,6 +7,7 @@ use anyhow::{bail, Context};
 use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
+use substrate::data::SubstrateCtx;
 
 static TIMING_DATA: &[(usize, usize, usize, &[u8])] = &[
     (
@@ -449,7 +450,7 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
                         })??;
                     }
                 } else {
-                    generate_interpolated_lib(work_dir, &plan.sram_params, progress)?;
+                    generate_interpolated_lib(&sctx, work_dir, &plan.sram_params, progress)?;
                 }
                 Ok(())
             });
@@ -459,7 +460,7 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
     #[cfg(not(feature = "commercial"))]
     if params.tasks.contains(&TaskKey::GenerateLib) {
         run_stage(&mut ctx, TaskKey::GenerateLib, &mut failures, |progress| {
-            generate_interpolated_lib(work_dir, &plan.sram_params, progress)
+            generate_interpolated_lib(&sctx, work_dir, &plan.sram_params, progress)
         });
     }
 
@@ -499,12 +500,17 @@ pub(crate) fn interpolated_timing_data(sram_params: &SramParams) -> Result<&'sta
 }
 
 fn generate_interpolated_lib(
+    sctx: &SubstrateCtx,
     work_dir: &Path,
     sram_params: &SramParams,
-    ctx: Option<&StepContext>,
+    progress: Option<&StepContext>,
 ) -> Result<()> {
     use crate::liberty::{LibGenParams, LookupModel, PvtCorner};
+    use subgeom::bbox::BoundBox;
     let json_bytes = interpolated_timing_data(sram_params)?;
+    // Same bounding box as the LEF SIZE; layout coordinates are in nm.
+    let brect = sctx.instantiate_layout::<Sram>(sram_params)?.brect();
+    let area = brect.width() as f64 * brect.height() as f64 / 1e6;
     let name = sram_params.name();
     for pvt in [PvtCorner::tt(), PvtCorner::ss(), PvtCorner::ff()] {
         let model = LookupModel::from_json(json_bytes, &pvt.name)?;
@@ -515,10 +521,11 @@ fn generate_interpolated_lib(
             sram: sram_params,
             pvt,
             model: &model,
+            area,
             output: lib_path,
         })?;
-        if let Some(ctx) = ctx {
-            ctx.corner_finished(suffix);
+        if let Some(progress) = progress {
+            progress.corner_finished(suffix);
         }
     }
     Ok(())

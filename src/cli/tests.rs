@@ -89,9 +89,29 @@ fn generated_outputs_are_portable_for_both_mux_ratios() {
         check_gds(&fs::read(isolated).unwrap());
         let verilog = fs::read_to_string(output.join(format!("{name}.v"))).unwrap();
         let lef = fs::read_to_string(output.join(format!("{name}.lef"))).unwrap();
+        // The Liberty area is the layout bounding box, i.e. the LEF SIZE.
+        let size: Vec<f64> = lef
+            .lines()
+            .find_map(|l| l.trim().strip_prefix("SIZE "))
+            .unwrap()
+            .split_whitespace()
+            .filter_map(|t| t.parse().ok())
+            .collect();
+        let lef_area = size[0] * size[1];
         for suffix in ["tt_025C_1v80", "ss_100C_1v60", "ff_n40C_1v95"] {
             let liberty = fs::read_to_string(output.join(format!("{name}_{suffix}.lib"))).unwrap();
             assert!(liberty.contains(&format!("cell ({name})")));
+            let area: f64 = liberty
+                .lines()
+                .find_map(|l| l.trim().strip_prefix("area : "))
+                .unwrap()
+                .trim_end_matches(';')
+                .parse()
+                .unwrap();
+            assert!(
+                (area - lef_area).abs() < 1e-3 * lef_area,
+                "{name}_{suffix}: Liberty area {area} != LEF area {lef_area}"
+            );
         }
         if write_size == width {
             assert!(verilog.contains("input wmask;") && verilog.contains("if (wmask)"));
