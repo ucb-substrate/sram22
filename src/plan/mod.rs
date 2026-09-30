@@ -119,7 +119,7 @@ pub struct SramPlan {
     pub sram_params: SramParams,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum TaskKey {
     GeneratePlan,
     GenerateNetlist,
@@ -184,22 +184,47 @@ pub fn generate_plan(config: &SramConfig) -> Result<SramPlan> {
     })
 }
 
-macro_rules! try_finish_task {
-    ( $ctx:expr, $task:expr ) => {
-        if let Some(ctx) = $ctx.as_mut() {
-            ctx.finish($task);
-        }
-    };
+/// Every stage that failed, in execution order. The remaining stages still
+/// ran, so the other views were written wherever possible.
+#[derive(Debug)]
+pub struct StageFailures(pub Vec<String>);
+
+impl std::fmt::Display for StageFailures {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0.join("\n"))
+    }
 }
 
-#[cfg(feature = "commercial")]
-macro_rules! try_execute_task {
-    ( $tasks:expr, $task:expr, $body:expr, $ctx:expr) => {
-        if $tasks.contains(&$task) || $tasks.contains(&TaskKey::All) {
-            $body;
-            try_finish_task!($ctx, $task);
+impl std::error::Error for StageFailures {}
+
+/// Run one stage. A failure, including a panic, is recorded and later stages
+/// still run: a broken view never prevents the others from being written.
+fn run_stage(
+    ctx: &mut Option<&mut StepContext>,
+    key: TaskKey,
+    failures: &mut Vec<String>,
+    body: impl FnOnce(Option<&StepContext>) -> Result<()>,
+) {
+    if let Some(ctx) = ctx.as_mut() {
+        ctx.start(key);
+    }
+    let result = crate::cli::catch_generation(|| body(ctx.as_deref()));
+    match result {
+        Ok(()) => {
+            if let Some(ctx) = ctx.as_mut() {
+                ctx.finish(key);
+            }
         }
-    };
+        Err(error) => {
+            if let Some(ctx) = ctx.as_mut() {
+                ctx.fail(key);
+            }
+            failures.push(format!(
+                "{}: {error:#}",
+                crate::cli::progress::stage_name(key)
+            ));
+        }
+    }
 }
 
 pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
@@ -210,10 +235,12 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
         ..
     } = params;
 
+    // Everything before the first stage is setup: if it fails, nothing runs.
     std::fs::create_dir_all(work_dir)?;
 
     let name = &plan.sram_params.name();
     let sctx = try_setup_ctx()?;
+    let mut failures = Vec::new();
 
     let spice_path = out_spice(work_dir, name);
     // Circuit exports use open device names; licensed signoff and timing tasks
@@ -224,29 +251,39 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
     let netlist_ctx = &export_ctx;
     #[cfg(not(feature = "commercial"))]
     let netlist_ctx = &sctx;
-    netlist_ctx
-        .write_schematic_to_file::<Sram>(&plan.sram_params, &spice_path)
-        .context("failed to write schematic")?;
-    crate::spice::make_portable(&spice_path)?;
-    try_finish_task!(ctx, TaskKey::GenerateNetlist);
+    run_stage(&mut ctx, TaskKey::GenerateNetlist, &mut failures, |_| {
+        netlist_ctx
+            .write_schematic_to_file::<Sram>(&plan.sram_params, &spice_path)
+            .context("failed to write schematic")?;
+        crate::spice::make_portable(&spice_path)?;
+        Ok(())
+    });
 
     let gds_path = out_gds(work_dir, name);
-    sctx.write_layout::<Sram>(&plan.sram_params, &gds_path)
-        .context("failed to write layout")?;
-    try_finish_task!(ctx, TaskKey::GenerateLayout);
+    run_stage(&mut ctx, TaskKey::GenerateLayout, &mut failures, |_| {
+        sctx.write_layout::<Sram>(&plan.sram_params, &gds_path)
+            .context("failed to write layout")?;
+        Ok(())
+    });
 
     let verilog_path = out_verilog(work_dir, name);
-    save_1rw_verilog(&verilog_path, &plan.sram_params)
-        .context("failed to write behavioral model")?;
-    try_finish_task!(ctx, TaskKey::GenerateVerilog);
+    run_stage(&mut ctx, TaskKey::GenerateVerilog, &mut failures, |_| {
+        save_1rw_verilog(&verilog_path, &plan.sram_params)
+            .context("failed to write behavioral model")?;
+        Ok(())
+    });
 
-    crate::abs::write_abstract(
-        &sctx,
-        &plan.sram_params,
-        crate::paths::out_lef(work_dir, name),
-    )
-    .context("failed to write abstract")?;
-    try_finish_task!(ctx, TaskKey::GenerateLef);
+    // The abstract regenerates the layout in memory, so it is attempted even
+    // when writing the GDS failed.
+    run_stage(&mut ctx, TaskKey::GenerateLef, &mut failures, |_| {
+        crate::abs::write_abstract(
+            &sctx,
+            &plan.sram_params,
+            crate::paths::out_lef(work_dir, name),
+        )
+        .context("failed to write abstract")?;
+        Ok(())
+    });
 
     #[cfg(feature = "commercial")]
     {
@@ -258,169 +295,183 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
         use substrate::schematic::netlist::NetlistPurpose;
         use substrate::verification::pex::PexInput;
 
-        try_execute_task!(
-            params.tasks,
-            TaskKey::RunDrc,
-            {
+        let requested = |key| params.tasks.contains(&key) || params.tasks.contains(&TaskKey::All);
+        if requested(TaskKey::RunDrc) {
+            run_stage(&mut ctx, TaskKey::RunDrc, &mut failures, |_| {
                 let drc_work_dir = work_dir.join("drc");
                 let output = sctx
                     .write_drc::<Sram>(&plan.sram_params, drc_work_dir)
-                    .expect("failed to run DRC");
-                assert!(
+                    .context("failed to run DRC")?;
+                anyhow::ensure!(
                     matches!(
                         output.summary,
                         substrate::verification::drc::DrcSummary::Pass
                     ),
                     "DRC failed"
                 );
-            },
-            ctx
-        );
-        try_execute_task!(
-            params.tasks,
-            TaskKey::RunLvs,
-            {
+                Ok(())
+            });
+        }
+        if requested(TaskKey::RunLvs) {
+            run_stage(&mut ctx, TaskKey::RunLvs, &mut failures, |_| {
                 let lvs_work_dir = work_dir.join("lvs");
                 let output = sctx
                     .write_lvs::<Sram>(&plan.sram_params, lvs_work_dir)
-                    .expect("failed to run LVS");
-                assert!(
+                    .context("failed to run LVS")?;
+                anyhow::ensure!(
                     matches!(
                         output.summary,
                         substrate::verification::lvs::LvsSummary::Pass
                     ),
                     "LVS failed"
                 );
-            },
-            ctx
-        );
+                Ok(())
+            });
+        }
 
         let pex_dir = work_dir.join("pex");
         let pex_source_path = out_spice(&pex_dir, "schematic");
         let pex_out_path = out_spice(&pex_dir, "schematic.pex");
 
         if params.pex_level.is_some() {
-            sctx.write_schematic_to_file_for_purpose::<Sram>(
-                &plan.sram_params,
-                &pex_source_path,
-                NetlistPurpose::Pex,
-            )?;
-            let mut opts = HashMap::with_capacity(1);
-            opts.insert("level".into(), params.pex_level.unwrap().as_str().into());
-            sctx.run_pex(PexInput {
-                work_dir: pex_dir,
-                layout_path: gds_path,
-                layout_cell_name: name.clone(),
-                layout_format: substrate::layout::LayoutFormat::Gds,
-                source_paths: vec![pex_source_path],
-                source_cell_name: name.clone(),
-                pex_netlist_path: pex_out_path.clone(),
-                opts,
-                ground_net: "vss".to_string(),
-            })?;
-            if !pex_out_path.exists() {
-                bail!(
-                    "PEX failed: no output netlist produced at {:?}",
-                    pex_out_path
-                );
-            }
-            try_finish_task!(ctx, TaskKey::RunPex);
+            run_stage(&mut ctx, TaskKey::RunPex, &mut failures, |_| {
+                sctx.write_schematic_to_file_for_purpose::<Sram>(
+                    &plan.sram_params,
+                    &pex_source_path,
+                    NetlistPurpose::Pex,
+                )?;
+                let mut opts = HashMap::with_capacity(1);
+                opts.insert("level".into(), params.pex_level.unwrap().as_str().into());
+                sctx.run_pex(PexInput {
+                    work_dir: pex_dir.clone(),
+                    layout_path: gds_path.clone(),
+                    layout_cell_name: name.clone(),
+                    layout_format: substrate::layout::LayoutFormat::Gds,
+                    source_paths: vec![pex_source_path.clone()],
+                    source_cell_name: name.clone(),
+                    pex_netlist_path: pex_out_path.clone(),
+                    opts,
+                    ground_net: "vss".to_string(),
+                })?;
+                if !pex_out_path.exists() {
+                    bail!(
+                        "PEX failed: no output netlist produced at {:?}",
+                        pex_out_path
+                    );
+                }
+                Ok(())
+            });
         }
 
         if params.tasks.contains(&TaskKey::GenerateLib) {
-            if params.use_liberate {
-                use substrate::schematic::netlist::NetlistPurpose;
+            run_stage(&mut ctx, TaskKey::GenerateLib, &mut failures, |progress| {
+                if params.use_liberate {
+                    let sram_params = plan.sram_params.clone();
+                    let source_path = if params.pex_level.is_some() {
+                        pex_out_path.clone()
+                    } else {
+                        let timing_spice_path = out_spice(work_dir, "timing_schematic");
+                        sctx.write_schematic_to_file_for_purpose::<Sram>(
+                            &sram_params,
+                            &timing_spice_path,
+                            NetlistPurpose::Timing,
+                        )
+                        .context("failed to write timing schematic")?;
+                        timing_spice_path
+                    };
 
-                let sram_params = plan.sram_params.clone();
-                let source_path = if params.pex_level.is_some() {
-                    pex_out_path
+                    let sram = sctx
+                        .instantiate_layout::<Sram>(&sram_params)
+                        .context("failed to generate layout")?;
+                    let brect = sram.brect();
+                    let width = Decimal::new(brect.width(), 3);
+                    let height = Decimal::new(brect.height(), 3);
+
+                    let mut handles = Vec::new();
+                    for (corner, temp, vdd) in [
+                        ("tt", 25, dec!(1.8)),
+                        ("ss", 100, dec!(1.6)),
+                        ("ff", -40, dec!(1.95)),
+                    ] {
+                        let verilog_path = verilog_path.clone();
+                        let work_dir = std::path::PathBuf::from(work_dir);
+                        let source_path = source_path.clone();
+                        let sram_params = sram_params.clone();
+                        let progress = progress.cloned();
+                        handles.push(std::thread::spawn(move || {
+                            crate::cli::catch_generation(|| -> Result<()> {
+                                let suffix = match corner {
+                                    "tt" => "tt_025C_1v80",
+                                    "ss" => "ss_100C_1v60",
+                                    "ff" => "ff_n40C_1v95",
+                                    _ => unreachable!(),
+                                };
+                                let name = format!("{}_{}", sram_params.name(), suffix);
+                                let lib_params = liberate_mx::LibParams::builder()
+                                    .work_dir(work_dir.join(format!("lib/{suffix}")))
+                                    .output_file(crate::paths::out_lib(&work_dir, &name))
+                                    .corner(corner)
+                                    .width(width)
+                                    .height(height)
+                                    .user_verilog(verilog_path)
+                                    .cell_name(&*sram_params.name())
+                                    .num_words(sram_params.num_words())
+                                    .data_width(sram_params.data_width())
+                                    .addr_width(sram_params.addr_width())
+                                    .wmask_width(sram_params.wmask_width())
+                                    .mux_ratio(sram_params.mux_ratio())
+                                    .has_wmask(true)
+                                    .source_paths(vec![source_path])
+                                    .vdd(vdd)
+                                    .temp(temp)
+                                    .build()?;
+                                crate::liberate::generate_sram_lib(&lib_params).with_context(
+                                    || {
+                                        format!(
+                                            "failed to write LIB for {suffix}; logs: {}",
+                                            lib_params.work_dir.display()
+                                        )
+                                    },
+                                )?;
+                                if let Some(ctx) = progress {
+                                    ctx.corner_finished(suffix);
+                                }
+                                Ok(())
+                            })
+                        }));
+                    }
+                    let handles: Vec<_> = handles.into_iter().map(|handle| handle.join()).collect();
+                    for result in handles {
+                        result.map_err(|panic| {
+                            anyhow::anyhow!(
+                                "LIB worker panicked: {}",
+                                crate::cli::panic_message(&*panic)
+                            )
+                        })??;
+                    }
                 } else {
-                    let timing_spice_path = out_spice(work_dir, "timing_schematic");
-                    sctx.write_schematic_to_file_for_purpose::<Sram>(
-                        &sram_params,
-                        &timing_spice_path,
-                        NetlistPurpose::Timing,
-                    )
-                    .expect("failed to write timing schematic");
-                    timing_spice_path
-                };
-
-                let sram = sctx
-                    .instantiate_layout::<Sram>(&sram_params)
-                    .expect("failed to generate layout");
-                let brect = sram.brect();
-                let width = Decimal::new(brect.width(), 3);
-                let height = Decimal::new(brect.height(), 3);
-
-                let mut handles = Vec::new();
-                for (corner, temp, vdd) in [
-                    ("tt", 25, dec!(1.8)),
-                    ("ss", 100, dec!(1.6)),
-                    ("ff", -40, dec!(1.95)),
-                ] {
-                    let verilog_path = verilog_path.clone();
-                    let work_dir = std::path::PathBuf::from(work_dir);
-                    let source_path = source_path.clone();
-                    let sram_params = sram_params.clone();
-                    handles.push(std::thread::spawn(move || {
-                        let suffix = match corner {
-                            "tt" => "tt_025C_1v80",
-                            "ss" => "ss_100C_1v60",
-                            "ff" => "ff_n40C_1v95",
-                            _ => unreachable!(),
-                        };
-                        let name = format!("{}_{}", sram_params.name(), suffix);
-                        let lib_params = liberate_mx::LibParams::builder()
-                            .work_dir(work_dir.join(format!("lib/{suffix}")))
-                            .output_file(crate::paths::out_lib(&work_dir, &name))
-                            .corner(corner)
-                            .width(width)
-                            .height(height)
-                            .user_verilog(verilog_path)
-                            .cell_name(&*sram_params.name())
-                            .num_words(sram_params.num_words())
-                            .data_width(sram_params.data_width())
-                            .addr_width(sram_params.addr_width())
-                            .wmask_width(sram_params.wmask_width())
-                            .mux_ratio(sram_params.mux_ratio())
-                            .has_wmask(true)
-                            .source_paths(vec![source_path])
-                            .vdd(vdd)
-                            .temp(temp)
-                            .build()
-                            .unwrap();
-                        crate::liberate::generate_sram_lib(&lib_params)
-                            .expect("failed to write lib");
-                    }));
+                    generate_interpolated_lib(&sctx, work_dir, &plan.sram_params, progress)?;
                 }
-                let handles: Vec<_> = handles.into_iter().map(|handle| handle.join()).collect();
-                handles
-                    .into_iter()
-                    .collect::<Result<Vec<_>, _>>()
-                    .expect("failed to join threads");
-            } else {
-                generate_interpolated_lib(&sctx, work_dir, &plan.sram_params)?;
-            }
-            try_finish_task!(ctx, TaskKey::GenerateLib);
+                Ok(())
+            });
         }
     }
 
     #[cfg(not(feature = "commercial"))]
     if params.tasks.contains(&TaskKey::GenerateLib) {
-        generate_interpolated_lib(&sctx, work_dir, &plan.sram_params)?;
-        try_finish_task!(ctx, TaskKey::GenerateLib);
+        run_stage(&mut ctx, TaskKey::GenerateLib, &mut failures, |progress| {
+            generate_interpolated_lib(&sctx, work_dir, &plan.sram_params, progress)
+        });
     }
 
-    Ok(())
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(StageFailures(failures).into())
+    }
 }
 
-fn generate_interpolated_lib(
-    ctx: &SubstrateCtx,
-    work_dir: &Path,
-    sram_params: &SramParams,
-) -> Result<()> {
-    use crate::liberty::{LibGenParams, LookupModel, PvtCorner};
-    use subgeom::bbox::BoundBox;
+pub(crate) fn interpolated_timing_data(sram_params: &SramParams) -> Result<&'static [u8]> {
     if sram_params.data_width() > 128 {
         anyhow::bail!(
             "open-source lib generation requires data_width ≤ 128 (got {})",
@@ -445,8 +496,20 @@ fn generate_interpolated_lib(
                 ws
             )
         })?;
+    Ok(json_bytes)
+}
+
+fn generate_interpolated_lib(
+    sctx: &SubstrateCtx,
+    work_dir: &Path,
+    sram_params: &SramParams,
+    progress: Option<&StepContext>,
+) -> Result<()> {
+    use crate::liberty::{LibGenParams, LookupModel, PvtCorner};
+    use subgeom::bbox::BoundBox;
+    let json_bytes = interpolated_timing_data(sram_params)?;
     // Same bounding box as the LEF SIZE; layout coordinates are in nm.
-    let brect = ctx.instantiate_layout::<Sram>(sram_params)?.brect();
+    let brect = sctx.instantiate_layout::<Sram>(sram_params)?.brect();
     let area = brect.width() as f64 * brect.height() as f64 / 1e6;
     let name = sram_params.name();
     for pvt in [PvtCorner::tt(), PvtCorner::ss(), PvtCorner::ff()] {
@@ -461,6 +524,9 @@ fn generate_interpolated_lib(
             area,
             output: lib_path,
         })?;
+        if let Some(progress) = progress {
+            progress.corner_finished(suffix);
+        }
     }
     Ok(())
 }
@@ -468,6 +534,60 @@ fn generate_interpolated_lib(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::progress::Event;
+
+    #[test]
+    fn a_failed_stage_does_not_stop_later_stages() {
+        let (events, receiver) = std::sync::mpsc::channel();
+        let mut step = StepContext::new(7, events);
+        let mut ctx = Some(&mut step);
+        let mut failures = Vec::new();
+        run_stage(
+            &mut ctx,
+            TaskKey::GenerateNetlist,
+            &mut failures,
+            |_| Ok(()),
+        );
+        run_stage(&mut ctx, TaskKey::GenerateLayout, &mut failures, |_| {
+            bail!("layout failed")
+        });
+        run_stage(&mut ctx, TaskKey::GenerateVerilog, &mut failures, |_| {
+            panic!("verilog panic")
+        });
+        run_stage(&mut ctx, TaskKey::GenerateLef, &mut failures, |progress| {
+            assert!(progress.is_some());
+            Ok(())
+        });
+        assert_eq!(
+            failures,
+            [
+                "GDS: layout failed",
+                "Verilog: generation panicked: verilog panic"
+            ]
+        );
+        assert_eq!(
+            StageFailures(failures).to_string(),
+            "GDS: layout failed\nVerilog: generation panicked: verilog panic"
+        );
+        drop(step);
+        let outcomes: Vec<_> = receiver
+            .iter()
+            .filter_map(|event| match event {
+                Event::StageFinished { id: 7, key } => Some((key, true)),
+                Event::StageFailed { id: 7, key } => Some((key, false)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            outcomes,
+            [
+                (TaskKey::GenerateNetlist, true),
+                (TaskKey::GenerateLayout, false),
+                (TaskKey::GenerateVerilog, false),
+                (TaskKey::GenerateLef, true),
+            ]
+        );
+    }
 
     #[test]
     fn invalid_dimensions_return_errors_without_panicking_or_truncating() {

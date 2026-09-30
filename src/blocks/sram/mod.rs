@@ -74,13 +74,15 @@ pub struct SramBatchConfig {
 
 pub fn parse_sram_batch_config(path: impl AsRef<Path>) -> anyhow::Result<Vec<SramConfig>> {
     let contents = std::fs::read_to_string(&path)?;
-    if let Ok(batch) = toml::from_str::<SramBatchConfig>(&contents) {
-        if !batch.sram.is_empty() {
-            return Ok(batch.sram);
-        }
+    // Select the format before deserializing, so an invalid batch retains its
+    // own diagnostic instead of falling back to an unrelated single-SRAM error.
+    let document: toml::Value = toml::from_str(&contents)?;
+    if document.get("sram").is_some() {
+        let batch: SramBatchConfig = toml::from_str(&contents)?;
+        anyhow::ensure!(!batch.sram.is_empty(), "SRAM batch must not be empty");
+        return Ok(batch.sram);
     }
-    let single = toml::from_str::<SramConfig>(&contents)
-        .map_err(|e| anyhow::anyhow!("Failed to parse config: {}", e))?;
+    let single = toml::from_str::<SramConfig>(&contents)?;
     Ok(vec![single])
 }
 
