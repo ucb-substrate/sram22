@@ -51,17 +51,23 @@ enum Models {
 }
 
 /// Uses SRAM22's cell directories with either open or commercial device models.
+///
+/// Transistors are netlisted as open SKY130 devices in either case, so one context
+/// writes both the portable netlist and the commercial signoff netlists. For LVS,
+/// PEX, simulation, and timing, the commercial PDK's prelude defines each open device
+/// as a wrapper around its commercial model, as it already does for the bundled cells.
 pub struct Sky130Pdk {
     inner: Box<dyn Pdk>,
+    /// Names and netlists transistors.
+    devices: Sky130OpenPdk,
     models: Models,
 }
 
 impl Sky130Pdk {
     pub fn open() -> Result<Self> {
         Ok(Self {
-            inner: Box::new(Sky130OpenPdk::new(&PdkParams {
-                pdk_root: crate::assets::standard_cell_root(),
-            })?),
+            inner: Box::new(Self::open_pdk()?),
+            devices: Self::open_pdk()?,
             models: Models::Open(std::env::var_os("SKY130_OPEN_PDK_ROOT").map(PathBuf::from)),
         })
     }
@@ -76,8 +82,15 @@ impl Sky130Pdk {
                 root,
                 crate::assets::standard_cell_root(),
             )?),
+            devices: Self::open_pdk()?,
             models: Models::Commercial,
         })
+    }
+
+    fn open_pdk() -> Result<Sky130OpenPdk> {
+        Ok(Sky130OpenPdk::new(&PdkParams {
+            pdk_root: crate::assets::standard_cell_root(),
+        })?)
     }
 
     fn open_model_library(root: Option<&PathBuf>) -> Result<PathBuf> {
@@ -121,7 +134,7 @@ impl Pdk for Sky130Pdk {
     }
 
     fn mos_devices(&self) -> Vec<MosSpec> {
-        self.inner.mos_devices()
+        self.devices.mos_devices()
     }
 
     fn mos_schematic(
@@ -129,7 +142,7 @@ impl Pdk for Sky130Pdk {
         ctx: &mut SchematicCtx,
         params: &MosParams,
     ) -> substrate::error::Result<()> {
-        self.inner.mos_schematic(ctx, params)
+        self.devices.mos_schematic(ctx, params)
     }
 
     fn mos_layout(
@@ -237,5 +250,40 @@ mod tests {
             includes.lib_includes,
             vec![(models.canonicalize().unwrap(), arcstr::literal!("ss"))]
         );
+    }
+
+    #[cfg(feature = "commercial")]
+    #[test]
+    fn commercial_preludes_define_every_open_device() {
+        let pdk = Sky130Pdk::commercial().unwrap();
+        let corner = pdk
+            .corners()
+            .unwrap()
+            .try_corner_named("tt")
+            .unwrap()
+            .clone();
+        let devices = pdk.mos_devices();
+        for purpose in [
+            NetlistPurpose::Lvs,
+            NetlistPurpose::Pex,
+            NetlistPurpose::Timing,
+            NetlistPurpose::Simulation { corner },
+        ] {
+            let prelude = pdk.includes(purpose.clone()).unwrap().raw_spice;
+            for device in &devices {
+                let definition = format!(".SUBCKT {} ", device.name);
+                assert!(
+                    prelude.contains(&definition),
+                    "{purpose} netlists do not define {}",
+                    device.name
+                );
+            }
+        }
+        // The exported netlist stays portable.
+        assert!(pdk
+            .includes(NetlistPurpose::Library)
+            .unwrap()
+            .raw_spice
+            .is_empty());
     }
 }

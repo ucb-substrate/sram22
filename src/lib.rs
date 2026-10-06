@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use crate::verification::calibre::SKY130_LAYERPROPS_PATH;
 pub use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
+#[cfg(not(feature = "commercial"))]
 use ngspice::Ngspice;
 #[cfg(feature = "commercial")]
 use spectre::Spectre;
@@ -57,15 +58,6 @@ pub fn bus_bit(name: &str, index: usize) -> String {
 
 pub fn setup_ctx() -> SubstrateCtx {
     try_setup_ctx().expect("failed to initialize SRAM22")
-}
-
-pub fn try_setup_open_ctx() -> Result<SubstrateCtx> {
-    let cfg = SubstrateConfig::builder()
-        .pdk(tech::sky130::Sky130Pdk::open()?)
-        .netlister(SpiceNetlister::new())
-        .simulator(Ngspice::new(SimulatorOpts::default())?)
-        .build();
-    Ok(SubstrateCtx::from_config(cfg)?)
 }
 
 pub fn try_setup_ctx() -> Result<SubstrateCtx> {

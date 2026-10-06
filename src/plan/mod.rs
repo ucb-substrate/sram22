@@ -243,17 +243,11 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
     let mut failures = Vec::new();
 
     let spice_path = out_spice(work_dir, name);
-    // Circuit exports use open device names; licensed signoff and timing tasks
-    // below continue to generate their own netlists using the commercial PDK.
-    #[cfg(feature = "commercial")]
-    let export_ctx = crate::try_setup_open_ctx()?;
-    #[cfg(feature = "commercial")]
-    let netlist_ctx = &export_ctx;
-    #[cfg(not(feature = "commercial"))]
-    let netlist_ctx = &sctx;
+    // Circuit exports use open device names. Licensed signoff and timing tasks
+    // below write their own netlists, in which the commercial PDK's prelude maps
+    // those devices onto commercial models.
     run_stage(&mut ctx, TaskKey::GenerateNetlist, &mut failures, |_| {
-        netlist_ctx
-            .write_schematic_to_file::<Sram>(&plan.sram_params, &spice_path)
+        sctx.write_schematic_to_file::<Sram>(&plan.sram_params, &spice_path)
             .context("failed to write schematic")?;
         crate::spice::make_portable(&spice_path)?;
         Ok(())

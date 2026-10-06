@@ -342,7 +342,8 @@ impl Script for SramPhysicalDesignScript {
         };
 
         // Add inverters to pc_b buffer to equalize wrdrven and pc_b delay.
-        let col_dsn = ctx.run_script::<ColumnsPhysicalDesignScript>(&col_params)?;
+        let col_dsn =
+            ctx.run_script::<ColumnsPhysicalDesignScript>(&col_params.physical_design_params())?;
         let pcb_tau = pc_b_buffer.time_constant(pc_b_cap);
         let wrdrven_tau = write_driver_en_buffer.time_constant(wrdrven_cap)
             + col_dsn.nand.time_constant(col_dsn.cl_max);

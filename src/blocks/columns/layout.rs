@@ -395,7 +395,7 @@ impl WmaskPeripherals {
             ..
         } = &*ctx
             .inner()
-            .run_script::<ColumnsPhysicalDesignScript>(&self.params)?;
+            .run_script::<ColumnsPhysicalDesignScript>(&self.params.physical_design_params())?;
 
         let mut nand_stage = ctx.instantiate::<DecoderStage>(nand)?;
         let wmask_dff = ctx.instantiate::<DffCol>(&NoParams)?;
