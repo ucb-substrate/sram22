@@ -360,7 +360,7 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
         if params.tasks.contains(&TaskKey::GenerateLib) {
             run_stage(&mut ctx, TaskKey::GenerateLib, &mut failures, |progress| {
                 if params.use_liberate {
-                    let sram_params = plan.sram_params.clone();
+                    let sram_params = plan.sram_params;
                     let source_path = if params.pex_level.is_some() {
                         pex_out_path.clone()
                     } else {
@@ -390,7 +390,6 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
                         let verilog_path = verilog_path.clone();
                         let work_dir = std::path::PathBuf::from(work_dir);
                         let source_path = source_path.clone();
-                        let sram_params = sram_params.clone();
                         let progress = progress.cloned();
                         handles.push(std::thread::spawn(move || {
                             crate::cli::catch_generation(|| -> Result<()> {

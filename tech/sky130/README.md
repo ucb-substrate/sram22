@@ -6,8 +6,8 @@
 | `spice/` | Custom and vendored standard-cell circuits | Keep custom cell interfaces consistent with their layouts |
 
 Cells are organized by view. Vendored standard cells retain their upstream
-`sky130_fd_sc_hd__` and `sky130_fd_sc_hs__` filename prefixes. All layout and circuit
-generation uses these bundled inputs.
+`sky130_fd_sc_hs__` filename prefix. All layout and circuit generation uses these
+bundled inputs.
 
 [`src/tech/sky130.rs`](../../src/tech/sky130.rs) owns process constants, custom cell
 paths, and the process adapter. The adapter loads external device models through
@@ -17,19 +17,17 @@ bindings live in [`src/blocks/macros`](../../src/blocks/macros/mod.rs).
 
 ## Standard-cell provenance and licenses
 
-The 14 public SKY130 standard cells come from
-[ucb-substrate/skywater-pdk](https://github.com/ucb-substrate/skywater-pdk): two HD
-cells for the TDC blocks and twelve HS cells for the SRAM control and column
-circuits. Their source revisions are:
+The 12 public SKY130 standard cells come from
+[ucb-substrate/skywater-pdk](https://github.com/ucb-substrate/skywater-pdk). All are
+HS cells, used by the SRAM control and column circuits. Their source revisions are:
 
 | Source | Commit |
 | --- | --- |
 | `skywater-pdk` | `6fcd983f8be885bd831551a8daad7b4f1657f33e` |
-| `sky130_fd_sc_hd` | `cb4c7daccb8633987045e56271ea95fc89c2a034` |
 | `sky130_fd_sc_hs` | `8af46747e1cc01daefcdfab09d04a5a3ca405df5` |
 
-Upstream notices live in this directory with `.skywater`,
-`.sky130_fd_sc_hd`, or `.sky130_fd_sc_hs` suffixes to identify their source.
+Upstream notices live in this directory with `.skywater` or `.sky130_fd_sc_hs`
+suffixes to identify their source.
 File-level copyright and license notices are retained. Vendored files retain
 their upstream licenses, independently of SRAM22's BSD license.
 

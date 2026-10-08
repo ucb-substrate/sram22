@@ -28,11 +28,15 @@ use crate::blocks::decoder::{
 };
 use crate::blocks::gate::{Gate, GateParams};
 use crate::blocks::sram::layout::draw_via;
+use subgeom::transform::Translate;
 use substrate::layout::placement::align::AlignMode;
 use substrate::layout::placement::array::ArrayTiler;
 use substrate::layout::placement::place_bbox::PlaceBbox;
 use substrate::layout::routing::manual::jog::OffsetJog;
 use substrate::layout::routing::tracks::UniformTracks;
+
+/// Minimum met1 spacing.
+const M1_SPACE: i64 = 140;
 
 struct Metadata {
     final_stage_width: i64,
@@ -307,17 +311,39 @@ impl DecoderStage {
                                     (i * folding_factor + j) * num_stages + stage,
                                 ))?
                                 .largest_rect(dsn.li)?;
-                            let src = src.expand_side(Side::Top, 340);
-                            ctx.draw_rect(dsn.li, src);
-                            let src = src.with_vspan(Span::with_stop_and_length(src.top(), 240));
-                            let via = ctx.instantiate::<Via>(
+                            // The output can end right above the gate's m1 supply rail.
+                            let rail_top = ["vdd", "vss"]
+                                .into_iter()
+                                .map(|net| tiler.port_map().port(net))
+                                .collect::<std::result::Result<Vec<_>, _>>()?
+                                .into_iter()
+                                .flat_map(|port| port.shapes(m1))
+                                .filter_map(|shape| shape.as_rect())
+                                .filter(|rail| {
+                                    rail.hspan().intersects(&src.hspan())
+                                        && rail.bottom() < src.top()
+                                })
+                                .map(|rail| rail.top())
+                                .max();
+                            let mut extended = src.expand_side(Side::Top, 340);
+                            let via_rect = extended
+                                .with_vspan(Span::with_stop_and_length(extended.top(), 240));
+                            let mut via = ctx.instantiate::<Via>(
                                 &ViaParams::builder()
                                     .layers(dsn.li, m1)
-                                    .geometry(src, src)
+                                    .geometry(via_rect, via_rect)
                                     .expand(ViaExpansion::LongerDirection)
                                     .top_extension(Dir::Vert)
                                     .build(),
                             )?;
+                            if let Some(rail_top) = rail_top {
+                                let space = via.layer_bbox(m1).into_rect().bottom() - rail_top;
+                                if space < M1_SPACE {
+                                    via.translate(Point::new(0, M1_SPACE - space));
+                                    extended = extended.expand_side(Side::Top, M1_SPACE - space);
+                                }
+                            }
+                            ctx.draw_rect(dsn.li, extended);
                             ctx.draw_ref(&via)?;
                             via.layer_bbox(m1).into_rect()
                         });

@@ -179,32 +179,29 @@ impl Pdk for Sky130Pdk {
         let mut cells = StdCellDb::new();
         let layouts = gds_dir();
         let schematics = spice_dir();
-        for name in ["sky130_fd_sc_hd", "sky130_fd_sc_hs"] {
-            let mut library = StdCellLibData::new(name);
-            for cell in upstream.try_lib_named(name)?.cells() {
-                let layout = layouts.join(format!("{}.gds", cell.name()));
-                let schematic = schematics.join(format!("{}.spice", cell.name()));
-                if !layout.is_file() || !schematic.is_file() {
-                    continue;
-                }
-                library.add_cell(
-                    StdCellData::builder()
-                        .name(cell.name().clone())
-                        .layout_name(cell.view_name(View::Layout).clone())
-                        .schematic_name(cell.view_name(View::Schematic).clone())
-                        .layout_source(layout)
-                        .schematic_source(schematic)
-                        .function(cell.function().clone())
-                        .strength(cell.strength())
-                        .build()
-                        .expect("all standard-cell fields are set"),
-                );
+        let name = "sky130_fd_sc_hs";
+        let mut library = StdCellLibData::new(name);
+        for cell in upstream.try_lib_named(name)?.cells() {
+            let layout = layouts.join(format!("{}.gds", cell.name()));
+            let schematic = schematics.join(format!("{}.spice", cell.name()));
+            if !layout.is_file() || !schematic.is_file() {
+                continue;
             }
-            let id = cells.add_lib(library);
-            if name == "sky130_fd_sc_hd" {
-                cells.set_default_lib(id);
-            }
+            library.add_cell(
+                StdCellData::builder()
+                    .name(cell.name().clone())
+                    .layout_name(cell.view_name(View::Layout).clone())
+                    .schematic_name(cell.view_name(View::Schematic).clone())
+                    .layout_source(layout)
+                    .schematic_source(schematic)
+                    .function(cell.function().clone())
+                    .strength(cell.strength())
+                    .build()
+                    .expect("all standard-cell fields are set"),
+            );
         }
+        let id = cells.add_lib(library);
+        cells.set_default_lib(id);
         Ok(cells)
     }
 

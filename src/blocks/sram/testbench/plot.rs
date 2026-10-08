@@ -131,12 +131,13 @@ mod tests {
     use crate::blocks::sram::SramPhysicalDesignScript;
     use crate::setup_ctx;
     use crate::tests::test_work_dir;
-    use std::path::PathBuf;
 
     #[test]
+    #[ignore = "plots the PEX simulations written by the slow test_sram22_* tests"]
     fn plot_sram() {
         let ctx = setup_ctx();
         let seq = TestSequence::Short;
+        let mut plotted = 0;
         for params in [
             SRAM22_64X24M4W8,
             SRAM22_64X32M4W8,
@@ -162,10 +163,7 @@ mod tests {
                 .run_script::<SramPhysicalDesignScript>(&params)
                 .expect("failed to run sram design script");
             let pex_level = calibre::pex::PexLevel::Rc;
-            let sram_work_dir = PathBuf::from(format!(
-                "/tools/C/rohankumar/sram22/build/test_{}",
-                params.name()
-            ));
+            let sram_work_dir = test_work_dir(&format!("test_{}", params.name()));
             let pex_netlist_path = crate::paths::out_pex(&sram_work_dir, "pex_netlist", pex_level);
             let pex_netlist = Some((pex_netlist_path.clone(), pex_level));
             let tb =
@@ -173,6 +171,14 @@ mod tests {
             for corner in ["sf", "fs", "ss", "ff"] {
                 let psf =
                     sram_work_dir.join(format!("{corner}_1.80_short/psf/analysis_0.tran.tran"));
+                if !psf.is_file() {
+                    println!(
+                        "skipping {}: no results at {}",
+                        params.name(),
+                        psf.display()
+                    );
+                    continue;
+                }
 
                 let work_dir = test_work_dir("plot_sram");
                 std::fs::create_dir_all(&work_dir).unwrap();
@@ -198,7 +204,9 @@ mod tests {
                     ),
                 };
                 plot_write(plot.clone()).unwrap();
+                plotted += 1;
             }
         }
+        assert!(plotted > 0, "no test_sram22_* simulation results to plot");
     }
 }

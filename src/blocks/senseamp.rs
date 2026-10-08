@@ -160,8 +160,15 @@ impl Testbench for OffsetTb {
         ctx: &substrate::verification::simulation::context::PostSimCtx,
     ) -> substrate::error::Result<Self::Output> {
         let data = &ctx.output().data[0].tran();
-        let vout = &data.data["v(xdut.outp)"];
-        let vinp = &data.data["v(xdut.inp)"];
+        // Spectre names top-level nodes by net name; ngspice wraps them in `v(...)`.
+        let node = |name: &str| {
+            data.data
+                .get(name)
+                .or_else(|| data.data.get(&format!("v({name})")))
+                .unwrap_or_else(|| panic!("no voltage saved for node `{name}`"))
+        };
+        let vout = node("outp");
+        let vinp = node("inp");
         let t = &data.time;
 
         let period = self.params.period;

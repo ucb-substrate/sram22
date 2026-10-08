@@ -13,6 +13,7 @@ use super::decoder::DecoderPhysicalDesign;
 pub mod layout;
 pub mod schematic;
 pub mod sizing;
+pub mod tristate;
 
 pub enum Gate {
     And2(And2),

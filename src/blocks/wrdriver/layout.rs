@@ -8,7 +8,7 @@ use substrate::layout::layers::selector::Selector;
 use substrate::layout::layers::LayerBoundBox;
 
 use crate::blocks::columns::ColumnDesignScript;
-use crate::blocks::delay_line::tristate::TristateInv;
+use crate::blocks::gate::tristate::TristateInv;
 use crate::blocks::gate::PrimitiveGateParams;
 use crate::blocks::macros::SenseAmp;
 use crate::blocks::sram::layout::draw_via;
