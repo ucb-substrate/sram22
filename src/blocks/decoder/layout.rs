@@ -1,4 +1,6 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
+
+use indexmap::IndexMap;
 use std::iter::Extend;
 
 use itertools::Itertools;
@@ -806,8 +808,8 @@ pub struct DecoderGate {
 pub struct DecoderGateSpans {
     /// Span of layers that need to be abutted between adjacent cells.
     ///
-    /// Ordered, since the taps are drawn by iterating over it.
-    abutted_layers: BTreeMap<LayerKey, Vec<Span>>,
+    /// Insertion-ordered, since the taps are drawn by iterating over it.
+    abutted_layers: IndexMap<LayerKey, Vec<Span>>,
     /// Mapping of routing span to the name of its corresponding port and the
     /// span of enclosing diffusion layer.
     met_to_diff: HashMap<Span, (String, Span)>,
@@ -978,7 +980,7 @@ impl Component for DecoderGate {
 
         gate_group.flatten();
 
-        let mut abutted_layers = BTreeMap::new();
+        let mut abutted_layers = IndexMap::new();
         let mut met_to_diff = HashMap::new();
 
         let mut group = ElementGroup::new();
