@@ -51,17 +51,23 @@ enum Models {
 }
 
 /// Uses SRAM22's cell directories with either open or commercial device models.
+///
+/// Transistors are netlisted as open SKY130 devices in either case, so one context
+/// writes both the portable netlist and the commercial signoff netlists. For LVS,
+/// PEX, simulation, and timing, the commercial PDK's prelude defines each open device
+/// as a wrapper around its commercial model, as it already does for the bundled cells.
 pub struct Sky130Pdk {
     inner: Box<dyn Pdk>,
+    /// Names and netlists transistors.
+    devices: Sky130OpenPdk,
     models: Models,
 }
 
 impl Sky130Pdk {
     pub fn open() -> Result<Self> {
         Ok(Self {
-            inner: Box::new(Sky130OpenPdk::new(&PdkParams {
-                pdk_root: crate::assets::standard_cell_root(),
-            })?),
+            inner: Box::new(Self::open_pdk()?),
+            devices: Self::open_pdk()?,
             models: Models::Open(std::env::var_os("SKY130_OPEN_PDK_ROOT").map(PathBuf::from)),
         })
     }
@@ -76,8 +82,15 @@ impl Sky130Pdk {
                 root,
                 crate::assets::standard_cell_root(),
             )?),
+            devices: Self::open_pdk()?,
             models: Models::Commercial,
         })
+    }
+
+    fn open_pdk() -> Result<Sky130OpenPdk> {
+        Ok(Sky130OpenPdk::new(&PdkParams {
+            pdk_root: crate::assets::standard_cell_root(),
+        })?)
     }
 
     fn open_model_library(root: Option<&PathBuf>) -> Result<PathBuf> {
@@ -121,7 +134,7 @@ impl Pdk for Sky130Pdk {
     }
 
     fn mos_devices(&self) -> Vec<MosSpec> {
-        self.inner.mos_devices()
+        self.devices.mos_devices()
     }
 
     fn mos_schematic(
@@ -129,7 +142,7 @@ impl Pdk for Sky130Pdk {
         ctx: &mut SchematicCtx,
         params: &MosParams,
     ) -> substrate::error::Result<()> {
-        self.inner.mos_schematic(ctx, params)
+        self.devices.mos_schematic(ctx, params)
     }
 
     fn mos_layout(
@@ -166,32 +179,29 @@ impl Pdk for Sky130Pdk {
         let mut cells = StdCellDb::new();
         let layouts = gds_dir();
         let schematics = spice_dir();
-        for name in ["sky130_fd_sc_hd", "sky130_fd_sc_hs"] {
-            let mut library = StdCellLibData::new(name);
-            for cell in upstream.try_lib_named(name)?.cells() {
-                let layout = layouts.join(format!("{}.gds", cell.name()));
-                let schematic = schematics.join(format!("{}.spice", cell.name()));
-                if !layout.is_file() || !schematic.is_file() {
-                    continue;
-                }
-                library.add_cell(
-                    StdCellData::builder()
-                        .name(cell.name().clone())
-                        .layout_name(cell.view_name(View::Layout).clone())
-                        .schematic_name(cell.view_name(View::Schematic).clone())
-                        .layout_source(layout)
-                        .schematic_source(schematic)
-                        .function(cell.function().clone())
-                        .strength(cell.strength())
-                        .build()
-                        .expect("all standard-cell fields are set"),
-                );
+        let name = "sky130_fd_sc_hs";
+        let mut library = StdCellLibData::new(name);
+        for cell in upstream.try_lib_named(name)?.cells() {
+            let layout = layouts.join(format!("{}.gds", cell.name()));
+            let schematic = schematics.join(format!("{}.spice", cell.name()));
+            if !layout.is_file() || !schematic.is_file() {
+                continue;
             }
-            let id = cells.add_lib(library);
-            if name == "sky130_fd_sc_hd" {
-                cells.set_default_lib(id);
-            }
+            library.add_cell(
+                StdCellData::builder()
+                    .name(cell.name().clone())
+                    .layout_name(cell.view_name(View::Layout).clone())
+                    .schematic_name(cell.view_name(View::Schematic).clone())
+                    .layout_source(layout)
+                    .schematic_source(schematic)
+                    .function(cell.function().clone())
+                    .strength(cell.strength())
+                    .build()
+                    .expect("all standard-cell fields are set"),
+            );
         }
+        let id = cells.add_lib(library);
+        cells.set_default_lib(id);
         Ok(cells)
     }
 
@@ -237,5 +247,40 @@ mod tests {
             includes.lib_includes,
             vec![(models.canonicalize().unwrap(), arcstr::literal!("ss"))]
         );
+    }
+
+    #[cfg(feature = "commercial")]
+    #[test]
+    fn commercial_preludes_define_every_open_device() {
+        let pdk = Sky130Pdk::commercial().unwrap();
+        let corner = pdk
+            .corners()
+            .unwrap()
+            .try_corner_named("tt")
+            .unwrap()
+            .clone();
+        let devices = pdk.mos_devices();
+        for purpose in [
+            NetlistPurpose::Lvs,
+            NetlistPurpose::Pex,
+            NetlistPurpose::Timing,
+            NetlistPurpose::Simulation { corner },
+        ] {
+            let prelude = pdk.includes(purpose.clone()).unwrap().raw_spice;
+            for device in &devices {
+                let definition = format!(".SUBCKT {} ", device.name);
+                assert!(
+                    prelude.contains(&definition),
+                    "{purpose} netlists do not define {}",
+                    device.name
+                );
+            }
+        }
+        // The exported netlist stays portable.
+        assert!(pdk
+            .includes(NetlistPurpose::Library)
+            .unwrap()
+            .raw_spice
+            .is_empty());
     }
 }

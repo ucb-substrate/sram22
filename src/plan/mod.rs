@@ -243,17 +243,11 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
     let mut failures = Vec::new();
 
     let spice_path = out_spice(work_dir, name);
-    // Circuit exports use open device names; licensed signoff and timing tasks
-    // below continue to generate their own netlists using the commercial PDK.
-    #[cfg(feature = "commercial")]
-    let export_ctx = crate::try_setup_open_ctx()?;
-    #[cfg(feature = "commercial")]
-    let netlist_ctx = &export_ctx;
-    #[cfg(not(feature = "commercial"))]
-    let netlist_ctx = &sctx;
+    // Circuit exports use open device names. Licensed signoff and timing tasks
+    // below write their own netlists, in which the commercial PDK's prelude maps
+    // those devices onto commercial models.
     run_stage(&mut ctx, TaskKey::GenerateNetlist, &mut failures, |_| {
-        netlist_ctx
-            .write_schematic_to_file::<Sram>(&plan.sram_params, &spice_path)
+        sctx.write_schematic_to_file::<Sram>(&plan.sram_params, &spice_path)
             .context("failed to write schematic")?;
         crate::spice::make_portable(&spice_path)?;
         Ok(())
@@ -366,7 +360,7 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
         if params.tasks.contains(&TaskKey::GenerateLib) {
             run_stage(&mut ctx, TaskKey::GenerateLib, &mut failures, |progress| {
                 if params.use_liberate {
-                    let sram_params = plan.sram_params.clone();
+                    let sram_params = plan.sram_params;
                     let source_path = if params.pex_level.is_some() {
                         pex_out_path.clone()
                     } else {
@@ -396,7 +390,6 @@ pub fn execute_plan(params: ExecutePlanParams) -> Result<()> {
                         let verilog_path = verilog_path.clone();
                         let work_dir = std::path::PathBuf::from(work_dir);
                         let source_path = source_path.clone();
-                        let sram_params = sram_params.clone();
                         let progress = progress.cloned();
                         handles.push(std::thread::spawn(move || {
                             crate::cli::catch_generation(|| -> Result<()> {

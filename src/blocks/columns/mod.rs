@@ -46,6 +46,15 @@ impl ColParams {
     pub const fn wmask_bits(&self) -> usize {
         self.word_length() / self.wmask_granularity
     }
+
+    /// The parameters that determine this column's [`ColumnsPhysicalDesign`].
+    pub fn physical_design_params(&self) -> ColumnsPhysicalDesignParams {
+        ColumnsPhysicalDesignParams {
+            mux_ratio: self.mux_ratio(),
+            wmask_granularity: self.wmask_granularity,
+            wrdriver_pwidth: self.wrdriver.pwidth_driver,
+        }
+    }
 }
 
 pub struct ColPeripherals {
@@ -136,6 +145,17 @@ impl Component for Column {
 
 pub struct ColumnsPhysicalDesignScript;
 
+/// The subset of [`ColParams`] that [`ColumnsPhysicalDesignScript`] reads.
+///
+/// Keying the script on these alone lets columns that differ only in routing widths
+/// share one write mask buffer sizing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ColumnsPhysicalDesignParams {
+    mux_ratio: usize,
+    wmask_granularity: usize,
+    wrdriver_pwidth: i64,
+}
+
 pub struct ColumnsPhysicalDesign {
     pub cl_max: f64,
     pub wmask_unit_width: i64,
@@ -143,7 +163,7 @@ pub struct ColumnsPhysicalDesign {
 }
 
 impl Script for ColumnsPhysicalDesignScript {
-    type Params = ColParams;
+    type Params = ColumnsPhysicalDesignParams;
     type Output = ColumnsPhysicalDesign;
 
     fn run(
@@ -152,13 +172,13 @@ impl Script for ColumnsPhysicalDesignScript {
     ) -> substrate::error::Result<Self::Output> {
         let pc_design = ctx.run_script::<ColumnDesignScript>(&NoParams)?;
         let wmask_unit_width = params.wmask_granularity as i64
-            * (pc_design.width * params.mux_ratio() as i64 + pc_design.tap_width);
+            * (pc_design.width * params.mux_ratio as i64 + pc_design.tap_width);
         let we_i_cap = params.wmask_granularity as f64
             * COL_CAPACITANCES.we_i
-            * (params.wrdriver.pwidth_driver as f64 / COL_PARAMS.wrdriver.pwidth_driver as f64);
+            * (params.wrdriver_pwidth as f64 / COL_PARAMS.wrdriver.pwidth_driver as f64);
         let we_ib_cap = params.wmask_granularity as f64
             * COL_CAPACITANCES.we_ib
-            * (params.wrdriver.pwidth_driver as f64 / COL_PARAMS.wrdriver.pwidth_driver as f64);
+            * (params.wrdriver_pwidth as f64 / COL_PARAMS.wrdriver.pwidth_driver as f64);
         let cl_max = f64::max(we_i_cap, we_ib_cap);
         let wmask_buffer_stages = buffer_chain_num_stages(cl_max);
         let mut wmask_buffer_gates = InverterGateTreeNode {

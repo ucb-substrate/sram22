@@ -25,7 +25,6 @@ fn main() {
         "tech/sky130/gds",
         "tech/sky130/spice",
         "tech/sky130/LICENSE.skywater",
-        "tech/sky130/LICENSE.sky130_fd_sc_hd",
         "tech/sky130/LICENSE.sky130_fd_sc_hs",
         "tech/sky130/AUTHORS.skywater",
         "templates",

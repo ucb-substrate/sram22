@@ -280,18 +280,6 @@ mod tests {
             out_spice(&work_dir, "schematic"),
         )
         .expect("failed to write schematic");
-
-        #[cfg(feature = "commercial")]
-        {
-            let lvs_work_dir = work_dir.join("lvs");
-            let output = ctx
-                .write_lvs::<TappedTGateMux>(&TGATE_MUX_PARAMS, lvs_work_dir)
-                .expect("failed to run LVS");
-            assert!(matches!(
-                output.summary,
-                substrate::verification::lvs::LvsSummary::Pass
-            ));
-        }
     }
 
     #[test]

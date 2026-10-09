@@ -29,7 +29,6 @@ liberate_mx = { git = "ssh://git@bwrcrepo.eecs.berkeley.edu/rahulkumar/liberate-
 tera = { version = "2", features = ["glob_fs"] }
 lazy_static = "1"
 colored = "3"
-approx = "0.5"
 lef21 = { git = "https://github.com/dan-fritchman/Layout21.git", branch = "main" }
 plotters = "0.3"
 tempfile = "3"

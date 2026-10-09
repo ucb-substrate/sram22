@@ -1,7 +1,8 @@
 use crate::blocks::decoder::sizing::{path_map_tree, Tree, ValueTree};
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::cmp::max;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use subgeom::{snap_to_grid, Dir};
 use substrate::component::Component;
 use substrate::layout::layers::selector::Selector;
@@ -99,7 +100,17 @@ impl DecoderTree {
 }
 
 fn size_decoder(tree: &PlanTreeNode, cwl: f64) -> TreeNode {
-    path_map_tree(tree, &size_path, &cwl)
+    // Identical sibling subtrees (e.g. a decoder's predecoders) often see the same
+    // load, so solve each distinct sizing problem once.
+    let solved = RefCell::new(HashMap::new());
+    let size = |path: &[&PlanTreeNode], end: &f64| {
+        solved
+            .borrow_mut()
+            .entry((path[0].clone(), end.to_bits()))
+            .or_insert_with(|| size_path(path, end))
+            .clone()
+    };
+    path_map_tree(tree, &size, &cwl)
 }
 
 /// The on-resistance and capacitances of a 1x inverter ([`INV_PARAMS`]).

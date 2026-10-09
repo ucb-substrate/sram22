@@ -67,17 +67,19 @@ impl Component for DecoderCriticalPathTb {
             use_multi_finger_invs: true,
             require_m1_output: false,
         };
-        ctx.instantiate::<Decoder>(&decoder_params)?
-            .with_connections([
-                ("vdd", vdd),
-                ("vss", vss),
-                ("addr", addr),
-                ("addr_b", addr_b),
-                ("decode", decode),
-                ("decode_b", decode_b),
-            ])
-            .named("Xdut")
-            .add_to(ctx);
+        let mut dut = ctx
+            .instantiate::<Decoder>(&decoder_params)?
+            .with_connections([("vdd", vdd), ("vss", vss), ("y", decode)])
+            .named("Xdut");
+        if dut.port("y_b").is_ok() {
+            dut.connect("y_b", decode_b);
+        }
+        // Each address bit drives a pair of predecoder inputs, as in the SRAM.
+        for i in 0..params.bits {
+            dut.connect(format!("predecode_{i}_0"), addr_b.index(i));
+            dut.connect(format!("predecode_{i}_1"), addr.index(i));
+        }
+        ctx.add_instance(dut);
 
         let waveforms = self.waveforms();
 

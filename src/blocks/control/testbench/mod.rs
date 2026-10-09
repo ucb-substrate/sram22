@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use substrate::verification::simulation::testbench::Testbench;
 use substrate::verification::simulation::waveform::{TimeWaveform, Waveform};
 
-use super::{ControlLogicParams, ControlLogicReplicaV2, InvChain};
+use super::{ControlLogicParams, ControlLogicReplicaV2};
 
 #[derive(Debug, Clone, Builder, Serialize, Deserialize)]
 #[builder(derive(Debug))]
@@ -176,21 +176,9 @@ impl Component for ControlLogicTestbench {
         ctx: &mut substrate::schematic::context::SchematicCtx,
     ) -> substrate::error::Result<()> {
         let vss = ctx.port("vss", Direction::InOut);
-        let [vdd, clk, we, ce, rstb, saen, pc_b, wlen, wrdrven, rbl, decrepstart, decrepend] = ctx
-            .signals([
-                "vdd",
-                "clk",
-                "we",
-                "ce",
-                "rstb",
-                "saen",
-                "pc_b",
-                "wlen",
-                "wrdrven",
-                "rbl",
-                "decrepstart",
-                "decrepend",
-            ]);
+        let [vdd, clk, we, ce, rstb, saen, pc_b, wlen, wrdrven, rbl, rwl] = ctx.signals([
+            "vdd", "clk", "we", "ce", "rstb", "saen", "pc_b", "wlen", "wrdrven", "rbl", "rwl",
+        ]);
 
         let waveforms = generate_waveforms(&self.params);
         let output_cap = SiValue::with_precision(self.params.c_load, SiPrefix::Femto);
@@ -214,22 +202,11 @@ impl Component for ControlLogicTestbench {
             ("pc_b", pc_b),
             ("wlen", wlen),
             ("wrdrven", wrdrven),
-            ("decrepstart", decrepstart),
-            ("decrepend", decrepend),
             ("rbl", rbl),
+            ("rwl", rwl),
         ])
         .named("dut")
         .add_to(ctx);
-
-        ctx.instantiate::<InvChain>(&8)?
-            .with_connections([
-                ("din", decrepstart),
-                ("dout", decrepend),
-                ("vdd", vdd),
-                ("vss", vss),
-            ])
-            .named("decoder_replica")
-            .add_to(ctx);
 
         ctx.instantiate::<Vdc>(&SiValue::with_precision(self.params.vdd, SiPrefix::Milli))?
             .with_connections([("p", vdd), ("n", vss)])
@@ -272,7 +249,7 @@ impl Component for ControlLogicTestbench {
             nf: 1,
             id: nmos_id,
         })?
-        .with_connections([("d", rbl), ("g", wlen), ("s", vss), ("b", vss)])
+        .with_connections([("d", rbl), ("g", rwl), ("s", vss), ("b", vss)])
         .named("Mpd")
         .add_to(ctx);
         ctx.instantiate::<SchematicMos>(&MosParams {
@@ -337,7 +314,15 @@ impl Testbench for ControlLogicTestbench {
                 .unwrap(),
         );
 
-        ctx.save(Save::All);
+        // Saving every node makes the output too large to parse; keep the control I/O.
+        ctx.save(Save::Signals(
+            [
+                "clk", "we", "ce", "rstb", "saen", "pc_b", "wlen", "wrdrven", "rbl", "rwl",
+            ]
+            .into_iter()
+            .map(Into::into)
+            .collect(),
+        ));
 
         Ok(())
     }

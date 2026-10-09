@@ -160,25 +160,25 @@ impl TbParams {
                             PexLevel::Rc => {
                                 match signal {
                                     TbSignals::Clk | TbSignals::We | TbSignals::Ce | TbSignals::RstB | TbSignals::Addr(_) | TbSignals::Wmask(_) | TbSignals::Din(_) | TbSignals::Dout(_) => unreachable!(),
-                                    TbSignals::Wlen => format!("N_X0/wl_en_X0/Xaddr_gate/Xgate_0_{}_0/X0/Xn1/M0_g", self.sram.row_bits() - 1),
+                                    TbSignals::Wlen => format!("N_X0/wl_en_X0/Xaddr_gate/Xgate_0_{}_0/X0/Xn1/X0/M0_g", self.sram.row_bits() - 1),
                                     TbSignals::Decrepstart => "N_X0/Xcontrol_logic/decrepstart_X0/Xcontrol_logic/Xmux_wlen_rst/X0/X21/M0_d".to_string(),
                                     TbSignals::Decrepend => "N_X0/Xcontrol_logic/decrepend_X0/Xcontrol_logic/Xdecoder_replica_delay/Xinv0/X0/X0/M0_g".to_string(),
-                                    TbSignals::PcBStart => "N_X0/pc_b_X0/Xcol_circuitry/Xcol_group_0/Xprecharge_0/Xbl_pull_up/M0_g".to_string(),
-                                    TbSignals::PcBEnd => format!("N_X0/pc_b_X0/Xcol_circuitry/Xcol_group_{}/Xprecharge_0/Xbl_pull_up/M0_g", self.sram.data_width() - 1),
+                                    TbSignals::PcBStart => "N_X0/pc_b_X0/Xcol_circuitry/Xcol_group_0/Xprecharge_0/Xbl_pull_up/X0/M0_g".to_string(),
+                                    TbSignals::PcBEnd => format!("N_X0/pc_b_X0/Xcol_circuitry/Xcol_group_{}/Xprecharge_0/Xbl_pull_up/X0/M0_g", self.sram.data_width() - 1),
                                     TbSignals::SenseEnStart => "N_X0/sense_en_X0/Xcol_circuitry/Xcol_group_0/Xsense_amp/X0/XSWOP/M0_g".to_string(),
                                     TbSignals::SenseEnEnd => format!("N_X0/sense_en_X0/Xcol_circuitry/Xcol_group_{}/Xsense_amp/X0/XSWOP/M0_g", self.sram.data_width() - 1),
                                     TbSignals::Rwl => "N_X0/rwl_X0/Xcontrol_logic/Xrwl_buf/X0/X41/M0_s".to_string(),
                                     TbSignals::Rbl => "N_X0/rbl_X0/Xcontrol_logic/Xinv_rbl/X0/X0/M0_g".to_string(),
-                                    TbSignals::WriteDriverEnStart => "N_X0/write_driver_en_X0/Xcol_circuitry/Xwmask_and_0/Xgate_0_0_0/Xn1/M0_g".to_string(),
-                                    TbSignals::WriteDriverEnEnd => format!("N_X0/write_driver_en_X0/Xcol_circuitry/Xwmask_and_{}/Xgate_0_0_0/Xn1/M0_g", self.sram.wmask_width() - 1),
-                                    TbSignals::WlStart(i) => format!("N_X0/wl[{i}]_X0/Xdecoder/X0_2/Xgate_{last_stage_decoder_depth}_{i}_0/XMN1/M0_d"),
+                                    TbSignals::WriteDriverEnStart => "N_X0/write_driver_en_X0/Xcol_circuitry/Xwmask_and_0/Xgate_0_0_0/Xn1/X0/M0_g".to_string(),
+                                    TbSignals::WriteDriverEnEnd => format!("N_X0/write_driver_en_X0/Xcol_circuitry/Xwmask_and_{}/Xgate_0_0_0/Xn1/X0/M0_g", self.sram.wmask_width() - 1),
+                                    TbSignals::WlStart(i) => format!("N_X0/wl[{i}]_X0/Xdecoder/X0_2/Xgate_{last_stage_decoder_depth}_{i}_0/XMN1/X0/M0_d"),
                                     TbSignals::WlEnd(i) => format!("N_X0/wl[{i}]_X0/Xbitcell_array/Xcell_{i}_{}/X0/X2/M0_g", self.sram.cols() - 1),
-                                    TbSignals::WeI(i) => format!("N_X0/Xcol_circuitry/we_i{}_X0/Xcol_circuitry/Xcol_group_{}/Xwrite_driver/Xbrdriver/Xmn_en/M0_g",if self.sram.wmask_width() > 1 { format!("[{i}]") } else { "".to_string() }, (i + 1) * self.sram.wmask_granularity() - 1),
-                                    TbSignals::WeIb(i) => format!("N_X0/Xcol_circuitry/we_ib{}_X0/Xcol_circuitry/Xcol_group_{}/Xwrite_driver/Xbrdriver/Xmp_en/M0_g",if self.sram.wmask_width() > 1 { format!("[{i}]") } else { "".to_string() }, (i + 1) * self.sram.wmask_granularity() - 1),
-                                    TbSignals::Bl(i) => format!("N_X0/bl[{i}]_X0/Xcol_circuitry/Xcol_group_{}/Xprecharge_{}/Xbl_pull_up/M0_d", i / self.sram.mux_ratio(), i % self.sram.mux_ratio()),
-                                    TbSignals::Br(i) => format!("N_X0/br[{i}]_X0/Xcol_circuitry/Xcol_group_{}/Xprecharge_{}/Xbr_pull_up/M0_d", i / self.sram.mux_ratio(), i % self.sram.mux_ratio()),
-                                    TbSignals::BitcellQ(i,j) => format!("N_X0/Xbitcell_array/Xcell_{i}_{j}/X0/Q_X0/Xbitcell_array/Xcell_{i}_{j}/X0/X3/M0_s"),
-                                    TbSignals::BitcellQB(i,j) => format!("N_X0/Xbitcell_array/Xcell_{i}_{j}/X0/QB_X0/Xbitcell_array/Xcell_{i}_{j}/X0/X4/M0_s"),
+                                    TbSignals::WeI(i) => format!("N_X0/Xcol_circuitry/we_i{}_X0/Xcol_circuitry/Xcol_group_{}/Xwrite_driver/Xbrdriver/Xmn_en/X0/M0_g",if self.sram.wmask_width() > 1 { format!("[{i}]") } else { "".to_string() }, (i + 1) * self.sram.wmask_granularity() - 1),
+                                    TbSignals::WeIb(i) => format!("N_X0/Xcol_circuitry/we_ib{}_X0/Xcol_circuitry/Xcol_group_{}/Xwrite_driver/Xbrdriver/Xmp_en/X0/M0_g",if self.sram.wmask_width() > 1 { format!("[{i}]") } else { "".to_string() }, (i + 1) * self.sram.wmask_granularity() - 1),
+                                    TbSignals::Bl(i) => format!("N_X0/bl[{i}]_X0/Xcol_circuitry/Xcol_group_{}/Xprecharge_{}/Xbl_pull_up/X0/M0_d", i / self.sram.mux_ratio(), i % self.sram.mux_ratio()),
+                                    TbSignals::Br(i) => format!("N_X0/br[{i}]_X0/Xcol_circuitry/Xcol_group_{}/Xprecharge_{}/Xbr_pull_up/X0/M0_d", i / self.sram.mux_ratio(), i % self.sram.mux_ratio()),
+                                    TbSignals::BitcellQ(i,j) => format!("N_X0/Xbitcell_array/Xcell_{i}_{j}/X0/Q_X0/Xbitcell_array/Xcell_{i}_{j}/X0/X3/M0_d"),
+                                    TbSignals::BitcellQB(i,j) => format!("N_X0/Xbitcell_array/Xcell_{i}_{j}/X0/QB_X0/Xbitcell_array/Xcell_{i}_{j}/X0/X4/M0_d"),
                                     TbSignals::WlCtlQ => "N_X0/Xcontrol_logic/Xwl_ctl/q0_X0/Xcontrol_logic/Xwl_ctl/Xnand_set/X0/X1/M0_d".to_string(),
                                     TbSignals::WlCtlQB => "N_X0/Xcontrol_logic/Xwl_ctl/q0b_X0/Xcontrol_logic/Xwl_ctl/Xnand_set/X0/X1/M0_g".to_string(),
                                     TbSignals::SaenCtlQ => "N_X0/Xcontrol_logic/Xsaen_ctl/q0_X0/Xcontrol_logic/Xsaen_ctl/Xnand_set/X0/X1/M0_d".to_string(),
@@ -192,34 +192,34 @@ impl TbParams {
                                     TbSignals::DffsQ2(i) => format!("N_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/a_1586_149#_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/X4/M0_s"),
                                     TbSignals::DffsQ2B(i) => format!("N_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/a_1800_291#_X0/Xaddr_we_ce_dffs/Xdff_{i}/X0/X28/M0_s"),
                                     TbSignals::Wlen0 => "N_X0/wl_en0_X0/Xcontrol_logic/Xand_wlen/X0/X9/M0_s".to_string(),
-                                    TbSignals::PcB0 => "N_X0/pc_b0_X0/Xcontrol_logic/Xpc_ctl/Xqb_inv/X0/X3/M0_s".to_string(),
+                                    TbSignals::PcB0 => "N_X0/pc_b0_X0/Xcontrol_logic/Xpc_b_buf/X0/X1/M0_s".to_string(),
                                     TbSignals::SenseEn0 => "N_X0/sense_en0_X0/Xcontrol_logic/Xsaen_ctl/Xq_inv/X0/X3/M0_s".to_string(),
                                     TbSignals::WriteDriverEn0 => "N_X0/write_driver_en0_X0/Xcontrol_logic/Xwrdrven_ctl/Xq_inv/X0/X3/M0_s".to_string(),
-                                    TbSignals::WlBs => "N_X0/wl_b*_X0/Xdecoder/X0_2/Xgate_*_*_0/XMN0/M0_*".to_string(),
+                                    TbSignals::WlBs => "N_X0/wl_b*_X0/Xdecoder/X0_2/Xgate_*_*_0/XMN0/X0/M0_*".to_string(),
                                     TbSignals::BlOut(i) => {
                                         format!( "N_X0/Xcol_circuitry/Xcol_group_{i}/bl_out_X0/Xcol_circuitry/Xcol_group_{i}/Xsense_amp/X0/XINP/M0_g")
                                     }
                                     TbSignals::BrOut(i) => {
                                         format!( "N_X0/Xcol_circuitry/Xcol_group_{i}/br_out_X0/Xcol_circuitry/Xcol_group_{i}/Xsense_amp/X0/XINN/M0_g")
                                     }
-                                    TbSignals::AddrGated(i) => format!( "N_X0/addr_gated[{i}]_X0/Xaddr_gate/Xgate_0_{i}_0/X0_1/XMP1/M0_d"),
-                                    TbSignals::AddrBGated(i) => format!( "N_X0/addr_b_gated[{i}]_X0/Xaddr_gate/Xgate_0_{}_0/X0_1/XMP1/M0_d", i + self.sram.row_bits()),
-                                    TbSignals::ColSelStart(i) => format!( "N_X0/col_sel[{i}]_X0/Xcol_circuitry/Xcol_group_0/Xmux_{i}/XMNBR/M0_g"),
-                                    TbSignals::ColSelEnd(i) => format!( "N_X0/col_sel[{i}]_X0/Xcol_circuitry/Xcol_group_{}/Xmux_{i}/XMNBR/M0_g", self.sram.data_width() - 1),
-                                    TbSignals::ColSelBStart(i) => format!( "N_X0/col_sel_b[{i}]_X0/Xcol_circuitry/Xcol_group_0/Xmux_{i}/XMPBR/M0_g"),
-                                    TbSignals::ColSelBEnd(i) => format!( "N_X0/col_sel_b[{i}]_X0/Xcol_circuitry/Xcol_group_{}/Xmux_{i}/XMPBR/M0_g", self.sram.data_width() - 1),
-                                    TbSignals::ChildConnsStart => "N_X0/Xdecoder/*child_conn_*_X0/Xdecoder/*/Xgate_0_*_0/X0_1/XMN1/M0_d".to_string(),
+                                    TbSignals::AddrGated(i) => format!( "N_X0/addr_gated[{i}]_X0/Xaddr_gate/Xgate_0_{i}_0/X0_1/XMP1/X0/M0_d"),
+                                    TbSignals::AddrBGated(i) => format!( "N_X0/addr_b_gated[{i}]_X0/Xaddr_gate/Xgate_0_{}_0/X0_1/XMP1/X0/M0_d", i + self.sram.row_bits()),
+                                    TbSignals::ColSelStart(i) => format!( "N_X0/col_sel[{i}]_X0/Xcol_circuitry/Xcol_group_0/Xmux_{i}/XMNBR/X0/M0_g"),
+                                    TbSignals::ColSelEnd(i) => format!( "N_X0/col_sel[{i}]_X0/Xcol_circuitry/Xcol_group_{}/Xmux_{i}/XMNBR/X0/M0_g", self.sram.data_width() - 1),
+                                    TbSignals::ColSelBStart(i) => format!( "N_X0/col_sel_b[{i}]_X0/Xcol_circuitry/Xcol_group_0/Xmux_{i}/XMPBR/X0/M0_g"),
+                                    TbSignals::ColSelBEnd(i) => format!( "N_X0/col_sel_b[{i}]_X0/Xcol_circuitry/Xcol_group_{}/Xmux_{i}/XMPBR/X0/M0_g", self.sram.data_width() - 1),
+                                    TbSignals::ChildConnsStart => "N_X0/Xdecoder/*child_conn_*_X0/Xdecoder/*/Xgate_*_0/XMN1/X0/M0_d".to_string(),
                                     TbSignals::ChildConnsEnd => "N_X0/Xdecoder/*child_conn_*_X0/Xdecoder/*/Xgate_0_*/M0_g".to_string(),
                                     TbSignals::LastStageDecoderXs => "N_X0/*/x_*X0/Xdecoder/X0_2/Xgate_*_0/XMN1/*".to_string(),
-                                    TbSignals::LastStageDecoderVdds => "N_vdd_X0/Xdecoder/X0_2/Xgate_*_0/XMP0/M0_s".to_string(),
-                                    TbSignals::LastStageDecoderVsss => "N_vss_X0/Xdecoder/X0_2/Xgate_*_0/XMN0/M0_s".to_string(),
+                                    TbSignals::LastStageDecoderVdds => "N_vdd_X0/Xdecoder/X0_2/Xgate_*_0/XMP0/X0/M0_s".to_string(),
+                                    TbSignals::LastStageDecoderVsss => "N_vss_X0/Xdecoder/X0_2/Xgate_*_0/XMN0/X0/M0_s".to_string(),
                                     TbSignals::ColumnVdds => "N_vdd_X0/Xcol_circuitry/Xcol_group_*/*".to_string(),
                                     TbSignals::ColumnVsss => "N_vss_X0/Xcol_circuitry/Xcol_group_*/*".to_string(),
                                     TbSignals::WriteDriverQ(i) => {
-                                        format!("N_X0/Xcol_circuitry/Xcol_group_{i}/q_X0/Xcol_circuitry/Xcol_group_{i}/Xwrite_driver/Xbrdriver/Xmn_pd/M0_g")
+                                        format!("N_X0/Xcol_circuitry/Xcol_group_{i}/q_X0/Xcol_circuitry/Xcol_group_{i}/Xwrite_driver/Xbrdriver/Xmn_pd/X0/M0_g")
                                     }
                                     TbSignals::WriteDriverQB(i) => {
-                                        format!("N_X0/Xcol_circuitry/Xcol_group_{i}/q_b_X0/Xcol_circuitry/Xcol_group_{i}/Xwrite_driver/Xbldriver/Xmn_pd/M0_g")
+                                        format!("N_X0/Xcol_circuitry/Xcol_group_{i}/q_b_X0/Xcol_circuitry/Xcol_group_{i}/Xwrite_driver/Xbldriver/Xmn_pd/X0/M0_g")
                                     }
                                     TbSignals::WmaskQ(i) => {
                                         format!("N_X0/Xcol_circuitry/wmask_in[{i}]_X0/Xcol_circuitry/Xwmask_dffs/Xdff_{i}/X0/X32/M0_d")
@@ -677,7 +677,7 @@ impl Component for SramTestbench {
         #[cfg(feature = "commercial")]
         if let Some((ref pex_netlist, _)) = self.params.pex_netlist {
             ctx.instantiate::<SramPex>(&SramPexParams {
-                params: self.params.sram.clone(),
+                params: self.params.sram,
                 pex_netlist: pex_netlist.clone(),
             })?
             .with_connections([
@@ -1066,14 +1066,12 @@ impl Testbench for SramTestbench {
                     TbSignals::WmaskQ(i),
                 ]
             }))
-            .chain((0..self.params.sram.cols()).flat_map(|i| {
-                [
-                    TbSignals::Bl(i),
-                    TbSignals::Br(i),
-                    TbSignals::BlOut(i),
-                    TbSignals::BrOut(i),
-                ]
-            }))
+            .chain((0..self.params.sram.cols()).flat_map(|i| [TbSignals::Bl(i), TbSignals::Br(i)]))
+            // Sense amplifier inputs exist once per column group, not per column.
+            .chain(
+                (0..self.params.sram.data_width())
+                    .flat_map(|i| [TbSignals::BlOut(i), TbSignals::BrOut(i)]),
+            )
             .chain(
                 (0..self.params.sram.row_bits())
                     .flat_map(|i| [TbSignals::AddrGated(i), TbSignals::AddrBGated(i)]),

@@ -77,7 +77,7 @@ impl ColPeripherals {
 
         let ColumnsPhysicalDesign { nand, .. } = &*ctx
             .inner()
-            .run_script::<ColumnsPhysicalDesignScript>(&self.params)?;
+            .run_script::<ColumnsPhysicalDesignScript>(&self.params.physical_design_params())?;
 
         for i in 0..wmask_bits {
             ctx.instantiate::<DecoderStage>(nand)?

@@ -47,10 +47,6 @@ jobs:
         run: make lint
       - name: Test
         run: make test
-      # The slow ngspice simulation (blocks::coarse_tdc::tests::test_coarse_tdc_sim) is
-      # `#[ignore]`d and not run in CI: it takes about two hours. To run it locally,
-      # point SKY130_OPEN_PDK_ROOT at a skywater-pdk checkout with sky130_fd_pr and run
-      #   cargo test --release --lib blocks::coarse_tdc::tests::test_coarse_tdc_sim -- --ignored --exact
 
   published-macros:
     # Regenerates every macro in ucb-substrate/sram22_sky130_macros and checks that its
