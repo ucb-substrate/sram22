@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 use crate::blocks::columns::{Column, ColumnDesignScript};
 use crate::blocks::decoder::DecoderStage;
@@ -339,7 +339,9 @@ impl ColPeripherals {
                 .shapes(m2)
                 .filter_map(|shape| shape.as_rect())
                 .map(|rect| rect.vspan())
-                .collect::<HashSet<_>>();
+                // Sorted, so the rails are drawn and merged into the port in the same order
+                // every run.
+                .collect::<BTreeSet<_>>();
             for span in spans {
                 let rect = Rect::from_spans(ctx.brect().hspan(), span);
                 ctx.draw_rect(m2, rect);
